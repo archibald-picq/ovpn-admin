@@ -48,6 +48,11 @@ new Vue({
     columns: [
       {
         label: 'Name',
+        field: 'username',
+        // filterable: true,
+      },
+      {
+        label: 'Identity',
         field: 'Identity',
         // filterable: true,
       },
@@ -205,9 +210,11 @@ new Vue({
       ccd: {
         Name: '',
         ClientAddress: '',
-        CustomRoutes: []
+        CustomRoutes: [],
+        CustomIRoutes: []
       },
       newRoute: {},
+      newIRoute: {},
       ccdApplyStatus: "",
       ccdApplyStatusMessage: "",
     }
@@ -358,6 +365,7 @@ new Vue({
       return ''
     },
     rowActionFn: function(e) {
+      console.warn('dataset', e.target.dataset);
       this.username = e.target.dataset.username;
       this.$root.$emit(e.target.dataset.name);
     },
@@ -366,6 +374,7 @@ new Vue({
       axios.request(axios_cfg('api/users/list'))
         .then(function(response) {
           _this.rows = Array.isArray(response.data) ? response.data : [];
+          console.warn('list', _this.rows);
         });
     },
 

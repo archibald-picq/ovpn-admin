@@ -1,16 +1,25 @@
+client
+
+dev tun
+proto udp
 {{- range $server := .Hosts }}
-remote {{ $server.Host }} {{ $server.Port }} {{ $server.Protocol }}
+remote {{ $server.Host }} {{ $server.Port }}{{if $server.Protocol}} {{ $server.Protocol }}{{end}}
 {{- end }}
 
-verb 4
-client
+resolv-retry infinite
 nobind
-dev tun
-cipher AES-128-CBC
-key-direction 1
+persist-key
+persist-tun
+
+ns-cert-type server
+comp-lzo
+verb 4
+
+#cipher AES-128-CBC
+#key-direction 1
 #redirect-gateway def1
-tls-client
-remote-cert-tls server
+#tls-client
+#remote-cert-tls server
 # uncomment below lines for use with linux
 #script-security 2
 # if you use resolved
@@ -33,6 +42,8 @@ auth-user-pass
 <ca>
 {{ .CA -}}
 </ca>
+{{if .TLS}}
 <tls-auth>
 {{ .TLS -}}
 </tls-auth>
+{{end}}

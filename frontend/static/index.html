@@ -29,7 +29,7 @@
           class="btn btn-sm el-square modal-el-margin"
           type="button"
           :title="action.label"
-          :data-username="props.row.Identity"
+          :data-username="props.row.username"
           :data-name="action.name"
           :data-text="action.label"
           @click.left.stop="rowActionFn"
@@ -126,6 +126,7 @@
           </div>
         </div>
         <div class="modal-body">
+          <div>Route that the client should know about</div>
           <div class="d-flex ">
             <table class="table table-bordered table-hover ccd-routes" >
               <thead>
@@ -164,8 +165,54 @@
                   <td><input type="text" v-model="u.newRoute.Address"/></td>
                   <td><input type="text" v-model="u.newRoute.Mask"/></td>
                   <td><input type="text" v-model="u.newRoute.Description"/></td>
+                  <td class="text-center" v-if="serverRole == 'master'">
+                    <button type="button" class="btn btn-success btn-sm el-square modal-el-margin" v-on:click.stop="u.ccd.CustomRoutes.push(u.newRoute);u.newRoute={};">Add</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div>Route that the client have behind the router</div>
+          <div class="d-flex ">
+            <table class="table table-bordered table-hover ccd-routes" >
+              <thead>
+                <tr>
+                  <th scope="col">Address</th>
+                  <th scope="col">Mask</th>
+                  <th scope="col">Description</th>
+                  <th scope="col" v-if="serverRole == 'master'">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(customRoute, index) in u.ccd.CustomIRoutes">
+                  <td>
+                    <div v-if="serverRole == 'slave'">
+                      {{ customRoute.Address }}
+                    </div>
+                    <input v-if="serverRole == 'master'" v-model="customRoute.Address">
+                  </td>
+                  <td>
+                    <div v-if="serverRole == 'slave'">
+                    {{ customRoute.Mask }}
+                    </div>
+                    <input v-if="serverRole == 'master'" v-model="customRoute.Mask">
+                  </td>
+                  <td>
+                    <div v-if="serverRole == 'slave'">
+                    {{ customRoute.Description }}
+                    </div>
+                    <input v-if="serverRole == 'master'" v-model="customRoute.Description">
+                  </td>
                   <td class="text-right" v-if="serverRole == 'master'">
-                    <button type="button" class="btn btn-success el-square modal-el-margin" v-on:click.stop="u.ccd.CustomRoutes.push(u.newRoute);u.newRoute={};">Add</button>
+                      <button type="button" class="btn btn-danger btn-sm el-square modal-el-margin" v-if="serverRole == 'master'" v-on:click.stop="u.ccd.CustomRoutes.splice(index, 1)">Delete</button>
+                  </td>
+                </tr>
+                <tr v-if="serverRole == 'master'">
+                  <td><input type="text" v-model="u.newIRoute.Address"/></td>
+                  <td><input type="text" v-model="u.newIRoute.Mask"/></td>
+                  <td><input type="text" v-model="u.newIRoute.Description"/></td>
+                  <td class="text-center" v-if="serverRole == 'master'">
+                    <button type="button" class="btn btn-success btn-sm el-square modal-el-margin" v-on:click.stop="u.ccd.CustomIRoutes.push(u.newIRoute);u.newIRoute={};">Add</button>
                   </td>
                 </tr>
               </tbody>
