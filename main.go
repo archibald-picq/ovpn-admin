@@ -9,7 +9,9 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/google/uuid"
+	"io/fs"
 	"io/ioutil"
+	"embed"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -23,7 +25,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gobuffalo/packr/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -169,6 +170,11 @@ var (
 	)
 )
 
+//go:embed templates/*
+var templates embed.FS
+//go:embed frontend/static
+var content embed.FS
+
 type OvpnAdmin struct {
 	role                   string
 	lastSyncTime           string
@@ -179,7 +185,6 @@ type OvpnAdmin struct {
 	activeClients          []clientStatus
 	promRegistry           *prometheus.Registry
 	mgmtInterfaces         map[string]string
-	templates              *packr.Box
 	modules                []string
 	mgmtStatusTimeFormat   string
 	createUserMutex        *sync.Mutex
@@ -605,12 +610,8 @@ func main() {
 		go ovpnAdmin.syncWithMaster()
 	}
 
-	ovpnAdmin.templates = packr.New("template", "./templates")
-
-	staticBox := packr.New("static", "./frontend/static")
-	static := CacheControlWrapper(http.FileServer(staticBox))
-
-	http.Handle("/", static)
+	staticDir, _ := fs.Sub(content, "frontend/static")
+	http.Handle("/", http.FileServer(http.FS(staticDir)))
 	http.HandleFunc("/api/server/settings", ovpnAdmin.serverSettingsHandler)
 	http.HandleFunc("/api/users/list", ovpnAdmin.userListHandler)
 	http.HandleFunc("/api/user/create", ovpnAdmin.userCreateHandler)
@@ -719,11 +720,11 @@ func (oAdmin *OvpnAdmin) getClientConfigTemplate() *template.Template {
 	if *clientConfigTemplatePath != "" {
 		return template.Must(template.ParseFiles(*clientConfigTemplatePath))
 	} else {
-		clientConfigTpl, clientConfigTplErr := oAdmin.templates.FindString("client.conf.tpl")
+		clientConfigTpl, clientConfigTplErr := templates.ReadFile("templates/client.conf.tpl")
 		if clientConfigTplErr != nil {
 			log.Error("clientConfigTpl not found in templates box")
 		}
-		return template.Must(template.New("client-config").Parse(clientConfigTpl))
+		return template.Must(template.New("client-config").Parse(string(clientConfigTpl)))
 	}
 }
 
@@ -788,11 +789,11 @@ func (oAdmin *OvpnAdmin) getCcdTemplate() *template.Template {
 	if *ccdTemplatePath != "" {
 		return template.Must(template.ParseFiles(*ccdTemplatePath))
 	} else {
-		ccdTpl, ccdTplErr := oAdmin.templates.FindString("ccd.tpl")
+		ccdTpl, ccdTplErr := templates.ReadFile("templates/ccd.tpl")
 		if ccdTplErr != nil {
 			log.Errorf("ccdTpl not found in templates box")
 		}
-		return template.Must(template.New("ccd").Parse(ccdTpl))
+		return template.Must(template.New("ccd").Parse(string(ccdTpl)))
 	}
 }
 

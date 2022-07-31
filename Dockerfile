@@ -3,10 +3,9 @@ COPY frontend/ /app
 RUN cd /app && npm install && npm run build
 
 FROM golang:1.17.3-buster AS backend-builder
-RUN go install github.com/gobuffalo/packr/v2/packr2@latest
 COPY --from=frontend-builder /app/static /app/frontend/static
 COPY . /app
-RUN cd /app && packr2 && env CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-linkmode external -extldflags -static -s -w' -o ovpn-admin && packr2 clean
+RUN cd /app && env CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-linkmode external -extldflags -static -s -w' -o ovpn-admin
 
 FROM alpine:3.16
 WORKDIR /app
