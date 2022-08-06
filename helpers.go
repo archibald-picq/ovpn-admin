@@ -3,6 +3,7 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -32,14 +33,14 @@ func parseDateToUnix(layout, datetime string) int64 {
 	return parseDate(layout, datetime).Unix()
 }
 
-func runBash(script string) string {
+func runBash(script string) (string, error) {
 	log.Debugln(script)
 	cmd := exec.Command("bash", "-c", script)
 	stdout, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Sprint(err) + " : " + string(stdout)
+		return fmt.Sprint(err) + " : " + string(stdout), errors.New(fmt.Sprint(err) + " : " + string(stdout))
 	}
-	return string(stdout)
+	return string(stdout), err
 }
 
 func fExist(path string) bool {
@@ -289,3 +290,14 @@ func extractFromArchive(archive, path string) error {
 	}
 	return nil
 }
+
+func getAuthCookie(r *http.Request) string {
+	for _, c := range r.Cookies() {
+		fmt.Println(c)
+		if c.Name == "auth" {
+			return c.Value
+		}
+	}
+	return ""
+}
+
