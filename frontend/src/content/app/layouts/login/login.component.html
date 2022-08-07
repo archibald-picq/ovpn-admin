@@ -1,0 +1,21 @@
+<div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">Login</h4>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+</div>
+<div class="modal-body">
+    <form (ngSubmit)="login()">
+        <div class="mb-3">
+            <input name="username" class="form-control" [(ngModel)]="username">
+        </div>
+        <div class="mb-3">
+            <input name="password" type="password" class="form-control" [(ngModel)]="password">
+        </div>
+        <div class="mb-3 d-flex flex-row">
+            <input class="btn btn-primary" type="submit" value="Login">
+            <div class="error ml-3" *ngIf="errorMessage">{{errorMessage}}</div>
+        </div>
+    </form>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-outline-danger" (click)="login()">Delete</button>
+</div>

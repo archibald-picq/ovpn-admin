@@ -1,0 +1,8 @@
+{
+  "name": "Bus",
+  "short_name": "bus",
+  "display": "standalone",
+  "orientation": "landscape",
+  "start_url": "/",
+  "icons": []
+}

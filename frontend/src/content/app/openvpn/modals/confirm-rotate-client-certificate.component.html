@@ -1,0 +1,14 @@
+<div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">Rotate certificate</h4>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+</div>
+<div class="modal-body">
+    <form>
+        <div class="mb-3">
+            <p>Rotate certificate of <strong>{{options.client.username}}</strong> ?</p>
+        </div>
+    </form>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-outline-dark" (click)="save()">Rotate</button>
+</div>

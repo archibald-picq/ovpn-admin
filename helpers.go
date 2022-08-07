@@ -3,6 +3,7 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -293,7 +294,6 @@ func extractFromArchive(archive, path string) error {
 
 func getAuthCookie(r *http.Request) string {
 	for _, c := range r.Cookies() {
-		fmt.Println(c)
 		if c.Name == "auth" {
 			return c.Value
 		}
@@ -301,3 +301,20 @@ func getAuthCookie(r *http.Request) string {
 	return ""
 }
 
+func getEncryptedPasswordForUser(username string) (string, error) {
+
+	var accountsFile AccountsFile
+	jsonAccounts := fRead(*adminAccountsFile)
+	err := json.Unmarshal([]byte(jsonAccounts), &accountsFile)
+	if err != nil {
+		return "", err
+	}
+
+	for _, value := range accountsFile.Users {
+		if value.Username == username {
+			return value.Password, nil
+		}
+	}
+
+	return "", errors.New("User not found")
+}

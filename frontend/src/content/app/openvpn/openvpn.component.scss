@@ -1,0 +1,19 @@
+
+:host {
+  display: block;
+  margin: 20px;
+}
+
+.cdk-column-actions {
+  white-space: nowrap;
+}
+
+.cdk-column-expirationDate,
+.cdk-column-revocationDate {
+  white-space: nowrap;
+}
+
+.cdk-column-connections,
+.cdk-column-accountStatus {
+  text-align: center;
+}

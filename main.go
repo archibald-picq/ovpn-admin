@@ -5,13 +5,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"golang.org/x/crypto/bcrypt"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 
-	//"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"io/fs"
 	"io/ioutil"
@@ -77,6 +77,7 @@ var (
 	logFormat                = kingpin.Flag("log.format", "set log format: text, json (default text)").Default("text").Envar("LOG_FORMAT").String()
 	storageBackend           = kingpin.Flag("storage.backend", "storage backend: filesystem, kubernetes.secrets (default filesystem)").Default("filesystem").Envar("STORAGE_BACKEND").String()
 	jwtSecretFile            = kingpin.Flag("jwt.secret", "jwt secret file").Default("jwt.secret.key").Envar("JWT_SECRET").String()
+	adminAccountsFile        = kingpin.Flag("admin.accounts", "Admin accounts files").Default("admin-accounts.json").Envar("ADMIN_ACCOUNT").String()
 
 	certsArchivePath = "/tmp/" + certsArchiveFileName
 	ccdArchivePath   = "/tmp/" + ccdArchiveFileName
@@ -270,6 +271,61 @@ type clientStatus struct {
 	Networks []network `json:"networks"`
 }
 
+type AuthenticatePayload struct {
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+}
+
+type Roles struct {
+	Openvpn bool `json:"openvpn"`
+}
+
+type Claims struct {
+	jwt.StandardClaims
+	Roles Roles `json:"roles"`
+}
+
+type Account struct {
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+}
+
+type AccountsFile struct {
+	Users     []Account `json:"users"`
+}
+
+func jwtUsername(auth string) (bool, string) {
+	if len(auth) <= 0 {
+		return false, ""
+	}
+	token, err := jwt.Parse(auth, func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte(fRead(*jwtSecretFile)), nil
+	})
+
+	if err != nil {
+		fmt.Println("token invalid")
+		return false, ""
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+
+	if !ok || !token.Valid {
+		fmt.Println("token invalid")
+		return false, ""
+	}
+	subject, ok := claims["sub"].(string)
+	if !ok {
+		fmt.Println("invalid subject")
+		return false, ""
+	}
+	return true, subject
+}
 
 func jwtHasReadRole(auth string) bool {
 	if len(auth) <= 0 {
@@ -304,21 +360,13 @@ func jwtHasReadRole(auth string) bool {
 		fmt.Println("invalid roles")
 		return false
 	}
-	//if roles.Kind() == reflect.Map {
-	//
-	//	fmt.Printf("map %v\n", roles)
-	//	return true
-	//}
-	//for k, v := range roles {
-	//	fmt.Printf("Value: %v = %v\n", k, v)
-	//}
+
 	openvpn, ok := roles["openvpn"].(bool)
 	if !ok {
 		// Can't assert, handle error.
 		fmt.Println("invalid roles type")
 		return false
 	}
-	//fmt.Printf("openvpn %v\n", openvpn)
 	if openvpn {
 		return true
 	}
@@ -583,6 +631,98 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+func (oAdmin *OvpnAdmin) getUserProfile(username string) string {
+	return fmt.Sprintf(`{"username":"%s"}`, username)
+}
+
+func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+
+	auth := getAuthCookie(r)
+	ok, jwtUsername := jwtUsername(auth)
+	user := ""
+	if ok {
+		user = fmt.Sprintf(`"user":%s,`, oAdmin.getUserProfile(jwtUsername))
+	}
+
+	fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
+}
+
+func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
+	auth := getAuthCookie(r)
+	ok, _ := jwtUsername(auth)
+	if ok {
+		fmt.Fprintf(w, `{"message":"Already authenticated" }`)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	var authPayload AuthenticatePayload
+	err := json.NewDecoder(r.Body).Decode(&authPayload)
+	if err != nil {
+		log.Errorln(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	expectedPassword, err := getEncryptedPasswordForUser(authPayload.Username)
+	if err != nil {
+		log.Errorln(err)
+		w.WriteHeader(http.StatusForbidden)
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(expectedPassword), []byte(authPayload.Password))
+	if err != nil {
+		fmt.Fprintf(w, `{"message":"Username or password does not match" }`)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+
+	expirationTime := time.Now().Add(24 * time.Hour)
+	// Create the JWT claims, which includes the username and expiry time
+	claims := &Claims{
+		StandardClaims: jwt.StandardClaims{
+			Subject:   authPayload.Username,
+			ExpiresAt: expirationTime.Unix(),
+		},
+		Roles: Roles{
+			Openvpn: true,
+		},
+	}
+
+	// Declare the token with the algorithm used for signing, and the claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	// Create the JWT string
+	tokenString, err := token.SignedString([]byte(fRead(*jwtSecretFile)))
+	if err != nil {
+		log.Errorln(err)
+		// If there is an error in creating the JWT return an internal server error
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:    "auth",
+		Value:   tokenString,
+		Expires: expirationTime,
+	})
+	fmt.Fprintf(w, oAdmin.getUserProfile(authPayload.Username))
+}
+
+func (oAdmin *OvpnAdmin) logout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:    "auth",
+		Value:   "",
+		Expires: time.Now(),
+	})
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (oAdmin *OvpnAdmin) serverSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
@@ -770,6 +910,9 @@ func main() {
 
 	staticDir, _ := fs.Sub(content, "frontend/static")
 	http.Handle("/", http.FileServer(http.FS(staticDir)))
+	http.HandleFunc("/api/config", ovpnAdmin.showConfig)
+	http.HandleFunc("/api/authenticate", ovpnAdmin.authenticate)
+	http.HandleFunc("/api/logout", ovpnAdmin.logout)
 	http.HandleFunc("/api/server/settings", ovpnAdmin.serverSettingsHandler)
 	http.HandleFunc("/api/users/list", ovpnAdmin.userListHandler)
 	http.HandleFunc("/api/user/create", ovpnAdmin.userCreateHandler)

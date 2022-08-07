@@ -1,0 +1,78 @@
+<div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">Edit '{{certificate.username}}' certificate</h4>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+</div>
+<div class="modal-body">
+    <form>
+        <div class="mb-3">
+            <label for="fixed-ip">Fixed IP</label>
+            <div class="input-group">
+                <input id="fixed-ip" class="form-control" name="staticAddress" [(ngModel)]="model.staticAddress">
+                <button class="btn btn-outline-secondary calendar" (click)="clearFixedIp()" type="button"></button>
+            </div>
+            <div class="routes">
+                <table>
+                    <tbody>
+                        <tr>
+                            <td colspan="4">Networks the client should know about :</td>
+                        </tr>
+                        <tr>
+                            <th>Adresse</th>
+                            <th>Mask</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                        </tr>
+                        <tr *ngFor="let route of model.pushRoutes; let index = index">
+                            <td><input class="form-control" name="address-{{index}}-pushroute" [(ngModel)]="route.address" /></td>
+                            <td><input class="form-control" name="netmask-{{index}}-pushroute" [(ngModel)]="route.netmask" /></td>
+                            <td><input class="form-control" name="description-{{index}}-pushroute" [(ngModel)]="route.description" /></td>
+                            <td class="actions">
+                                <button class="btn btn-warning btn-sm" (click)="removePushRoute(route)">remove</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><input class="form-control" name="address-new-pushroute" [(ngModel)]="newPushRoute.address"></td>
+                            <td><input class="form-control" name="netmask-new-pushroute" [(ngModel)]="newPushRoute.netmask"></td>
+                            <td><input class="form-control" name="description-new-pushroute" [(ngModel)]="newPushRoute.description"></td>
+                            <td class="actions">
+                                <button class="btn btn-primary btn-sm" (click)="addPushRoute()">add</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="4"><hr></td>
+                        </tr>
+                        <tr>
+                            <td colspan="4">Networks the client have behind his router :</td>
+                        </tr>
+                        <tr>
+                            <th>Adresse</th>
+                            <th>Mask</th>
+                            <th>Description</th>
+                            <th class="actions">Actions</th>
+                        </tr>
+                        <tr *ngFor="let route of model.iRoutes; let index = index">
+                            <td><input class="form-control" name="address-{{index}}-iroute" [(ngModel)]="route.address" /></td>
+                            <td><input class="form-control" name="netmask-{{index}}-iroute" [(ngModel)]="route.netmask" /></td>
+                            <td><input class="form-control" name="description-{{index}}-iroute" [(ngModel)]="route.description" /></td>
+                            <td class="actions">
+                                <button class="btn btn-warning btn-sm" (click)="removeIRoute(route)">remove</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><input class="form-control" name="address-new-iroute" [(ngModel)]="newIRoute.address"></td>
+                            <td><input class="form-control" name="netmask-new-iroute" [(ngModel)]="newIRoute.netmask"></td>
+                            <td><input class="form-control" name="description-new-iroute" [(ngModel)]="newIRoute.description"></td>
+                            <td class="actions">
+                                <button class="btn btn-primary btn-sm" (click)="addIRoute()">add</button>
+                            </td>
+                        </tr>
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </form>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-outline-dark" (click)="save()">Save</button>
+</div>
