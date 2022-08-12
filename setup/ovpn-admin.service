@@ -1,0 +1,14 @@
+[Unit]
+Description="OpenVPN admin UI"
+
+[Service]
+ExecStart=/usr/sbin/ovpn-admin
+EnvironmentFile=/etc/default/ovpn-admin
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=OvpnAdmin
+
+[Install]
+WantedBy=multi-user.target

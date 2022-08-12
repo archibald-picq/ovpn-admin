@@ -1,4 +1,4 @@
-import { ClientConfig } from '../modals/edit-client.component';
+import { ClientConfig } from './client-config.model';
 
 export interface INode {
     address: string;
@@ -22,6 +22,12 @@ export interface IConnection {
 
 export interface IClientCertificate {
     username: string;
+    email: string;
+    country: string;
+    province: string;
+    city: string;
+    organisation: string;
+    organisationUnit: string;
     identity: string;
     accountStatus: string;
     connectionStatus: string;

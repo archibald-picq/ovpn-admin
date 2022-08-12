@@ -35,6 +35,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/alessio/shellescape.v1"
 )
 
 const (
@@ -214,36 +215,42 @@ type openvpnClientConfig struct {
 
 type OpenvpnClient struct {
 	Username         string `json:"username"`
-	Identity         string `json:"Identity"`
-	AccountStatus    string `json:"AccountStatus"`
-	ExpirationDate   string `json:"ExpirationDate"`
-	RevocationDate   string `json:"RevocationDate"`
-	ConnectionStatus string `json:"ConnectionStatus"`
-	Connections      []clientStatus    `json:"Connections"`
+	Identity         string `json:"identity"`
+	AccountStatus    string `json:"accountStatus"`
+	ExpirationDate   string `json:"expirationDate"`
+	RevocationDate   string `json:"revocationDate"`
+	ConnectionStatus string `json:"connectionStatus"`
+	Connections      []clientStatus    `json:"connections"`
 }
 
 type ccdRoute struct {
-	Address     string `json:"Address"`
-	Mask        string `json:"Mask"`
-	Description string `json:"Description"`
+	Address     string `json:"address"`
+	Mask        string `json:"mask"`
+	Description string `json:"description"`
 }
 
 type Ccd struct {
-	User          string     `json:"User"`
-	ClientAddress string     `json:"ClientAddress"`
-	CustomRoutes  []ccdRoute `json:"CustomRoutes"`
-	CustomIRoutes  []ccdRoute `json:"CustomIRoutes"`
+	User          string     `json:"user"`
+	ClientAddress string     `json:"clientAddress"`
+	CustomRoutes  []ccdRoute `json:"customRoutes"`
+	CustomIRoutes  []ccdRoute `json:"customIRoutes"`
 }
 
 type indexTxtLine struct {
-	Username          string
-	Flag              string
-	ExpirationDate    string
-	RevocationDate    string
-	SerialNumber      string
-	Filename          string
-	DistinguishedName string
-	Identity          string
+	Username          string `json:"username"`
+	Email             string `json:"email"`
+	Country           string `json:"country"`
+	Province          string `json:"province"`
+	City              string `json:"city"`
+	Organisation      string `json:"organisation"`
+	OrganisationUnit  string `json:"organisationUnit"`
+	Flag              string `json:"flag"`
+	ExpirationDate    string `json:"expirationDate"`
+	RevocationDate    string `json:"revocationDate"`
+	SerialNumber      string `json:"serialNumber"`
+	Filename          string `json:"filename"`
+	DistinguishedName string `json:"distinguishedName"`
+	Identity          string `json:"identity"`
 }
 
 type nodeInfo struct {
@@ -266,9 +273,9 @@ type clientStatus struct {
 	LastRef                 string
 	ConnectedSinceFormatted string
 	LastRefFormatted        string
-	ConnectedTo string
-	Nodes    []nodeInfo `json:"nodes"`
-	Networks []network `json:"networks"`
+	ConnectedTo             string
+	Nodes                   []nodeInfo `json:"nodes"`
+	Networks                []network `json:"networks"`
 }
 
 type AuthenticatePayload struct {
@@ -292,6 +299,22 @@ type Account struct {
 
 type AccountsFile struct {
 	Users     []Account `json:"users"`
+}
+
+type MessagePayload struct {
+	Message   string `json:"message"`
+}
+
+type UserDefinition struct {
+	//Account
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	Email            string `json:"email"`
+	Country          string `json:"country"`
+	Province         string `json:"province"`
+	City             string `json:"city"`
+	Organisation     string `json:"organisation"`
+	OrganisationUnit string `json:"organisationUnit"`
 }
 
 func jwtUsername(auth string) (bool, string) {
@@ -384,6 +407,7 @@ func (oAdmin *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
+	oAdmin.clients = oAdmin.usersList()
 	usersList, _ := json.Marshal(oAdmin.clients)
 	fmt.Fprintf(w, "%s", usersList)
 }
@@ -412,23 +436,38 @@ func (oAdmin *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Reques
 	}
 	auth := getAuthCookie(r)
 	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
+		json, _ := json.Marshal(MessagePayload{Message: "User not authorized to create certificate"})
+		http.Error(w, string(json), http.StatusUnauthorized)
+		//w.WriteHeader(http.StatusForbidden)
 		return
 	}
 	if oAdmin.role == "slave" {
-		http.Error(w, `{"status":"error"}`, http.StatusLocked)
+		json, _ := json.Marshal(MessagePayload{Message: "This instance is a slave, cant process"})
+		http.Error(w, string(json), http.StatusLocked)
 		return
 	}
-	_ = r.ParseForm()
-	userCreated, userCreateStatus := oAdmin.userCreate(r.FormValue("username"), r.FormValue("password"))
+	var userDefinition UserDefinition
+	err := json.NewDecoder(r.Body).Decode(&userDefinition)
+	if err != nil {
+		json, _ := json.Marshal(MessagePayload{Message: "Cant parse JSON"})
+		http.Error(w, string(json), http.StatusUnprocessableEntity)
+		return
+	}
+	//_ = r.ParseForm()
+	log.Printf("create user with %v\n", userDefinition)
+	userCreated, userCreateStatus := oAdmin.userCreate(userDefinition)
 
 	if userCreated {
-		oAdmin.clients = oAdmin.usersList()
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, userCreateStatus)
+		//oAdmin.clients = oAdmin.usersList()
+		user, _, _ := checkUserExist(userDefinition.Username)
+		json, _ := json.Marshal(user)
+		//w.WriteHeader(http.StatusOK)
+		w.Write(json)
+		//fmt.Fprintf(w, string(json))
 		return
 	} else {
-		http.Error(w, userCreateStatus, http.StatusUnprocessableEntity)
+		json, _ := json.Marshal(MessagePayload{Message: userCreateStatus})
+		http.Error(w, string(json), http.StatusUnprocessableEntity)
 	}
 }
 func (oAdmin *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request) {
@@ -452,7 +491,7 @@ func (oAdmin *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Reques
 	if len(err) > 0 {
 		http.Error(w, err, http.StatusUnprocessableEntity)
 	}
-	fmt.Sprintf("{\"msg\":\"User %s successfully rotated\"}", username)
+	fmt.Sprintf(`{"message":"User %s successfully rotated"}`, username)
 }
 
 func (oAdmin *OvpnAdmin) userDeleteHandler(w http.ResponseWriter, r *http.Request) {
@@ -602,7 +641,8 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 	}
 	var ccd Ccd
 	if r.Body == nil {
-		http.Error(w, "Please send a request body", http.StatusBadRequest)
+		json, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
+		http.Error(w, string(json), http.StatusBadRequest)
 		return
 	}
 
@@ -623,11 +663,12 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 	ccdApplied, applyStatus := oAdmin.modifyCcd(ccd)
 
 	if ccdApplied {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 		fmt.Fprintf(w, applyStatus)
 		return
 	} else {
-		http.Error(w, applyStatus, http.StatusUnprocessableEntity)
+		json, _ := json.Marshal(MessagePayload{Message: applyStatus})
+		http.Error(w, string(json), http.StatusUnprocessableEntity)
 	}
 }
 
@@ -846,6 +887,8 @@ func main() {
 	kingpin.Version(version)
 	kingpin.Parse()
 
+	log.Printf("PATH %s\n", os.Getenv("PATH"))
+
 	log.SetLevel(logLevels[*logLevel])
 	log.SetFormatter(logFormats[*logFormat])
 
@@ -993,9 +1036,40 @@ func indexTxtParser(txt string) []indexTxtLine {
 			switch {
 			// case strings.HasPrefix(str[0], "E"):
 			case strings.HasPrefix(str[0], "V"):
-				indexTxt = append(indexTxt, indexTxtLine{Username: extractUsername(str[4]), Flag: str[0], ExpirationDate: str[1],                         SerialNumber: str[2], Filename: str[3], Identity: str[4]})
+				identity := strings.Join(str[4:], " ")
+				line := indexTxtLine{
+					Username: extractUsername(identity),
+					Flag: str[0],
+					ExpirationDate: str[1],
+					SerialNumber: str[2],
+					Filename: str[3],
+					Identity: identity,
+				}
+				line.Country = extractCountry(line.Identity)
+				line.Province = extractProvince(line.Identity)
+				line.City = extractCity(line.Identity)
+				line.Organisation = extractOrganisation(line.Identity)
+				line.OrganisationUnit = extractOrganisationUnit(line.Identity)
+				line.Email = extractEmail(line.Identity)
+				indexTxt = append(indexTxt, line)
 			case strings.HasPrefix(str[0], "R"):
-				indexTxt = append(indexTxt, indexTxtLine{Username: extractUsername(str[5]), Flag: str[0], ExpirationDate: str[1], RevocationDate: str[2], SerialNumber: str[3], Filename: str[4], Identity: str[5]})
+				identity := strings.Join(str[5:], " ")
+				line := indexTxtLine{
+					Username: extractUsername(identity),
+					Flag: str[0],
+					ExpirationDate: str[1],
+					RevocationDate: str[2],
+					SerialNumber: str[3],
+					Filename: str[4],
+					Identity: identity,
+				}
+				line.Country = extractCountry(line.Identity)
+				line.Province = extractProvince(line.Identity)
+				line.City = extractCity(line.Identity)
+				line.Organisation = extractOrganisation(line.Identity)
+				line.OrganisationUnit = extractOrganisationUnit(line.Identity)
+				line.Email = extractEmail(line.Identity)
+				indexTxt = append(indexTxt, line)
 			}
 		}
 	}
@@ -1144,7 +1218,7 @@ func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
 }
 
 func (oAdmin *OvpnAdmin) modifyCcd(ccd Ccd) (bool, string) {
-	ccdValid, err := validateCcd(ccd)
+	ccdValid, err := oAdmin.validateCcd(ccd)
 	if err != "" {
 		return false, err
 	}
@@ -1171,7 +1245,7 @@ func (oAdmin *OvpnAdmin) modifyCcd(ccd Ccd) (bool, string) {
 	return false, "something goes wrong"
 }
 
-func validateCcd(ccd Ccd) (bool, string) {
+func (oAdmin *OvpnAdmin) validateCcd(ccd Ccd) (bool, string) {
 
 	ccdErr := ""
 
@@ -1181,7 +1255,7 @@ func validateCcd(ccd Ccd) (bool, string) {
 			log.Error(err)
 		}
 
-		if !checkStaticAddressIsFree(ccd.ClientAddress, ccd.User) {
+		if !oAdmin.checkStaticAddressIsFree(ccd.ClientAddress, ccd.User) {
 			ccdErr = fmt.Sprintf("ClientAddress \"%s\" already assigned to another user", ccd.ClientAddress)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
 			return false, ccdErr
@@ -1194,7 +1268,7 @@ func validateCcd(ccd Ccd) (bool, string) {
 		}
 
 		if !ovpnNet.Contains(net.ParseIP(ccd.ClientAddress)) {
-			ccdErr = fmt.Sprintf("ClientAddress \"%s\" not belongs to openvpn server network", ccd.ClientAddress)
+			ccdErr = fmt.Sprintf("ClientAddress \"%s\" not belongs to openvpn server network \"%s\"", ccd.ClientAddress, ovpnNet)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
 			return false, ccdErr
 		}
@@ -1228,13 +1302,19 @@ func (oAdmin *OvpnAdmin) getCcd(username string) Ccd {
 	return ccd
 }
 
-func checkStaticAddressIsFree(staticAddress string, username string) bool {
-	o, _ := runBash(fmt.Sprintf("grep -rl ' %s ' %s | grep -vx %s/%s | wc -l", staticAddress, *ccdDir, *ccdDir, username))
+func (oAdmin *OvpnAdmin) checkStaticAddressIsFree(staticAddress string, username string) bool {
 
-	if strings.TrimSpace(o) == "0" {
-		return true
+	oAdmin.clients = oAdmin.usersList()
+
+	for _, client := range oAdmin.clients {
+		if client.Username != username {
+			ccd := oAdmin.getCcd(client.Username)
+			if ccd.ClientAddress == staticAddress {
+				return false
+			}
+		}
 	}
-	return false
+	return true
 }
 
 func validateUsername(username string) bool {
@@ -1290,8 +1370,62 @@ func extractUsername(identity string) string {
 	}
 }
 
+func extractCountry(identity string) string {
+	re := regexp.MustCompile("/C=([^/]+)")
+	match := re.FindStringSubmatch(identity)
+	if len(match) <= 0 {
+		return ""
+	}
+	return match[1]
+}
+
+func extractCity(identity string) string {
+	re := regexp.MustCompile("/L=([^/]+)")
+	match := re.FindStringSubmatch(identity)
+	if len(match) <= 0 {
+		return ""
+	}
+	return match[1]
+}
+
+func extractProvince(identity string) string {
+	re := regexp.MustCompile("/ST=([^/]+)")
+	match := re.FindStringSubmatch(identity)
+	if len(match) <= 0 {
+		return ""
+	}
+	return match[1]
+}
+
+func extractOrganisation(identity string) string {
+	re := regexp.MustCompile("/O=([^/]+)")
+	match := re.FindStringSubmatch(identity)
+	if len(match) <= 0 {
+		return ""
+	}
+	return match[1]
+}
+
+func extractOrganisationUnit(identity string) string {
+	re := regexp.MustCompile("/OU=([^/]+)")
+	match := re.FindStringSubmatch(identity)
+	if len(match) <= 0 {
+		return ""
+	}
+	return match[1]
+}
+
+func extractEmail(identity string) string {
+	re := regexp.MustCompile("/emailAddress=([^/]+)")
+	match := re.FindStringSubmatch(identity)
+	if len(match) <= 0 {
+		return ""
+	}
+	return match[1]
+}
+
 func (oAdmin *OvpnAdmin) usersList() []OpenvpnClient {
-	var users []OpenvpnClient
+	var users []OpenvpnClient = make([]OpenvpnClient, 0)
 
 	totalCerts := 0
 	validCerts := 0
@@ -1353,41 +1487,52 @@ func (oAdmin *OvpnAdmin) usersList() []OpenvpnClient {
 	return users
 }
 
-func (oAdmin *OvpnAdmin) userCreate(username, password string) (bool, string) {
+func (oAdmin *OvpnAdmin) userCreate(definition UserDefinition) (bool, string) {
 	var ucErr string
 
-	oAdmin.createUserMutex.Lock()
-	defer oAdmin.createUserMutex.Unlock()
-	oAdmin.createUserMutex.Lock()
-	defer oAdmin.createUserMutex.Unlock()
 
-	if !validateUsername(username) {
-		ucErr = fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", username, usernameRegexp)
+	if !validateUsername(definition.Username) {
+		ucErr = fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.Username, usernameRegexp)
 		log.Debugf("userCreate: checkUserExist():  %s", ucErr)
 		return false, ucErr
 	}
 
-	if checkUserActiveExist(username) {
-		ucErr = fmt.Sprintf("User \"%s\" already exists\n", username)
+	if checkUserActiveExist(definition.Username) {
+		ucErr = fmt.Sprintf("User \"%s\" already exists", definition.Username)
 		log.Debugf("userCreate: validateUsername(): %s", ucErr)
 		return false, ucErr
 	}
 
 	if *authByPassword {
-		if !validatePassword(password) {
+		if !validatePassword(definition.Password) {
 			ucErr = fmt.Sprintf("Password too short, password length must be greater or equal %d", passwordMinLength)
 			log.Debugf("userCreate: authByPassword(): %s", ucErr)
 			return false, ucErr
 		}
 	}
 
+	//oAdmin.createUserMutex.Lock()
+	//defer oAdmin.createUserMutex.Unlock()
+	//oAdmin.createUserMutex.Lock()
+	//defer oAdmin.createUserMutex.Unlock()
+
 	if *storageBackend == "kubernetes.secrets" {
-		err := app.easyrsaBuildClient(username)
+		err := app.easyrsaBuildClient(definition.Username)
 		if err != nil {
 			log.Error(err)
 		}
 	} else {
-		o, err := runBash(fmt.Sprintf("cd %s && easyrsa build-client-full %s nopass 1>/dev/null", *easyrsaDirPath, username))
+		o, err := runBash(fmt.Sprintf(
+			"cd %s && EASYRSA_REQ_COUNTRY=%s EASYRSA_REQ_PROVINCE=%s EASYRSA_REQ_CITY=%s EASYRSA_REQ_ORG=%s EASYRSA_REQ_OU=%s EASYRSA_REQ_EMAIL=%s ./easyrsa build-client-full %s nopass 1>/dev/null",
+			shellescape.Quote(*easyrsaDirPath),
+			shellescape.Quote(definition.Country),
+			shellescape.Quote(definition.Province),
+			shellescape.Quote(definition.City),
+			shellescape.Quote(definition.Organisation),
+			shellescape.Quote(definition.OrganisationUnit),
+			shellescape.Quote(definition.Email),
+			shellescape.Quote(definition.Username),
+		))
 		if err != nil {
 			return false, fmt.Sprintf("Error creating certificate \"%s\"", err)
 		}
@@ -1396,14 +1541,14 @@ func (oAdmin *OvpnAdmin) userCreate(username, password string) (bool, string) {
 	}
 
 	if *authByPassword {
-		o, err := runBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", *authDatabase, username, password))
+		o, err := runBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", *authDatabase, definition.Username, definition.Password))
 		if err != nil {
 			return false, fmt.Sprintf("Error creating user in DB \"%s\"", err)
 		}
 		log.Debug(o)
 	}
 
-	log.Infof("Certificate for user %s issued", username)
+	log.Infof("Certificate for user %s issued", definition.Username)
 
 	//oAdmin.clients = oAdmin.usersList()
 	return true, ucErr
@@ -1461,7 +1606,7 @@ func (oAdmin *OvpnAdmin) userRevoke(username string) (string, string) {
 			log.Error(err)
 		}
 	} else {
-		shellOut, err := runBash(fmt.Sprintf("cd %s && echo yes | easyrsa revoke %s && easyrsa gen-crl", *easyrsaDirPath, username))
+		shellOut, err := runBash(fmt.Sprintf("cd %s && echo yes | ./easyrsa revoke %s && ./easyrsa gen-crl", *easyrsaDirPath, username))
 		if err != nil {
 			return "", fmt.Sprintf("Error revoking certificate \"%s\"", err)
 		}
@@ -1525,9 +1670,9 @@ func (oAdmin *OvpnAdmin) userUnrevoke(username string) string {
 				log.Error(err)
 			}
 
-			runBash(fmt.Sprintf("cd %s && easyrsa gen-crl 1>/dev/null", *easyrsaDirPath))
+			runBash(fmt.Sprintf("cd %s && ./easyrsa gen-crl 1>/dev/null", *easyrsaDirPath))
 
-			ret, _ := runBash(fmt.Sprintf("cd %s && easyrsa gen-crl", *easyrsaDirPath))
+			ret, _ := runBash(fmt.Sprintf("cd %s && ./easyrsa gen-crl", *easyrsaDirPath))
 			fmt.Printf("gen-crl %s", ret)
 
 			if *authByPassword {
@@ -1561,7 +1706,7 @@ func (oAdmin *OvpnAdmin) userRotate(username, newPassword string) (bool, string)
 
 		//uniqHash := strings.Replace(uuid.New().String(), "-", "", -1)
 		if userFromIndexTxt.Flag == "V" {
-			_, err := runBash(fmt.Sprintf("cd %s && echo yes | easyrsa revoke %s && easyrsa gen-crl", *easyrsaDirPath, userFromIndexTxt.Username))
+			_, err := runBash(fmt.Sprintf("cd %s && echo yes | ./easyrsa revoke %s && ./easyrsa gen-crl", *easyrsaDirPath, userFromIndexTxt.Username))
 			if err != nil {
 				return false, fmt.Sprintf("Error revoking certificate \"%s\"", err)
 			}
@@ -1569,7 +1714,17 @@ func (oAdmin *OvpnAdmin) userRotate(username, newPassword string) (bool, string)
 			log.Infof("Skip revoke \"%s\" because it is already revoked", userFromIndexTxt.Username)
 		}
 
-		_, err := oAdmin.userCreate(userFromIndexTxt.Username, newPassword)
+		definition := UserDefinition{
+			Username: userFromIndexTxt.Username,
+			Password: newPassword,
+			City: userFromIndexTxt.City,
+			Province: userFromIndexTxt.Province,
+			Country: userFromIndexTxt.Country,
+			Organisation: userFromIndexTxt.Organisation,
+			OrganisationUnit: userFromIndexTxt.OrganisationUnit,
+			Email: userFromIndexTxt.Email,
+		}
+		_, err := oAdmin.userCreate(definition)
 		if len(err) > 0 {
 			return false, fmt.Sprintf("Fail to create certificate for \"%s\": %s", userFromIndexTxt.Username, err)
 		}
@@ -1579,8 +1734,8 @@ func (oAdmin *OvpnAdmin) userRotate(username, newPassword string) (bool, string)
 		}
 
 		fWrite(*indexTxtPath, renderIndexTxt(usersFromIndexTxt))
-		
-		runBash(fmt.Sprintf("cd %s && easyrsa gen-crl 1>/dev/null", *easyrsaDirPath))
+
+		runBash(fmt.Sprintf("cd %s && ./easyrsa gen-crl 1>/dev/null", *easyrsaDirPath))
 		oAdmin.clients = oAdmin.usersList()
 		chmodFix()
 		return true, fmt.Sprintf("{\"msg\":\"User %s successfully rotated\"}", username)
@@ -1609,7 +1764,7 @@ func (oAdmin *OvpnAdmin) userDelete(username string) string {
 		//		break
 		//	}
 		//}
-		_, _ = runBash(fmt.Sprintf("cd %s && easyrsa gen-crl", *easyrsaDirPath))
+		_, _ = runBash(fmt.Sprintf("cd %s && ./easyrsa gen-crl", *easyrsaDirPath))
 	}
 	chmodFix()
 	oAdmin.clients = oAdmin.usersList()

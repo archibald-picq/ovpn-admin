@@ -1,5 +1,5 @@
 import { IClientCertificate, IConnection, INetwork, INode } from './client-certificate.interface';
-import { ClientConfig } from '../modals/edit-client.component';
+import { ClientConfig } from './client-config.model';
 
 export class Network implements INetwork {
     address: string;
@@ -40,10 +40,10 @@ export class Connection implements IConnection {
     nodes: INode[];
 
     constructor(fromServer: Record<string, any>) {
-        this.bytesReceived = (fromServer.bytesReceived ?? fromServer.BytesReceived);
-        this.bytesSent = (fromServer.bytesSent ?? fromServer.BytesSent);
-        this.connectedSince = ClientCertificate.parseDate(fromServer.connectedSince ?? fromServer.ConnectedSince)!;
-        this.lastSeen = ClientCertificate.parseDate(fromServer.lastSeen ?? fromServer.LastRef)!;
+        this.bytesReceived = fromServer.bytesReceived;
+        this.bytesSent = fromServer.bytesSent;
+        this.connectedSince = ClientCertificate.parseDate(fromServer.connectedSince)!;
+        this.lastSeen = ClientCertificate.parseDate(fromServer.lastSeen ?? fromServer.lastRef)!;
         this.networks = fromServer.networks? fromServer.networks.map((network: Record<string, any>) => Network.parse(network)): [];
         this.nodes = fromServer.nodes? fromServer.nodes.map((node: Record<string, any>) => Node.parse(node)): [];
     }
@@ -55,6 +55,12 @@ export class Connection implements IConnection {
 
 export class ClientCertificate implements IClientCertificate {
     public username: string;
+    public email: string;
+    public country: string;
+    public province: string;
+    public city: string;
+    public organisation: string;
+    public organisationUnit: string;
     public identity: string;
     public accountStatus: string;
     public connectionStatus: string;
@@ -65,13 +71,19 @@ export class ClientCertificate implements IClientCertificate {
 
     constructor(fromServer: Record<string, any>) {
         this.username = fromServer.username;
-        this.identity = fromServer.Identity;
-        this.accountStatus = fromServer.accountStatus ?? fromServer.AccountStatus;
-        this.connectionStatus = fromServer.connectionStatus ?? fromServer.ConnectionStatus;
-        this.connections = (fromServer.connections ?? fromServer.Connections ?? []).map((connection: Record<string, any>) => Connection.parse(connection));
-        this.expirationDate = ClientCertificate.parseDate(fromServer.expirationDate ?? fromServer.ExpirationDate);
-        if (fromServer.revocationDate || fromServer.RevocationDate) {
-            this.revocationDate = ClientCertificate.parseDate(fromServer.revocationDate ?? fromServer.RevocationDate);
+        this.email = fromServer.email;
+        this.country = fromServer.country;
+        this.city = fromServer.city;
+        this.province = fromServer.province;
+        this.organisation = fromServer.organisation;
+        this.organisationUnit = fromServer.organisationUnit;
+        this.identity = fromServer.identity;
+        this.accountStatus = fromServer.accountStatus;
+        this.connectionStatus = fromServer.connectionStatus;
+        this.connections = fromServer.connections?.map((connection: Record<string, any>) => Connection.parse(connection)) ?? [];
+        this.expirationDate = ClientCertificate.parseDate(fromServer.expirationDate);
+        if (fromServer.revocationDate) {
+            this.revocationDate = ClientCertificate.parseDate(fromServer.revocationDate);
         }
     }
 
@@ -82,6 +94,7 @@ export class ClientCertificate implements IClientCertificate {
     public static parseDate(str: string): Date|undefined {
         return str? new Date(str): undefined;
     }
+
     public clone(): IClientCertificate {
         const client = new ClientCertificate({});
         client.username = this.username;

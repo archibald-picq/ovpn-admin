@@ -4,9 +4,9 @@ import { IClientCertificate } from '../models/client-certificate.interface';
 import { ClientCertificate } from '../models/client-certificate.model';
 import { filter, map } from 'rxjs/operators';
 import { Sort } from '@angular/material/sort';
-import { ClientConfig } from '../modals/edit-client.component';
 import { Observable, throwError } from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
+import { ClientConfig } from '../models/client-config.model';
 
 @Injectable()
 export class OpenvpnService {
@@ -37,23 +37,12 @@ export class OpenvpnService {
         ).toPromise() as Promise<ClientConfig>;
     }
 
-    public createClientCertificat(username: string): Promise<IClientCertificate> {
-        // const params = (new HttpParams()).set('username', client.username);
-        const body = 'username='+encodeURIComponent(username)+'&password=';
-        const headers = new HttpHeaders()
-            .set('Content-type', 'application/x-www-form-urlencoded');
-        return this.http.post(this.OPENVPN_ADMIN_API+'/api/user/create', body,{
-            headers,
+    public createClientCertificat(definition: Record<string, string>): Promise<IClientCertificate> {
+        return this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/create', definition,{
             observe: 'response',
-            responseType: 'text',
         }).pipe(
             filter((response: HttpResponse<any>) => response.ok),
-            map((response) => {
-                if (response.body !== `User "${username}" created`) {
-                    throwError(() => new Error('Invalid return value'));
-                }
-            }),
-            map(() => ClientCertificate.parse({username})),
+            map((response) => ClientCertificate.parse(response.body)),
         ).toPromise() as Promise<IClientCertificate>;
     }
 
@@ -74,21 +63,15 @@ export class OpenvpnService {
 
     public async saveClientConfig(client: IClientCertificate, model: ClientConfig): Promise<void> {
         const body = {
-            ClientAddress: model.staticAddress ?? 'dynamic',
-            CustomIRoutes: model.iRoutes.map((route) => ({Address: route.address, Mask: route.netmask, Description: route.description})),
-            CustomRoutes: model.pushRoutes.map((route) => ({Address: route.address, Mask: route.netmask, Description: route.description})),
-            User: client.username,
+            clientAddress: model.staticAddress ?? 'dynamic',
+            customIRoutes: model.iRoutes.map((route) => ({address: route.address, mask: route.netmask, description: route.description})),
+            customRoutes: model.pushRoutes.map((route) => ({address: route.address, mask: route.netmask, description: route.description})),
+            user: client.username,
         };
         return this.http.post(this.OPENVPN_ADMIN_API+'/api/user/ccd/apply', body, {
             observe: 'response',
-            responseType: 'text',
         }).pipe(
             filter((response: HttpResponse<any>) => response.ok),
-            map((response) => {
-                if (response.body !== 'ccd updated successfully') {
-                    throwError(() => new Error('Invalid return value'));
-                }
-            })
         ).toPromise().then();
     }
 

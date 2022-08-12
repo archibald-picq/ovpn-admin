@@ -11,7 +11,7 @@ export class DeleteClientOptions {
 @Component({
     selector: 'bus-openvpn-confirm-delete-client-certificate',
     templateUrl: './confirm-delete-client-certificate.component.html',
-    styleUrls: ['../openvpn.component.scss'],
+    styleUrls: ['./confirm-delete-client-certificate.component.scss'],
 })
 export class ConfirmDeleteClientCertificateComponent {
     constructor(

@@ -22,7 +22,7 @@ import {
 } from './modals/confirm-rotate-client-certificate.component';
 
 @Component({
-    selector: 'ovpn',
+    selector: 'bus-ui-peripheral',
     templateUrl: './openvpn.component.html',
     styleUrls: ['./openvpn.component.scss'],
 })
@@ -161,12 +161,16 @@ export class OpenvpnPageComponent {
     }
 
     public async createClientCertificate(): Promise<void> {
-        const newClient = await this.modalService.open(CreateClientCertificateComponent, {
-            centered: true,
-        }).result;
-        console.warn('client updated', newClient);
-        this.clients.push(newClient);
-        this.applySorting();
+        try {
+            const newClient = await this.modalService.open(CreateClientCertificateComponent, {
+                centered: true,
+            }).result;
+            console.warn('client updated', newClient);
+            this.clients.push(newClient);
+            this.applySorting();
+        } catch (e) {
+            console.warn('Cancel create client');
+        }
     }
 
     public toggleHideRevoked(): void {

@@ -11,7 +11,7 @@ export class RotateClientOptions {
 @Component({
     selector: 'bus-openvpn-confirm-rotate-client-certificate',
     templateUrl: './confirm-rotate-client-certificate.component.html',
-    styleUrls: ['../openvpn.component.scss'],
+    styleUrls: ['./confirm-rotate-client-certificate.component.scss'],
 })
 export class ConfirmRotateClientCertificateComponent {
     constructor(

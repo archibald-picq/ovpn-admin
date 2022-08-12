@@ -11,7 +11,7 @@ export class RevokeClientOptions {
 @Component({
     selector: 'bus-openvpn-confirm-revoke-client-certificate',
     templateUrl: './confirm-revoke-client-certificate.component.html',
-    styleUrls: ['../openvpn.component.scss'],
+    styleUrls: ['./confirm-revoke-client-certificate.component.scss'],
 })
 export class ConfirmRevokeClientCertificateComponent {
     constructor(

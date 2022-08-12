@@ -2,71 +2,11 @@ import {Component} from "@angular/core";
 import {NgbActiveModal} from "@ng-bootstrap/ng-bootstrap";
 import { IClientCertificate } from "../models/client-certificate.interface";
 import { OpenvpnService } from '../services/openvpn.service';
+import { ClientConfig } from '../models/client-config.model';
+import { Route } from '../models/route.model';
 
 export class EditClientOptions {
     constructor(public readonly client: IClientCertificate) {
-    }
-}
-
-export class Route {
-    public address: string;
-    public netmask: string;
-    public description?: string;
-
-    constructor(address: string, netmask: string, description?: string) {
-        this.address = address;
-        this.netmask = netmask;
-        this.description = description;
-    }
-
-    public static parse(fromServer: Record<string, any>): Route {
-        return new Route(fromServer.address ?? fromServer.Address, fromServer.netmask ?? fromServer.Mask, fromServer.description ?? fromServer.Description);
-    }
-
-    public clone(): Route {
-        return new Route(this.address, this.netmask, this.description);
-    }
-
-    reset() {
-        this.address = '';
-        this.netmask = '';
-        this.description = undefined;
-    }
-}
-
-export class ClientConfig {
-    public staticAddress: string;
-    public pushRoutes: Route[] = [];
-    public iRoutes: Route[] = [];
-
-    constructor(staticAddress: string) {
-        this.staticAddress = staticAddress;
-    }
-
-    public addPushRoute(route: Route): void {
-        this.pushRoutes.push(route);
-    }
-
-    public addIRoute(route: Route): void {
-        this.iRoutes.push(route);
-    }
-
-    public static parse(fromServer: Record<string, any>): ClientConfig {
-        const config = new ClientConfig(fromServer.statisAddress ?? fromServer.ClientAddress);
-        if (fromServer.CustomIRoutes) {
-            fromServer.CustomIRoutes.forEach((route: Record<string, any>) => config.addIRoute(Route.parse(route)));
-        }
-        if (fromServer.CustomRoutes) {
-            fromServer.CustomRoutes.forEach((route: Record<string, any>) => config.addPushRoute(Route.parse(route)));
-        }
-        return config;
-    }
-
-    public clone(): ClientConfig {
-        const config = new ClientConfig(this.staticAddress);
-        this.pushRoutes.forEach((route) => config.addPushRoute(route.clone()));
-        this.iRoutes.forEach((route) => config.addIRoute(route.clone()));
-        return config;
     }
 }
 
@@ -80,19 +20,25 @@ export class EditClientComponent {
     public certificate: IClientCertificate;
     public newPushRoute = new Route('', '');
     public newIRoute = new Route('', '');
+    public error = '';
+    public loading = false;
 
     constructor(
         private readonly openvpnService: OpenvpnService,
         public readonly modal: NgbActiveModal,
         public readonly options: EditClientOptions,
     ) {
-        console.warn('options', this.options);
         this.certificate = this.options.client;
-        this.model = this.options.client.ccd!.clone();
+        if (this.options.client.ccd) {
+            this.model = this.options.client.ccd.clone();
+        } else {
+            this.model = new ClientConfig('');
+        }
+
         if (this.model.staticAddress === 'dynamic') {
             this.model.staticAddress = '';
         }
-        console.warn('this.model.staticAddress', this.model.staticAddress);
+        // console.warn('this.model.staticAddress', this.model.staticAddress);
     }
 
     public removePushRoute(route: Route): void {
@@ -128,8 +74,15 @@ export class EditClientComponent {
     }
 
     public async save(): Promise<void> {
-        await this.openvpnService.saveClientConfig(this.options.client, this.model);
-        this.options.client.ccd = this.model;
-        this.modal.close('Save click');
+        this.loading = true;
+        try {
+            this.error = '';
+            await this.openvpnService.saveClientConfig(this.options.client, this.model);
+            this.options.client.ccd = this.model;
+            this.modal.close('Save click');
+        } catch (e: any) {
+            this.error = e.error.message;
+        }
+        this.loading = false;
     }
 }
