@@ -1,9 +1,12 @@
 import { NgModule } from '@angular/core';
-import { UserService } from './services/user.service';
-import { AppConfigService } from './services/app-config.service';
+import {BytesPipe} from "./pipes/bytes.pipe";
 
 @NgModule({
     declarations: [
+        BytesPipe,
+    ],
+    exports: [
+        BytesPipe,
     ],
 })
 export class SharedModule {}

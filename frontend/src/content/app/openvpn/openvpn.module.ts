@@ -13,6 +13,9 @@ import { FormsModule } from '@angular/forms';
 import { CreateClientCertificateComponent } from './modals/create-client-certificate.component';
 import { ConfirmDeleteClientCertificateComponent } from './modals/confirm-delete-client-certificate.component';
 import { ConfirmRotateClientCertificateComponent } from './modals/confirm-rotate-client-certificate.component';
+import { SharedModule } from '../shared/shared.module';
+import { MatIconModule } from '@angular/material/icon';
+import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 
 @NgModule({
     declarations: [
@@ -30,6 +33,9 @@ import { ConfirmRotateClientCertificateComponent } from './modals/confirm-rotate
         MatSortModule,
         MatTableModule,
         FormsModule,
+        SharedModule,
+        MatIconModule,
+        NgbTooltipModule
     ],
     providers: [
         OpenvpnService,

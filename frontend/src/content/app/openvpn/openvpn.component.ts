@@ -2,7 +2,7 @@ import { Component, Injector } from '@angular/core';
 import { Sort } from '@angular/material/sort';
 import { MatTableDataSource } from '@angular/material/table';
 import { ActivatedRoute } from '@angular/router';
-import { IClientCertificate } from './models/client-certificate.interface';
+import { IClientCertificate, IConnection } from './models/client-certificate.interface';
 import { EditClientComponent, EditClientOptions } from './modals/edit-client.component';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import {
@@ -28,7 +28,7 @@ import {
 })
 export class OpenvpnPageComponent {
     public clients: IClientCertificate[] = [];
-    public displayedColumns: string[] = ['username', 'identity', 'accountStatus', 'connections', 'upload-download', 'expirationDate', 'revocationDate', 'actions'];
+    public displayedColumns: string[] = ['username', 'accountStatus', 'connections', 'upload-download', 'expirationDate', 'actions'];
     public dataSource = new MatTableDataSource<IClientCertificate>();
     public hideRevoked = !!localStorage.getItem('hideRevoked');
     private sort?: Sort;
@@ -41,7 +41,11 @@ export class OpenvpnPageComponent {
     ) {
         console.warn('clients', this.activatedRoute.snapshot.data.clients);
         this.clients = this.activatedRoute.snapshot.data.clients;
+        console.warn('this.clients', this.clients);
         this.applySorting();
+        if (!this.hideRevoked) {
+            this.addRevocationDateColumnBeforeActions();
+        }
         // this.clients = this.clients.synchronize('peripherals');
         // this.clients.on('update', () => {
         //     this.dataSource.data = [...this.clients.objects];
@@ -144,14 +148,31 @@ export class OpenvpnPageComponent {
         }
     }
 
+    private addRevocationDateColumnBeforeActions(): void {
+        const p = this.displayedColumns.indexOf('revocationDate');
+        if (p === -1) {
+            const q = this.displayedColumns.indexOf('actions');
+            if (q === -1) {
+                this.displayedColumns.push('revocationDate');
+            } else {
+                this.displayedColumns.splice(q, 0, 'revocationDate');
+            }
+        }
+    }
+
     public applySorting(): void {
         if (this.sort) {
             this.clients.sort(this.openvpnService.sorter(this.sort));
         }
         if (this.hideRevoked) {
             this.dataSource.data = [...this.clients.filter((client) => !client.revocationDate)];
+            const p = this.displayedColumns.indexOf('revocationDate');
+            if (p !== -1) {
+                this.displayedColumns.splice(p, 1);
+            }
         } else {
             this.dataSource.data = [...this.clients];
+            this.addRevocationDateColumnBeforeActions();
         }
     }
 
@@ -187,5 +208,15 @@ export class OpenvpnPageComponent {
     public sortData(sort: Sort) {
         this.sort = sort;
         this.applySorting();
+    }
+
+    public sumBytesReceived(connections: IConnection[]): number {
+        return connections.reduce((acc, conn) => acc + conn.bytesReceived, 0);
+    }
+    public sumBytesSent(connections: IConnection[]): number {
+        return connections.reduce((acc, conn) => acc + conn.bytesSent, 0);
+    }
+    public cleanEntity(entity: string): string {
+        return entity.replace(/^\//, '').replace(/\//g, "\n");
     }
 }

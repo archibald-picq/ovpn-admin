@@ -36,12 +36,16 @@ export class Connection implements IConnection {
     bytesSent: number;
     connectedSince: Date;
     lastSeen: Date;
+    virtualAddress: string;
+    realAddress: string;
     networks: INetwork[];
     nodes: INode[];
 
     constructor(fromServer: Record<string, any>) {
-        this.bytesReceived = fromServer.bytesReceived;
-        this.bytesSent = fromServer.bytesSent;
+        this.bytesReceived = +fromServer.bytesReceived;
+        this.bytesSent = +fromServer.bytesSent;
+        this.virtualAddress = fromServer.virtualAddress;
+        this.realAddress = fromServer.realAddress;
         this.connectedSince = ClientCertificate.parseDate(fromServer.connectedSince)!;
         this.lastSeen = ClientCertificate.parseDate(fromServer.lastSeen ?? fromServer.lastRef)!;
         this.networks = fromServer.networks? fromServer.networks.map((network: Record<string, any>) => Network.parse(network)): [];

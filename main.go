@@ -216,6 +216,12 @@ type openvpnClientConfig struct {
 type OpenvpnClient struct {
 	Username         string `json:"username"`
 	Identity         string `json:"identity"`
+	Country          string `json:"country"`
+	Province         string `json:"province"`
+	City             string `json:"city"`
+	Organisation     string `json:"organisation"`
+	OrganisationUnit string `json:"organisationUnit"`
+	Email            string `json:"email"`
 	AccountStatus    string `json:"accountStatus"`
 	ExpirationDate   string `json:"expirationDate"`
 	RevocationDate   string `json:"revocationDate"`
@@ -264,16 +270,16 @@ type network struct {
 }
 
 type clientStatus struct {
-	CommonName              string
-	RealAddress             string
-	BytesReceived           string
-	BytesSent               string
-	ConnectedSince          string
-	VirtualAddress          string
-	LastRef                 string
-	ConnectedSinceFormatted string
-	LastRefFormatted        string
-	ConnectedTo             string
+	commonName              string
+	connectedTo             string
+	RealAddress             string `json:"realAddress"`
+	BytesReceived           string `json:"bytesReceived"`
+	BytesSent               string `json:"bytesSent"`
+	ConnectedSince          string `json:"connectedSince"`
+	VirtualAddress          string `json:"virtualAddress"`
+	LastRef                 string `json:"lastRef"`
+	//ConnectedSinceFormatted string
+	//LastRefFormatted        string
 	Nodes                   []nodeInfo `json:"nodes"`
 	Networks                []network `json:"networks"`
 }
@@ -1425,7 +1431,7 @@ func extractEmail(identity string) string {
 }
 
 func (oAdmin *OvpnAdmin) usersList() []OpenvpnClient {
-	var users []OpenvpnClient = make([]OpenvpnClient, 0)
+	var users = make([]OpenvpnClient, 0)
 
 	totalCerts := 0
 	validCerts := 0
@@ -1441,7 +1447,17 @@ func (oAdmin *OvpnAdmin) usersList() []OpenvpnClient {
 		//log.Debugf("match %s in %s", username, line.Identity)
 		if username != "server" && !strings.Contains(line.Identity, "DELETED") {
 			totalCerts += 1
-			ovpnClient := OpenvpnClient{Username: username, Identity: line.Identity, ExpirationDate: parseDateToString(indexTxtDateLayout, line.ExpirationDate, stringDateFormat)}
+			ovpnClient := OpenvpnClient{
+				Username: username,
+				Identity: line.Identity,
+				Country: extractCountry(line.Identity),
+				Province: extractProvince(line.Identity),
+				City: extractCity(line.Identity),
+				Organisation: extractOrganisation(line.Identity),
+				OrganisationUnit: extractOrganisationUnit(line.Identity),
+				Email: extractEmail(line.Identity),
+				ExpirationDate: parseDateToString(indexTxtDateLayout, line.ExpirationDate, stringDateFormat),
+			}
 			switch {
 			case line.Flag == "V":
 				ovpnClient.AccountStatus = "Active"
@@ -1584,7 +1600,7 @@ func (oAdmin *OvpnAdmin) userChangePassword(username, password string) (bool, st
 func (oAdmin *OvpnAdmin) getUserStatistic(username string) []clientStatus {
 	var userStatistic []clientStatus
 	for _, u := range oAdmin.activeClients {
-		if u.CommonName == username {
+		if u.commonName == username {
 			userStatistic = append(userStatistic, u)
 		}
 	}
@@ -1626,7 +1642,7 @@ func (oAdmin *OvpnAdmin) userRevoke(username string) (string, string) {
 	log.Tracef("User %s connected: %t", username, userConnected)
 	if userConnected {
 		for _, connection := range userConnectedTo {
-			oAdmin.mgmtKillUserConnection(username, connection)
+			oAdmin.mgmtKillUserConnection(connection)
 			log.Infof("Session for user \"%s\" killed", username)
 		}
 	}
@@ -1823,12 +1839,12 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser(text, serverName string) []cli
 			userConnectedSince := user[4]
 
 			userStatus := clientStatus{
-				CommonName: userName,
-				RealAddress: userAddress,
-				BytesReceived: userBytesReceived,
-				BytesSent: userBytesSent,
+				commonName:     userName,
+				RealAddress:    userAddress,
+				BytesReceived:  userBytesReceived,
+				BytesSent:      userBytesSent,
 				ConnectedSince: userConnectedSince,
-				ConnectedTo: serverName,
+				connectedTo:    serverName,
 			}
 			u = append(u, userStatus)
 			bytesSent, _ := strconv.Atoi(userBytesSent)
@@ -1844,7 +1860,7 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser(text, serverName string) []cli
 			userConnectedSince := user[3]
 
 			for i := range u {
-				if u[i].CommonName == userName {
+				if u[i].commonName == userName {
 					if strings.HasSuffix(peerAddress, "C") {
 						u[i].Nodes = append(u[i].Nodes, nodeInfo{Address: peerAddress[:len(peerAddress)-1], LastSeen: userConnectedSince})
 					} else if strings.Contains(peerAddress, "/") {
@@ -1863,14 +1879,14 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser(text, serverName string) []cli
 	return u
 }
 
-func (oAdmin *OvpnAdmin) mgmtKillUserConnection(username, serverName string) {
-	conn, err := net.Dial("tcp", oAdmin.mgmtInterfaces[serverName])
+func (oAdmin *OvpnAdmin) mgmtKillUserConnection(serverName clientStatus) {
+	conn, err := net.Dial("tcp", oAdmin.mgmtInterfaces[serverName.connectedTo])
 	if err != nil {
-		log.Errorf("openvpn mgmt interface for %s is not reachable by addr %s", serverName, oAdmin.mgmtInterfaces[serverName])
+		log.Errorf("openvpn mgmt interface for %s is not reachable by addr %s", serverName.connectedTo, oAdmin.mgmtInterfaces[serverName.connectedTo])
 		return
 	}
 	oAdmin.mgmtRead(conn) // read welcome message
-	conn.Write([]byte(fmt.Sprintf("kill %s\n", username)))
+	conn.Write([]byte(fmt.Sprintf("kill %s\n", serverName.commonName)))
 	fmt.Printf("%v", oAdmin.mgmtRead(conn))
 	conn.Close()
 }
@@ -1966,21 +1982,21 @@ func (oAdmin *OvpnAdmin) mgmtSetTimeFormat() {
 func getUserConnections(username string, connectedUsers []clientStatus) []clientStatus {
 	var connections []clientStatus
 	for _, connectedUser := range connectedUsers {
-		if connectedUser.CommonName == username {
+		if connectedUser.commonName == username {
 			connections = append(connections, connectedUser)
 		}
 	}
 	return connections
 }
 
-func isUserConnected(username string, connectedUsers []clientStatus) (bool, []string) {
-	var connections []string
+func isUserConnected(username string, connectedUsers []clientStatus) (bool, []clientStatus) {
+	var connections []clientStatus = make([]clientStatus, 0)
 	var connected = false
 
 	for _, connectedUser := range connectedUsers {
-		if connectedUser.CommonName == username {
+		if connectedUser.commonName == username {
 			connected = true
-			connections = append(connections, connectedUser.ConnectedTo)
+			connections = append(connections, connectedUser)
 		}
 	}
 	return connected, connections
