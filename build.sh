@@ -2,6 +2,21 @@
 
 PATH=$PATH:~/go/bin
 
-cd frontend && npm install && npm run build && cd ..
+SKIP_FRONT=0
 
-CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags "-linkmode external -extldflags -static -s -w" $@
+while [ $# -ge 1 ]; do
+  case $1 in
+    --skip-front)
+      SKIP_FRONT=1
+      ;;
+    *)
+      echo "Unsupported option: $1"
+  esac
+  shift
+done
+
+if [ $SKIP_FRONT = 0 ]; then
+  cd frontend && npm install && npm run build && cd ..
+fi
+
+CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags "-linkmode external -extldflags -static -s -w"
