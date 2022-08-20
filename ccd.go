@@ -28,7 +28,7 @@ func indexTxtParser(txt string) []OpenvpnClient {
 
 			case strings.HasPrefix(str[0], "V"):
 				identity := strings.Join(str[4:], " ")
-				log.Printf("read line for '%s' with flag: %v\n", extractUsername(identity), str[0])
+				//log.Printf("read line for '%s' with flag: %v\n", extractUsername(identity), str[0])
 				line := OpenvpnClient{
 					Username:       extractUsername(identity),
 					flag:           str[0],
@@ -50,7 +50,7 @@ func indexTxtParser(txt string) []OpenvpnClient {
 				indexTxt = append(indexTxt, line)
 			case strings.HasPrefix(str[0], "R"):
 				identity := strings.Join(str[5:], " ")
-				log.Printf("read line for '%s' with flag: %v\n", extractUsername(identity), str[0])
+				//log.Printf("read line for '%s' with flag: %v\n", extractUsername(identity), str[0])
 				line := OpenvpnClient{
 					Username:       extractUsername(identity),
 					flag:           str[0],
@@ -74,7 +74,7 @@ func indexTxtParser(txt string) []OpenvpnClient {
 				line.DeletionDate = extractDeletionDate(identity)
 				if len(line.DeletionDate) > 0 {
 
-					log.Printf("mark '%s' as DELETED at: %s\n", line.Username, line.DeletionDate)
+					//log.Printf("mark '%s' as DELETED at: %s\n", line.Username, line.DeletionDate)
 					line.flag = "D"
 				}
 				indexTxt = append(indexTxt, line)

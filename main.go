@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/alessio/shellescape.v1"
+	"github.com/seancfoley/ipaddress-go/ipaddr"
 )
 
 const (
@@ -50,6 +51,8 @@ const (
 )
 
 var (
+	serverConfFile           = kingpin.Flag("server.conf", "conf file for the server").Default("/etc/openvpn/server.conf").Envar("OPENVPN_SERVER_CONF").String()
+	serverRestartCommand     = kingpin.Flag("restart.cmd", "systemctl restart openvpn@server.service").Default("").Envar("OPENVPN_RESTART_CMD").String()
 	listenHost               = kingpin.Flag("listen.host", "host for ovpn-admin").Default("0.0.0.0").Envar("OVPN_LISTEN_HOST").String()
 	listenPort               = kingpin.Flag("listen.port", "port for ovpn-admin").Default("8080").Envar("OVPN_LISTEN_PORT").String()
 	serverRole               = kingpin.Flag("role", "server role, master or slave").Default("master").Envar("OVPN_ROLE").HintOptions("master", "slave").String()
@@ -58,14 +61,14 @@ var (
 	masterBasicAuthPassword  = kingpin.Flag("master.basic-auth.password", "password for master server's Basic Auth").Default("").Envar("OVPN_MASTER_PASSWORD").String()
 	masterSyncFrequency      = kingpin.Flag("master.sync-frequency", "master host data sync frequency in seconds").Default("600").Envar("OVPN_MASTER_SYNC_FREQUENCY").Int()
 	masterSyncToken          = kingpin.Flag("master.sync-token", "master host data sync security token").Default("VerySecureToken").Envar("OVPN_MASTER_TOKEN").PlaceHolder("TOKEN").String()
-	openvpnNetwork           = kingpin.Flag("ovpn.network", "NETWORK/MASK_PREFIX for OpenVPN server").Default("172.16.100.0/24").Envar("OVPN_NETWORK").String()
+	openvpnNetwork           = kingpin.Flag("ovpn.network", "NETWORK/MASK_PREFIX for OpenVPN server").Default("").Envar("OVPN_NETWORK").String()
 	openvpnServer            = kingpin.Flag("ovpn.server", "HOST:PORT:PROTOCOL for OpenVPN server; can have multiple values").Default("127.0.0.1:7777:tcp").Envar("OVPN_SERVER").PlaceHolder("HOST:PORT:PROTOCOL").Strings()
 	openvpnServerBehindLB    = kingpin.Flag("ovpn.server.behindLB", "enable if your OpenVPN server is behind Kubernetes Service having the LoadBalancer type").Default("false").Envar("OVPN_LB").Bool()
 	openvpnServiceName       = kingpin.Flag("ovpn.service", "the name of Kubernetes Service having the LoadBalancer type if your OpenVPN server is behind it").Default("openvpn-external").Envar("OVPN_LB_SERVICE").Strings()
-	mgmtAddress              = kingpin.Flag("mgmt", "ALIAS=HOST:PORT for OpenVPN server mgmt interface; can have multiple values").Default("main=127.0.0.1:8989").Envar("OVPN_MGMT").Strings()
+	mgmtAddress              = kingpin.Flag("mgmt", "ALIAS=HOST:PORT for OpenVPN server mgmt interface; can have multiple values").Default("").Envar("OPENVPN_MANAGEMENT").Strings()
 	metricsPath              = kingpin.Flag("metrics.path", "URL path for exposing collected metrics").Default("/metrics").Envar("OVPN_METRICS_PATH").String()
 	easyrsaDirPath           = kingpin.Flag("easyrsa.path", "path to easyrsa dir").Default("./easyrsa").Envar("EASYRSA_PATH").String()
-	indexTxtPath             = kingpin.Flag("easyrsa.index-path", "path to easyrsa index file").Default("").Envar("OVPN_INDEX_PATH").String()
+	indexTxtPath             = kingpin.Flag("easyrsa.index-path", "path to easyrsa index file").Default("").Envar("EASYRSA_INDEX_PATH").String()
 	ccdEnabled               = kingpin.Flag("ccd", "enable client-config-dir").Default("false").Envar("OVPN_CCD").Bool()
 	ccdDir                   = kingpin.Flag("ccd.path", "path to client-config-dir").Default("./ccd").Envar("OVPN_CCD_PATH").String()
 	clientConfigTemplatePath = kingpin.Flag("templates.clientconfig-path", "path to custom client.conf.tpl").Default("").Envar("OVPN_TEMPLATES_CC_PATH").String()
@@ -181,12 +184,62 @@ var templates embed.FS
 //go:embed frontend/static
 var content embed.FS
 
+type OvpnConfig struct {
+	server                 string   // 10.8.0.0 255.255.255.0
+	port                   int      // 1194
+	proto                  string   // udp udp6
+	dev                    string   // tun tap
+	tunMtu                 int      // 60000
+	fragment               int      // 0
+	user                   string   // nobody
+	group                  string   // nogroup
+	mssfix                 int      // 0
+	management             string   // localhost 7505
+	ca                     string   // ca.crt
+	cert                   string   // server.crt
+	key                    string   // server.key
+	dh                     string   // dh2048.pem none
+	ifconfigPoolPersist    string   // ipp.txt
+	keepalive              string   // 10 120
+	compLzo                bool
+	persistKey             bool
+	persistTun             bool
+	status                 string   // /var/log/openvpn/status.log
+	verb                   int      // 1 3
+	clientConfigDir        string   // ccd
+	clientToClient         bool
+	duplicateCn            bool
+	topology               string   // subnet
+	serverIpv6             string   // fd42:42:42:42::/112
+	tunIpv6                bool
+	ecdhCurve              string   // prime256v1
+	tlsCrypt               string   // tls-crypt.key
+	crlVerify              string   // crl.pem
+	auth                   string   // SHA256
+	cipher                 string   // AES-128-GCM
+	ncpCiphers             string   // AES-128-GCM
+	tlsServer              bool
+	tlsVersionMin          string   // 1.2
+	tlsCipher              string   // TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+	log                    string   // /var/log/openvpn.log
+	route                  []string // 10.42.44.0 255.255.255.0
+	                                // 10.42.78.0 255.255.255.0
+	                                // 10.8.0.0 255.255.255.0
+	push                   []string // "dhcp-option DNS 10.8.0.1"
+	                                // "dhcp-option DNS fd42:42:42:42::1"
+	                                // "redirect-gateway def1 bypass-dhcp"
+	                                // "tun-ipv6"
+	                                // "route-ipv6 2000::/3"
+	                                // "redirect-gateway ipv6"
+}
+
 type OvpnAdmin struct {
 	role                   string
 	lastSyncTime           string
 	lastSuccessfulSyncTime string
 	masterHostBasicAuth    bool
 	masterSyncToken        string
+	serverConf             OvpnConfig
 	clients                []OpenvpnClient
 	activeClients          []clientStatus
 	promRegistry           *prometheus.Registry
@@ -755,10 +808,31 @@ func main() {
 	ovpnAdmin.modules = []string{}
 	ovpnAdmin.createUserMutex = &sync.Mutex{}
 	ovpnAdmin.mgmtInterfaces = make(map[string]string)
+	ovpnAdmin.parseServerConf(*serverConfFile)
+	ovpnAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile))
+
+	log.Printf("management is %v | %v | %v", mgmtAddress, *mgmtAddress, len(*mgmtAddress))
+	if mgmtAddress == nil || len(*mgmtAddress) == 0 || len((*mgmtAddress)[0]) == 0 {
+		*mgmtAddress = []string{"main="+strings.Replace(ovpnAdmin.serverConf.management, " ", ":", 1)}
+		log.Printf("management set to %v", *mgmtAddress)
+	}
 
 	for _, mgmtInterface := range *mgmtAddress {
 		parts := strings.SplitN(mgmtInterface, "=", 2)
 		ovpnAdmin.mgmtInterfaces[parts[0]] = parts[len(parts)-1]
+	}
+
+	if len(ovpnAdmin.serverConf.clientConfigDir) > 0 {
+		*ccdEnabled = true
+		*ccdDir = absolutizePath(*serverConfFile, ovpnAdmin.serverConf.clientConfigDir)
+		log.Printf("ccd dir set to %s", *ccdDir)
+	}
+
+	log.Printf("server conf %v", ovpnAdmin.serverConf.server)
+	log.Printf("openvpnNetwork %v", *openvpnNetwork)
+	if (openvpnNetwork == nil || len(*openvpnNetwork) == 0) && len(ovpnAdmin.serverConf.server) > 0 {
+		*openvpnNetwork = convertNetworkMaskCidr(ovpnAdmin.serverConf.server)
+		log.Printf("network set to %s", *openvpnNetwork)
 	}
 
 	ovpnAdmin.mgmtSetTimeFormat()
@@ -824,6 +898,12 @@ func main() {
 
 	log.Printf("Bind: http://%s:%s", *listenHost, *listenPort)
 	log.Fatal(http.ListenAndServe(*listenHost+":"+*listenPort, nil))
+}
+
+func convertNetworkMaskCidr(networkMask string) string {
+	parts := strings.Fields(networkMask)
+	pref := ipaddr.NewIPAddressString(parts[1]).GetAddress().GetBlockMaskPrefixLen(true)
+	return fmt.Sprintf("%s/%d", parts[0], pref.Len())
 }
 
 func CacheControlWrapper(h http.Handler) http.Handler {
