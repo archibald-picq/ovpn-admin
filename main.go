@@ -34,7 +34,6 @@ import (
 
 	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/alessio/shellescape.v1"
-	"github.com/seancfoley/ipaddress-go/ipaddr"
 )
 
 const (
@@ -637,8 +636,25 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (oAdmin *OvpnAdmin) getUserProfile(username string) string {
-	return fmt.Sprintf(`{"username":"%s"}`, username)
+func (oAdmin *OvpnAdmin) getUserProfile(username string) *ConfigPublicUser {
+	configPublicUser := new(ConfigPublicUser)
+	configPublicUser.Username = username
+	return configPublicUser
+	//return fmt.Sprintf(`{"username":"%s"}`, username)
+}
+
+type ConfigPublicUser struct {
+	Username string `json:"username"`
+}
+
+type ConfigPublicOpenvn struct {
+	Url  string `json:"url"`
+	Settings ConfigPublicSettings `json:"settings,omitempty"`
+}
+
+type ConfigPublic struct {
+	User ConfigPublicUser `json:"user,omitempty"`
+	Openvpn ConfigPublicOpenvn `json:"openvpn"`
 }
 
 func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
@@ -648,14 +664,121 @@ func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	configPublic := new(ConfigPublic)
+	configPublic.Openvpn.Url = ""
+
 	auth := getAuthCookie(r)
 	ok, jwtUsername := jwtUsername(auth)
-	user := ""
 	if ok {
-		user = fmt.Sprintf(`"user":%s,`, oAdmin.getUserProfile(jwtUsername))
+		configPublic.User = *(oAdmin.getUserProfile(jwtUsername))
+		configPublic.Openvpn.Settings = oAdmin.exportPublicSettings()
 	}
 
-	fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
+	rawJson, _ := json.Marshal(configPublic)
+	_, err := w.Write(rawJson)
+	if err != nil {
+		log.Errorln("Fail to write response")
+		return
+	}
+	//fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
+}
+
+type ServerSavePayload struct {
+	CompLzo bool `json:"compLzo"`
+	DuplicateCn bool `json:"duplicateCn"`
+	Server string `json:"server"`
+	ServerIpv6 string `json:"serverIpv6"`
+}
+func (oAdmin *OvpnAdmin) saveConfig(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+
+	auth := getAuthCookie(r)
+	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	var savePayload ServerSavePayload
+	if r.Body == nil {
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&savePayload)
+	if err != nil {
+		log.Errorln(err)
+	}
+
+	conf := oAdmin.serverConf
+	conf.server = convertCidrNetworkMask(savePayload.Server)
+	conf.serverIpv6 = savePayload.ServerIpv6
+	conf.compLzo = savePayload.CompLzo
+	conf.duplicateCn = savePayload.DuplicateCn
+
+
+	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
+
+	err = fCopy(*serverConfFile, backupFile)
+	if err != nil {
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Can't backup config file"})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	status, err := oAdmin.writeConfig(*serverConfFile, conf)
+	if err != nil {
+		fCopy(backupFile, *serverConfFile)
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	err = oAdmin.restartServer()
+	if err != nil {
+		fCopy(backupFile, *serverConfFile)
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	oAdmin.serverConf.server = conf.server
+	oAdmin.serverConf.serverIpv6 = conf.serverIpv6
+	oAdmin.serverConf.compLzo = conf.compLzo
+	oAdmin.serverConf.duplicateCn = conf.duplicateCn
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (oAdmin *OvpnAdmin) restartServer() error {
+	_, err := runBash(*serverRestartCommand)
+	return err
+}
+
+type ConfigPublicSettings struct {
+	Server string `json:"server"`
+	ServerIpv6 string `json:"serverIpv6"`
+	DuplicateCn bool `json:"duplicateCn"`
+	CompLzo bool `json:"compLzo"`
+	Routes []string `json:"routes"`
+	PushRoutes []string `json:"pushRoutes"`
+}
+
+func (oAdmin *OvpnAdmin) exportPublicSettings() ConfigPublicSettings {
+	var settings ConfigPublicSettings
+	settings.Server = convertNetworkMaskCidr(oAdmin.serverConf.server)
+	settings.ServerIpv6 = oAdmin.serverConf.serverIpv6
+	settings.DuplicateCn = oAdmin.serverConf.duplicateCn
+	settings.CompLzo = oAdmin.serverConf.compLzo
+	settings.Routes = make([]string, 0)
+	for _, route := range oAdmin.serverConf.route {
+		settings.Routes = append(settings.Routes, convertNetworkMaskCidr(route))
+	}
+	return settings
 }
 
 func (oAdmin *OvpnAdmin) serverSettingsHandler(w http.ResponseWriter, r *http.Request) {
@@ -799,7 +922,6 @@ func main() {
 	}
 
 	ovpnAdmin := new(OvpnAdmin)
-
 	ovpnAdmin.lastSyncTime = "unknown"
 	ovpnAdmin.role = *serverRole
 	ovpnAdmin.lastSuccessfulSyncTime = "unknown"
@@ -809,12 +931,10 @@ func main() {
 	ovpnAdmin.createUserMutex = &sync.Mutex{}
 	ovpnAdmin.mgmtInterfaces = make(map[string]string)
 	ovpnAdmin.parseServerConf(*serverConfFile)
-	ovpnAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile))
+	ovpnAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile), ovpnAdmin.serverConf)
 
-	log.Printf("management is %v | %v | %v", mgmtAddress, *mgmtAddress, len(*mgmtAddress))
 	if mgmtAddress == nil || len(*mgmtAddress) == 0 || len((*mgmtAddress)[0]) == 0 {
 		*mgmtAddress = []string{"main="+strings.Replace(ovpnAdmin.serverConf.management, " ", ":", 1)}
-		log.Printf("management set to %v", *mgmtAddress)
 	}
 
 	for _, mgmtInterface := range *mgmtAddress {
@@ -825,14 +945,10 @@ func main() {
 	if len(ovpnAdmin.serverConf.clientConfigDir) > 0 {
 		*ccdEnabled = true
 		*ccdDir = absolutizePath(*serverConfFile, ovpnAdmin.serverConf.clientConfigDir)
-		log.Printf("ccd dir set to %s", *ccdDir)
 	}
 
-	log.Printf("server conf %v", ovpnAdmin.serverConf.server)
-	log.Printf("openvpnNetwork %v", *openvpnNetwork)
 	if (openvpnNetwork == nil || len(*openvpnNetwork) == 0) && len(ovpnAdmin.serverConf.server) > 0 {
 		*openvpnNetwork = convertNetworkMaskCidr(ovpnAdmin.serverConf.server)
-		log.Printf("network set to %s", *openvpnNetwork)
 	}
 
 	ovpnAdmin.mgmtSetTimeFormat()
@@ -868,8 +984,9 @@ func main() {
 	}
 
 	staticDir, _ := fs.Sub(content, "frontend/static")
-	http.Handle("/", http.FileServer(http.FS(staticDir)))
+	embedFs := http.FS(staticDir)
 	http.HandleFunc("/api/config", ovpnAdmin.showConfig)
+	http.HandleFunc("/api/config/save", ovpnAdmin.saveConfig)
 	http.HandleFunc("/api/authenticate", ovpnAdmin.authenticate)
 	http.HandleFunc("/api/logout", ovpnAdmin.logout)
 	http.HandleFunc("/api/server/settings", ovpnAdmin.serverSettingsHandler)
@@ -895,15 +1012,22 @@ func main() {
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "pong")
 	})
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		ovpnAdmin.catchAll(embedFs, w, r)
+	})
 
 	log.Printf("Bind: http://%s:%s", *listenHost, *listenPort)
 	log.Fatal(http.ListenAndServe(*listenHost+":"+*listenPort, nil))
 }
 
-func convertNetworkMaskCidr(networkMask string) string {
-	parts := strings.Fields(networkMask)
-	pref := ipaddr.NewIPAddressString(parts[1]).GetAddress().GetBlockMaskPrefixLen(true)
-	return fmt.Sprintf("%s/%d", parts[0], pref.Len())
+func (oAdmin *OvpnAdmin) catchAll(embedFs http.FileSystem, w http.ResponseWriter, r *http.Request) {
+	_, err := embedFs.Open(r.URL.Path)
+	if err != nil {
+		r.URL.Path = "/"
+	}
+
+	httpFS := http.FileServer(embedFs)
+	httpFS.ServeHTTP(w, r)
 }
 
 func CacheControlWrapper(h http.Handler) http.Handler {

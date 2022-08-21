@@ -22,7 +22,7 @@ import {
 } from './modals/confirm-rotate-client-certificate.component';
 
 @Component({
-    selector: 'bus-ui-peripheral',
+    selector: 'bus-peripheral',
     templateUrl: './openvpn.component.html',
     styleUrls: ['./openvpn.component.scss'],
 })
@@ -39,9 +39,7 @@ export class OpenvpnPageComponent {
         private readonly injector: Injector,
         private readonly openvpnService: OpenvpnService,
     ) {
-        console.warn('clients', this.activatedRoute.snapshot.data.clients);
         this.clients = this.activatedRoute.snapshot.data.clients;
-        console.warn('this.clients', this.clients);
         this.applySorting();
         if (!this.hideRevoked) {
             this.addRevocationDateColumnBeforeActions();

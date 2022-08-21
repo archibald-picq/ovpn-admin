@@ -149,7 +149,12 @@ func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 		Value:   tokenString,
 		Expires: expirationTime,
 	})
-	fmt.Fprintf(w, oAdmin.getUserProfile(authPayload.Username))
+	rawJson, _ := json.Marshal(oAdmin.getUserProfile(authPayload.Username))
+	_, err = w.Write(rawJson)
+	if err != nil {
+		log.Errorln("Fail to write response")
+		return
+	}
 }
 
 func (oAdmin *OvpnAdmin) logout(w http.ResponseWriter, r *http.Request) {

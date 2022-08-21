@@ -7,6 +7,7 @@ import { Sort } from '@angular/material/sort';
 import { Observable, throwError } from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
+import { OpenvpnConfig } from '../models/openvpn-config.model';
 
 @Injectable()
 export class OpenvpnService {
@@ -18,6 +19,14 @@ export class OpenvpnService {
     ) {
         this.OPENVPN_ADMIN_API = appConfigService.get().openvpn?.url;
         // console.warn('OPENVPN_API_URL', appConfigService.get().openvpn?.url);
+    }
+
+    public loadConfig(): Observable<OpenvpnConfig> {
+        return this.http.get<OpenvpnConfig>(this.OPENVPN_ADMIN_API+'/api/config', { observe: 'response'}).pipe(
+            filter((response: HttpResponse<any>) => response.ok),
+            map((res: any) => res.body as any[]),
+            map((item: any) => OpenvpnConfig.parse(item.openvpn.settings))
+        );
     }
 
     public listClientCertificates(): Observable<IClientCertificate[]> {
@@ -59,6 +68,14 @@ export class OpenvpnService {
             filter((response: HttpResponse<Blob>) => response.ok),
             map((res: HttpResponse<Blob>) => res.body as Blob),
         ).toPromise() as Promise<Blob>;
+    }
+
+    public async saveServerConfig(toSave: Record<string, any>) {
+        return this.http.post(this.OPENVPN_ADMIN_API+'/api/config/save', toSave, {
+            observe: 'response',
+        }).pipe(
+            filter((response: HttpResponse<any>) => response.ok),
+        ).toPromise().then();
     }
 
     public async saveClientConfig(client: IClientCertificate, model: ClientConfig): Promise<void> {

@@ -16,6 +16,7 @@ import { ConfirmRotateClientCertificateComponent } from './modals/confirm-rotate
 import { SharedModule } from '../shared/shared.module';
 import { MatIconModule } from '@angular/material/icon';
 import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
+import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 
 @NgModule({
     declarations: [
@@ -25,10 +26,11 @@ import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
         ConfirmDeleteClientCertificateComponent,
         ConfirmRotateClientCertificateComponent,
         CreateClientCertificateComponent,
+        OpenvpnSettingsPageComponent,
     ],
     imports: [
-        CommonModule,
         RouterModule.forChild(OPENVPN_ROUTES),
+        CommonModule,
         MatSliderModule,
         MatSortModule,
         MatTableModule,

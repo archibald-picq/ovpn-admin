@@ -1,0 +1,19 @@
+
+:host {
+  display: block;
+  margin: 20px;
+}
+
+.button-wrapper {
+  position: fixed;
+  bottom: 0;
+  background: #fff;
+  display: block;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  box-shadow: 0 0 15px rgb(0 0 0 / 11%);
+  text-align: center;
+  padding: 15px 0;
+  margin-top: 62px;
+}

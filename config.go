@@ -113,137 +113,138 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 	log.Printf("config %v", oAdmin.serverConf)
 }
 
-func (oAdmin *OvpnAdmin) writeConfig(file string) {
+func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, error) {
 	var lines = make([]string, 0)
 
-	if len(oAdmin.serverConf.server) > 0 {
-		lines = append(lines, fmt.Sprintf("server %s", oAdmin.serverConf.server))
+	if len(config.server) > 0 {
+		lines = append(lines, fmt.Sprintf("server %s", config.server))
 	}
-	if oAdmin.serverConf.port != 0 {
-		lines = append(lines, fmt.Sprintf("port %d", oAdmin.serverConf.port))
+	if config.port != 0 {
+		lines = append(lines, fmt.Sprintf("port %d", config.port))
 	}
-	if len(oAdmin.serverConf.proto) > 0 {
-		lines = append(lines, fmt.Sprintf("proto %s", oAdmin.serverConf.proto))
+	if len(config.proto) > 0 {
+		lines = append(lines, fmt.Sprintf("proto %s", config.proto))
 	}
-	if len(oAdmin.serverConf.dev) > 0 {
-		lines = append(lines, fmt.Sprintf("dev %s", oAdmin.serverConf.dev))
+	if len(config.dev) > 0 {
+		lines = append(lines, fmt.Sprintf("dev %s", config.dev))
 	}
-	if oAdmin.serverConf.tunMtu >= 0 {
-		lines = append(lines, fmt.Sprintf("tun-mtu %d", oAdmin.serverConf.tunMtu))
+	if config.tunMtu >= 0 {
+		lines = append(lines, fmt.Sprintf("tun-mtu %d", config.tunMtu))
 	}
-	if oAdmin.serverConf.fragment >= 0 {
-		lines = append(lines, fmt.Sprintf("fragment %d", oAdmin.serverConf.fragment))
+	if config.fragment >= 0 {
+		lines = append(lines, fmt.Sprintf("fragment %d", config.fragment))
 	}
-	if len(oAdmin.serverConf.user) > 0 {
-		lines = append(lines, fmt.Sprintf("user %s", oAdmin.serverConf.user))
+	if len(config.user) > 0 {
+		lines = append(lines, fmt.Sprintf("user %s", config.user))
 	}
-	if len(oAdmin.serverConf.group) > 0 {
-		lines = append(lines, fmt.Sprintf("group %s", oAdmin.serverConf.group))
+	if len(config.group) > 0 {
+		lines = append(lines, fmt.Sprintf("group %s", config.group))
 	}
-	if oAdmin.serverConf.mssfix >= 0 {
-		lines = append(lines, fmt.Sprintf("mssfix %d", oAdmin.serverConf.mssfix))
+	if config.mssfix >= 0 {
+		lines = append(lines, fmt.Sprintf("mssfix %d", config.mssfix))
 	}
-	if len(oAdmin.serverConf.management) > 0 {
-		lines = append(lines, fmt.Sprintf("management %s", oAdmin.serverConf.management))
+	if len(config.management) > 0 {
+		lines = append(lines, fmt.Sprintf("management %s", config.management))
 	}
-	if len(oAdmin.serverConf.ca) > 0 {
-		lines = append(lines, fmt.Sprintf("ca %s", oAdmin.serverConf.ca))
+	if len(config.ca) > 0 {
+		lines = append(lines, fmt.Sprintf("ca %s", config.ca))
 	}
-	if len(oAdmin.serverConf.cert) > 0 {
-		lines = append(lines, fmt.Sprintf("cert %s", oAdmin.serverConf.cert))
+	if len(config.cert) > 0 {
+		lines = append(lines, fmt.Sprintf("cert %s", config.cert))
 	}
-	if len(oAdmin.serverConf.key) > 0 {
-		lines = append(lines, fmt.Sprintf("key %s", oAdmin.serverConf.key))
+	if len(config.key) > 0 {
+		lines = append(lines, fmt.Sprintf("key %s", config.key))
 	}
-	if len(oAdmin.serverConf.dh) > 0 {
-		lines = append(lines, fmt.Sprintf("dh %s", oAdmin.serverConf.dh))
+	if len(config.dh) > 0 {
+		lines = append(lines, fmt.Sprintf("dh %s", config.dh))
 	}
-	if len(oAdmin.serverConf.ifconfigPoolPersist) > 0 {
-		lines = append(lines, fmt.Sprintf("ifconfig-pool-persist %s", oAdmin.serverConf.ifconfigPoolPersist))
+	if len(config.ifconfigPoolPersist) > 0 {
+		lines = append(lines, fmt.Sprintf("ifconfig-pool-persist %s", config.ifconfigPoolPersist))
 	}
-	if len(oAdmin.serverConf.keepalive) > 0 {
-		lines = append(lines, fmt.Sprintf("keepalive %s", oAdmin.serverConf.keepalive))
+	if len(config.keepalive) > 0 {
+		lines = append(lines, fmt.Sprintf("keepalive %s", config.keepalive))
 	}
-	if oAdmin.serverConf.compLzo {
+	if config.compLzo {
 		lines = append(lines, fmt.Sprintf("comp-lzo"))
 	}
-	if oAdmin.serverConf.persistKey {
+	if config.persistKey {
 		lines = append(lines, fmt.Sprintf("persist-key"))
 	}
-	if oAdmin.serverConf.persistTun {
+	if config.persistTun {
 		lines = append(lines, fmt.Sprintf("persist-tun"))
 	}
-	if len(oAdmin.serverConf.status) > 0 {
-		lines = append(lines, fmt.Sprintf("status %s", oAdmin.serverConf.status))
+	if len(config.status) > 0 {
+		lines = append(lines, fmt.Sprintf("status %s", config.status))
 	}
-	if oAdmin.serverConf.verb >= 0 {
-		lines = append(lines, fmt.Sprintf("verb %d", oAdmin.serverConf.verb))
+	if config.verb >= 0 {
+		lines = append(lines, fmt.Sprintf("verb %d", config.verb))
 	}
-	if len(oAdmin.serverConf.clientConfigDir) > 0 {
-		lines = append(lines, fmt.Sprintf("client-config-dir %s", oAdmin.serverConf.clientConfigDir))
+	if len(config.clientConfigDir) > 0 {
+		lines = append(lines, fmt.Sprintf("client-config-dir %s", config.clientConfigDir))
 	}
-	if oAdmin.serverConf.clientToClient {
+	if config.clientToClient {
 		lines = append(lines, fmt.Sprintf("client-to-client"))
 	}
-	if oAdmin.serverConf.duplicateCn {
+	if config.duplicateCn {
 		lines = append(lines, fmt.Sprintf("duplicate-cn"))
 	}
-	if len(oAdmin.serverConf.topology) > 0 {
-		lines = append(lines, fmt.Sprintf("topology %s", oAdmin.serverConf.topology))
+	if len(config.topology) > 0 {
+		lines = append(lines, fmt.Sprintf("topology %s", config.topology))
 	}
-	if len(oAdmin.serverConf.serverIpv6) > 0 {
-		lines = append(lines, fmt.Sprintf("server-ipv6 %s", oAdmin.serverConf.serverIpv6))
+	if len(config.serverIpv6) > 0 {
+		lines = append(lines, fmt.Sprintf("server-ipv6 %s", config.serverIpv6))
 	}
-	if oAdmin.serverConf.tunIpv6 {
+	if config.tunIpv6 {
 		lines = append(lines, fmt.Sprintf("tun-ipv6"))
 	}
-	if len(oAdmin.serverConf.ecdhCurve) > 0 {
-		lines = append(lines, fmt.Sprintf("ecdh-curve %s", oAdmin.serverConf.ecdhCurve))
+	if len(config.ecdhCurve) > 0 {
+		lines = append(lines, fmt.Sprintf("ecdh-curve %s", config.ecdhCurve))
 	}
-	if len(oAdmin.serverConf.tlsCrypt) > 0 {
-		lines = append(lines, fmt.Sprintf("tls-crypt %s", oAdmin.serverConf.tlsCrypt))
+	if len(config.tlsCrypt) > 0 {
+		lines = append(lines, fmt.Sprintf("tls-crypt %s", config.tlsCrypt))
 	}
-	if len(oAdmin.serverConf.crlVerify) > 0 {
-		lines = append(lines, fmt.Sprintf("crl-verify %s", oAdmin.serverConf.crlVerify))
+	if len(config.crlVerify) > 0 {
+		lines = append(lines, fmt.Sprintf("crl-verify %s", config.crlVerify))
 	}
-	if len(oAdmin.serverConf.auth) > 0 {
-		lines = append(lines, fmt.Sprintf("auth %s", oAdmin.serverConf.auth))
+	if len(config.auth) > 0 {
+		lines = append(lines, fmt.Sprintf("auth %s", config.auth))
 	}
-	if len(oAdmin.serverConf.cipher) > 0 {
-		lines = append(lines, fmt.Sprintf("cipher %s", oAdmin.serverConf.cipher))
+	if len(config.cipher) > 0 {
+		lines = append(lines, fmt.Sprintf("cipher %s", config.cipher))
 	}
-	if len(oAdmin.serverConf.ncpCiphers) > 0 {
-		lines = append(lines, fmt.Sprintf("ncp-ciphers %s", oAdmin.serverConf.ncpCiphers))
+	if len(config.ncpCiphers) > 0 {
+		lines = append(lines, fmt.Sprintf("ncp-ciphers %s", config.ncpCiphers))
 	}
-	if oAdmin.serverConf.tlsServer {
+	if config.tlsServer {
 		lines = append(lines, fmt.Sprintf("tls-server"))
 	}
-	if len(oAdmin.serverConf.tlsVersionMin) > 0 {
-		lines = append(lines, fmt.Sprintf("tls-version-min %s", oAdmin.serverConf.tlsVersionMin))
+	if len(config.tlsVersionMin) > 0 {
+		lines = append(lines, fmt.Sprintf("tls-version-min %s", config.tlsVersionMin))
 	}
-	if len(oAdmin.serverConf.tlsCipher) > 0 {
-		lines = append(lines, fmt.Sprintf("tls-cipher %s", oAdmin.serverConf.tlsCipher))
+	if len(config.tlsCipher) > 0 {
+		lines = append(lines, fmt.Sprintf("tls-cipher %s", config.tlsCipher))
 	}
-	if len(oAdmin.serverConf.log) > 0 {
-		lines = append(lines, fmt.Sprintf("log %s", oAdmin.serverConf.log))
+	if len(config.log) > 0 {
+		lines = append(lines, fmt.Sprintf("log %s", config.log))
 	}
-	if len(oAdmin.serverConf.route) > 0 {
+	if len(config.route) > 0 {
 		lines = append(lines, "")
-		for _, s := range oAdmin.serverConf.route {
+		for _, s := range config.route {
 			lines = append(lines, fmt.Sprintf("route %s", s))
 		}
 	}
-	if len(oAdmin.serverConf.push) > 0 {
+	if len(config.push) > 0 {
 		lines = append(lines, "")
-		for _, s := range oAdmin.serverConf.push {
+		for _, s := range config.push {
 			lines = append(lines, fmt.Sprintf("push \"%s\"", s))
 		}
 	}
 	lines = append(lines, "")
 	err := fWrite(file, strings.Join(lines, "\n"))
 	if err != nil {
-		log.Error(err)
+		return "Can't write file", err
 	}
+	return "", nil
 }
 
 func extractKey(line string) string {
@@ -291,12 +292,17 @@ func absolutizePath(referencePath string, relativePath string) string {
 	}
 	relativePath = strings.TrimPrefix(relativePath, "./")
 
-	if strings.HasSuffix("/", referencePath) {
-		log.Printf("referencePath ends with '/': '%s' .. '%s'", referencePath, relativePath)
-		return referencePath+relativePath;
-	}
-	p := strings.LastIndex(referencePath, "/")
-	referencePath = referencePath[0:p+1]
-	log.Printf("concat paths: '%s' .. '%s'", referencePath, relativePath)
+	referencePath = dirname(referencePath)
+
+	//log.Printf("concat paths: '%s' .. '%s'", referencePath, relativePath)
 	return referencePath+relativePath
+}
+
+func dirname(path string) string {
+	if strings.HasSuffix("/", path) {
+		//log.Printf("referencePath ends with '/': '%s' .. '%s'", path, relativePath)
+		return path;
+	}
+	p := strings.LastIndex(path, "/")
+	return path[0:p+1]
 }

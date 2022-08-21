@@ -19,8 +19,8 @@ export class AppConfigService {
             // .catch((err: HttpErrorResponse))
             .pipe(
                 // map(user => console.warn('user', user))
-            ).toPromise().then((ret) => {
-                Object.assign(this.config, ret);
+            ).toPromise().then((ret: any) => {
+              this.config.import(ret);
             }, (err) => {
                 console.warn('err', err);
             });
