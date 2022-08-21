@@ -201,6 +201,7 @@ type OvpnConfig struct {
 	ifconfigPoolPersist    string   // ipp.txt
 	keepalive              string   // 10 120
 	compLzo                bool
+	allowCompression       bool
 	persistKey             bool
 	persistTun             bool
 	status                 string   // /var/log/openvpn/status.log
@@ -246,6 +247,7 @@ type OvpnAdmin struct {
 	modules                []string
 	mgmtStatusTimeFormat   string
 	createUserMutex        *sync.Mutex
+	masterCn               string
 }
 
 type OpenvpnServer struct {
@@ -653,7 +655,7 @@ type ConfigPublicOpenvn struct {
 }
 
 type ConfigPublic struct {
-	User ConfigPublicUser `json:"user,omitempty"`
+	User *ConfigPublicUser `json:"user,omitempty"`
 	Openvpn ConfigPublicOpenvn `json:"openvpn"`
 }
 
@@ -670,7 +672,7 @@ func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 	auth := getAuthCookie(r)
 	ok, jwtUsername := jwtUsername(auth)
 	if ok {
-		configPublic.User = *(oAdmin.getUserProfile(jwtUsername))
+		configPublic.User = oAdmin.getUserProfile(jwtUsername)
 		configPublic.Openvpn.Settings = oAdmin.exportPublicSettings()
 	}
 
@@ -689,71 +691,6 @@ type ServerSavePayload struct {
 	Server string `json:"server"`
 	ServerIpv6 string `json:"serverIpv6"`
 }
-func (oAdmin *OvpnAdmin) saveConfig(w http.ResponseWriter, r *http.Request) {
-	log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
-		return
-	}
-
-	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
-	var savePayload ServerSavePayload
-	if r.Body == nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
-		return
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&savePayload)
-	if err != nil {
-		log.Errorln(err)
-	}
-
-	conf := oAdmin.serverConf
-	conf.server = convertCidrNetworkMask(savePayload.Server)
-	conf.serverIpv6 = savePayload.ServerIpv6
-	conf.compLzo = savePayload.CompLzo
-	conf.duplicateCn = savePayload.DuplicateCn
-
-
-	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
-
-	err = fCopy(*serverConfFile, backupFile)
-	if err != nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Can't backup config file"})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
-		return
-	}
-
-	status, err := oAdmin.writeConfig(*serverConfFile, conf)
-	if err != nil {
-		fCopy(backupFile, *serverConfFile)
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
-		return
-	}
-
-	err = oAdmin.restartServer()
-	if err != nil {
-		fCopy(backupFile, *serverConfFile)
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
-		return
-	}
-
-	oAdmin.serverConf.server = conf.server
-	oAdmin.serverConf.serverIpv6 = conf.serverIpv6
-	oAdmin.serverConf.compLzo = conf.compLzo
-	oAdmin.serverConf.duplicateCn = conf.duplicateCn
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 func (oAdmin *OvpnAdmin) restartServer() error {
 	_, err := runBash(*serverRestartCommand)
 	return err
@@ -949,6 +886,10 @@ func main() {
 
 	if (openvpnNetwork == nil || len(*openvpnNetwork) == 0) && len(ovpnAdmin.serverConf.server) > 0 {
 		*openvpnNetwork = convertNetworkMaskCidr(ovpnAdmin.serverConf.server)
+	}
+
+	if len(ovpnAdmin.serverConf.cert) > 0 {
+		ovpnAdmin.masterCn = getCnFromCertificate(absolutizePath(*serverConfFile, ovpnAdmin.serverConf.cert))
 	}
 
 	ovpnAdmin.mgmtSetTimeFormat()
@@ -1168,7 +1109,7 @@ func (oAdmin *OvpnAdmin) usersList() []OpenvpnClient {
 	for _, line := range indexTxtParser(fRead(*indexTxtPath)) {
 		//match := re.FindStringSubmatch(line.Identity)
 		//log.Debugf("match %s in %s", username, line.Identity)
-		if line.Username != "server" && line.flag != "D" {
+		if line.Username != oAdmin.masterCn && line.flag != "D" {
 			totalCerts += 1
 			switch {
 				case line.flag == "V":

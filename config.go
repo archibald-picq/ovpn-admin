@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	log "github.com/sirupsen/logrus"
@@ -11,6 +13,9 @@ import (
 func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 	lines := strings.Split(fRead(file), "\n")
 
+	oAdmin.serverConf.tunMtu = -1
+	oAdmin.serverConf.fragment = -1
+	oAdmin.serverConf.mssfix = -1
 	for _, line := range lines {
 		if len(line) == 0 || line[0:1] == "#" {
 			continue
@@ -59,6 +64,8 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 			oAdmin.serverConf.keepalive = getValueWithoutComment(line)
 		case key == "comp-lzo":
 			oAdmin.serverConf.compLzo = true
+		case key == "allow-compression":
+			oAdmin.serverConf.allowCompression = true
 		case key == "persist-key":
 			oAdmin.serverConf.persistKey = true
 		case key == "persist-tun":
@@ -166,6 +173,9 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 	}
 	if config.compLzo {
 		lines = append(lines, fmt.Sprintf("comp-lzo"))
+	}
+	if config.allowCompression {
+		lines = append(lines, fmt.Sprintf("allow-compression yes"))
 	}
 	if config.persistKey {
 		lines = append(lines, fmt.Sprintf("persist-key"))
@@ -286,23 +296,67 @@ func getIntValueWithoutComment(line string) (int, error) {
 	}
 }
 
-func absolutizePath(referencePath string, relativePath string) string {
-	if strings.HasPrefix(relativePath, "/") {
-		return relativePath
+func (oAdmin *OvpnAdmin) saveConfig(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
 	}
-	relativePath = strings.TrimPrefix(relativePath, "./")
 
-	referencePath = dirname(referencePath)
-
-	//log.Printf("concat paths: '%s' .. '%s'", referencePath, relativePath)
-	return referencePath+relativePath
-}
-
-func dirname(path string) string {
-	if strings.HasSuffix("/", path) {
-		//log.Printf("referencePath ends with '/': '%s' .. '%s'", path, relativePath)
-		return path;
+	auth := getAuthCookie(r)
+	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
 	}
-	p := strings.LastIndex(path, "/")
-	return path[0:p+1]
+
+	var savePayload ServerSavePayload
+	if r.Body == nil {
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&savePayload)
+	if err != nil {
+		log.Errorln(err)
+	}
+
+	conf := oAdmin.serverConf
+	conf.server = convertCidrNetworkMask(savePayload.Server)
+	conf.serverIpv6 = savePayload.ServerIpv6
+	conf.compLzo = savePayload.CompLzo
+	conf.duplicateCn = savePayload.DuplicateCn
+
+
+	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
+
+	err = fCopy(*serverConfFile, backupFile)
+	if err != nil {
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Can't backup config file"})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	status, err := oAdmin.writeConfig(*serverConfFile, conf)
+	if err != nil {
+		fCopy(backupFile, *serverConfFile)
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	err = oAdmin.restartServer()
+	if err != nil {
+		fCopy(backupFile, *serverConfFile)
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	oAdmin.serverConf.server = conf.server
+	oAdmin.serverConf.serverIpv6 = conf.serverIpv6
+	oAdmin.serverConf.compLzo = conf.compLzo
+	oAdmin.serverConf.duplicateCn = conf.duplicateCn
+
+	w.WriteHeader(http.StatusNoContent)
 }

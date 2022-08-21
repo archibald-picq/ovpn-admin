@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -332,4 +333,51 @@ func convertCidrNetworkMask(cidr string) string {
 	mask := fmt.Sprintf("%d.%d.%d.%d", ipv4Net.Mask[0], ipv4Net.Mask[1], ipv4Net.Mask[2], ipv4Net.Mask[3])
 	log.Printf("parsed %v --- %v", ipv4Addr, mask)
 	return fmt.Sprintf("%s %s", ipv4Addr, mask)
+}
+
+func absolutizePath(referencePath string, relativePath string) string {
+	if strings.HasPrefix(relativePath, "/") {
+		return relativePath
+	}
+	relativePath = strings.TrimPrefix(relativePath, "./")
+
+	referencePath = dirname(referencePath)
+
+	//log.Printf("concat paths: '%s' .. '%s'", referencePath, relativePath)
+	return referencePath+relativePath
+}
+
+func dirname(path string) string {
+	if strings.HasSuffix("/", path) {
+		//log.Printf("referencePath ends with '/': '%s' .. '%s'", path, relativePath)
+		return path;
+	}
+	p := strings.LastIndex(path, "/")
+	return path[0:p+1]
+}
+
+func getSubjectFromCertificate(path string) string {
+	content := fRead(path)
+	re := regexp.MustCompile("Subject:\\s*(.*)")
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		match := re.FindStringSubmatch(line)
+		if len(match) > 1 {
+			subject := "/"+strings.ReplaceAll(match[1], ", ", "/")
+			return subject
+		}
+	}
+	return ""
+}
+
+func getCnFromCertificate(path string) string {
+
+	log.Printf("extract CN from certif %s", path)
+
+	subject := getSubjectFromCertificate(path)
+	cn := extractUsername(subject)
+	log.Printf("CN subject: '%v'", cn)
+
+	return cn
 }
