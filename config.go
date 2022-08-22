@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,6 +29,8 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 		case key == "port":
 			if n, err := getIntValueWithoutComment(line); err == nil {
 				oAdmin.serverConf.port = n
+			} else {
+				log.Error(err)
 			}
 		case key == "proto":
 			oAdmin.serverConf.proto = getValueWithoutComment(line)
@@ -35,10 +39,14 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 		case key == "tun-mtu":
 			if n, err := getIntValueWithoutComment(line); err == nil {
 				oAdmin.serverConf.tunMtu = n
+			} else {
+				log.Error(err)
 			}
 		case key == "fragment":
 			if n, err := getIntValueWithoutComment(line); err == nil {
 				oAdmin.serverConf.fragment = n
+			} else {
+				log.Error(err)
 			}
 		case key == "user":
 			oAdmin.serverConf.user = getValueWithoutComment(line)
@@ -47,6 +55,8 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 		case key == "mssfix":
 			if n, err := getIntValueWithoutComment(line); err == nil {
 				oAdmin.serverConf.mssfix = n
+			} else {
+				log.Error(err)
 			}
 		case key == "management":
 			oAdmin.serverConf.management = getValueWithoutComment(line)
@@ -75,6 +85,8 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 		case key == "verb":
 			if n, err := getIntValueWithoutComment(line); err == nil {
 				oAdmin.serverConf.verb = n
+			} else {
+				log.Error(err)
 			}
 		case key == "client-config-dir":
 			oAdmin.serverConf.clientConfigDir = getValueWithoutComment(line)
@@ -109,7 +121,11 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 		case key == "log":
 			oAdmin.serverConf.log = getValueWithoutComment(line)
 		case key == "route":
-			oAdmin.serverConf.route = append(oAdmin.serverConf.route, getQuotedValueWithoutComment(line))
+			if route, err := getRouteValueWithComment(line); err == nil {
+				oAdmin.serverConf.routes = append(oAdmin.serverConf.routes, route)
+			} else {
+				log.Error(err)
+			}
 		case key == "push":
 			oAdmin.serverConf.push = append(oAdmin.serverConf.push, getQuotedValueWithoutComment(line))
 		default:
@@ -237,10 +253,10 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 	if len(config.log) > 0 {
 		lines = append(lines, fmt.Sprintf("log %s", config.log))
 	}
-	if len(config.route) > 0 {
+	if len(config.routes) > 0 {
 		lines = append(lines, "")
-		for _, s := range config.route {
-			lines = append(lines, fmt.Sprintf("route %s", s))
+		for _, route := range config.routes {
+			lines = append(lines, formatRoute(route))
 		}
 	}
 	if len(config.push) > 0 {
@@ -255,6 +271,18 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 		return "Can't write file", err
 	}
 	return "", nil
+}
+
+func formatRoute(route Route) string {
+	var parts = make([]string, 0)
+	parts = append(parts, "route")
+	parts = append(parts, route.Address)
+	parts = append(parts, route.Netmask)
+	if len(route.Description) > 0 {
+		parts = append(parts, "#")
+		parts = append(parts, route.Description)
+	}
+	return strings.Join(parts, " ")
 }
 
 func extractKey(line string) string {
@@ -276,6 +304,28 @@ func getQuotedValueWithoutComment(line string) string {
 	line = getValueWithoutComment(line)
 	line = strings.TrimPrefix(strings.TrimSuffix(line, "\""), "\"")
 	return line
+}
+
+func getRouteValueWithComment(line string) (Route, error) {
+	var comment = ""
+	if p := strings.Index(line, "#"); p >= 0 {
+		comment = strings.TrimSpace(line[p+1:])
+		line = line[0:p]
+	}
+	line = strings.TrimRightFunc(line, unicode.IsSpace)
+	if p := strings.Index(line, " "); p >= 0 {
+		line = line[p+1:len(line)]
+	}
+
+	var route Route
+	route.Description = comment
+	parts := strings.Fields(line)
+	if len(parts) != 2 {
+		return route, errors.New("Invalid route format")
+	}
+	route.Address = parts[0]
+	route.Netmask = parts[1]
+	return route, nil
 }
 
 func getIntValueWithoutComment(line string) (int, error) {
@@ -321,12 +371,26 @@ func (oAdmin *OvpnAdmin) saveConfig(w http.ResponseWriter, r *http.Request) {
 		log.Errorln(err)
 	}
 
+	for _, route := range savePayload.Routes {
+		if net.ParseIP(route.Address) == nil {
+			jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Invalid route.address %s", route.Address)})
+			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			return
+		}
+
+		if net.ParseIP(route.Netmask) == nil {
+			jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Invalid route.netmasl %s", route.Netmask)})
+			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			return
+		}
+	}
+
 	conf := oAdmin.serverConf
 	conf.server = convertCidrNetworkMask(savePayload.Server)
 	conf.serverIpv6 = savePayload.ServerIpv6
 	conf.compLzo = savePayload.CompLzo
 	conf.duplicateCn = savePayload.DuplicateCn
-
+	conf.routes = savePayload.Routes
 
 	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
 
@@ -348,6 +412,7 @@ func (oAdmin *OvpnAdmin) saveConfig(w http.ResponseWriter, r *http.Request) {
 	err = oAdmin.restartServer()
 	if err != nil {
 		fCopy(backupFile, *serverConfFile)
+		err = oAdmin.restartServer()
 		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
 		http.Error(w, string(jsonRaw), http.StatusBadRequest)
 		return

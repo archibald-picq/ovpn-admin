@@ -163,8 +163,8 @@ func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
 	ccd := Ccd{}
 	ccd.User = username
 	ccd.ClientAddress = "dynamic"
-	ccd.CustomRoutes = []ccdRoute{}
-	ccd.CustomIRoutes = []ccdRoute{}
+	ccd.CustomRoutes = []Route{}
+	ccd.CustomIRoutes = []Route{}
 
 	var txtLinesArray []string
 	if *storageBackend == "kubernetes.secrets" {
@@ -191,9 +191,9 @@ func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
 			case strings.HasPrefix(str[0], "ifconfig-push"):
 				ccd.ClientAddress = str[1]
 			case strings.HasPrefix(str[0], "push"):
-				ccd.CustomRoutes = append(ccd.CustomRoutes, ccdRoute{Address: strings.Trim(str[2], "\""), Mask: strings.Trim(str[3], "\""), Description: strings.Trim(description, " ")})
+				ccd.CustomRoutes = append(ccd.CustomRoutes, Route{Address: strings.Trim(str[2], "\""), Netmask: strings.Trim(str[3], "\""), Description: strings.Trim(description, " ")})
 			case strings.HasPrefix(str[0], "iroute"):
-				ccd.CustomIRoutes = append(ccd.CustomIRoutes, ccdRoute{Address: strings.Trim(str[1], "\""), Mask: strings.Trim(str[2], "\""), Description: strings.Trim(description, " ")})
+				ccd.CustomIRoutes = append(ccd.CustomIRoutes, Route{Address: strings.Trim(str[1], "\""), Netmask: strings.Trim(str[2], "\""), Description: strings.Trim(description, " ")})
 			default:
 				log.Warnf("ignored ccd line in \"%s\": \"%s\"", username, v)
 			}
@@ -239,8 +239,8 @@ func (oAdmin *OvpnAdmin) validateCcd(ccd Ccd) (bool, string) {
 			return false, ccdErr
 		}
 
-		if net.ParseIP(route.Mask) == nil {
-			ccdErr = fmt.Sprintf("CustomRoute.Mask \"%s\" must be a valid IP address", route.Mask)
+		if net.ParseIP(route.Netmask) == nil {
+			ccdErr = fmt.Sprintf("CustomRoute.Mask \"%s\" must be a valid IP address", route.Netmask)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
 			return false, ccdErr
 		}
@@ -273,7 +273,7 @@ func (oAdmin *OvpnAdmin) getCcd(username string) Ccd {
 	ccd := Ccd{}
 	ccd.User = username
 	ccd.ClientAddress = "dynamic"
-	ccd.CustomRoutes = []ccdRoute{}
+	ccd.CustomRoutes = []Route{}
 
 	ccd = oAdmin.parseCcd(username)
 

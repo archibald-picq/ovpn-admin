@@ -1,5 +1,5 @@
 <div>
-    <a [routerLink]="['../']">&laquo; Certificats list</a>
+    <a [routerLink]="['../']">&laquo; Certificates list</a>
 </div>
 <div class="d-flex flex-row">
     <h1 class="flex-grow-1">Settings</h1>
@@ -64,50 +64,47 @@
                     <th>Adresse</th>
                     <th>Mask</th>
                     <th>Description</th>
-                    <th>Actions</th>
+                    <th class="actions">Actions</th>
                 </tr>
-                <tr *ngFor="let route of model.pushRoutes; let index = index">
-                    <td><input [disabled]="loading" class="form-control" name="address-{{index}}-pushroute" [(ngModel)]="route.address" /></td>
-                    <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-pushroute" [(ngModel)]="route.netmask" /></td>
-                    <td><input [disabled]="loading" class="form-control" name="description-{{index}}-pushroute" [(ngModel)]="route.description" /></td>
+                <tr *ngFor="let route of model.routes; let index = index">
+                    <td><input [disabled]="loading" class="form-control" name="address-{{index}}-route" [(ngModel)]="route.address" /></td>
+                    <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-route" [(ngModel)]="route.netmask" /></td>
+                    <td><input [disabled]="loading" class="form-control" name="description-{{index}}-route" [(ngModel)]="route.description" /></td>
                     <td class="actions">
-                        <button [disabled]="loading" class="btn btn-warning btn-sm" (click)="removePushRoute(route)">remove</button>
+                        <button [disabled]="loading" type="button" class="btn btn-warning btn-sm" (click)="removeRoute(route)">remove</button>
                     </td>
                 </tr>
                 <tr>
-                    <td><input [disabled]="loading" class="form-control" name="address-new-pushroute" [(ngModel)]="newPushRoute.address"></td>
-                    <td><input [disabled]="loading" class="form-control" name="netmask-new-pushroute" [(ngModel)]="newPushRoute.netmask"></td>
-                    <td><input [disabled]="loading" class="form-control" name="description-new-pushroute" [(ngModel)]="newPushRoute.description"></td>
+                    <td><input [disabled]="loading" class="form-control" name="address-new-route" [(ngModel)]="newRoute.address"></td>
+                    <td><input [disabled]="loading" class="form-control" name="netmask-new-route" [(ngModel)]="newRoute.netmask"></td>
+                    <td><input [disabled]="loading" class="form-control" name="description-new-route" [(ngModel)]="newRoute.description"></td>
                     <td class="actions">
-                        <button [disabled]="loading" class="btn btn-primary btn-sm" (click)="addPushRoute()">add</button>
+                        <button [disabled]="loading" type="button" class="btn btn-primary btn-sm" (click)="addRoute()">add</button>
                     </td>
                 </tr>
                 <tr>
                     <td colspan="4"><hr></td>
                 </tr>
                 <tr>
-                    <td colspan="4">Networks the client have behind his router :</td>
-                </tr>
-                <tr>
                     <th>Adresse</th>
                     <th>Mask</th>
                     <th>Description</th>
-                    <th class="actions">Actions</th>
+                    <th>Actions</th>
                 </tr>
-                <tr *ngFor="let route of model.iRoutes; let index = index">
-                    <td><input [disabled]="loading" class="form-control" name="address-{{index}}-iroute" [(ngModel)]="route.address" /></td>
-                    <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-iroute" [(ngModel)]="route.netmask" /></td>
-                    <td><input [disabled]="loading" class="form-control" name="description-{{index}}-iroute" [(ngModel)]="route.description" /></td>
+                <tr *ngFor="let push of model.pushs; let index = index">
+                    <td><input [disabled]="loading" class="form-control" name="address-{{index}}-pushroute" [(ngModel)]="push.address" /></td>
+                    <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-pushroute" [(ngModel)]="push.netmask" /></td>
+                    <td><input [disabled]="loading" class="form-control" name="description-{{index}}-pushroute" [(ngModel)]="push.description" /></td>
                     <td class="actions">
-                        <button [disabled]="loading" class="btn btn-warning btn-sm" (click)="removeIRoute(route)">remove</button>
+                        <button [disabled]="loading" type="button" class="btn btn-warning btn-sm" (click)="removePush(push)">remove</button>
                     </td>
                 </tr>
                 <tr>
-                    <td><input [disabled]="loading" class="form-control" name="address-new-iroute" [(ngModel)]="newIRoute.address"></td>
-                    <td><input [disabled]="loading" class="form-control" name="netmask-new-iroute" [(ngModel)]="newIRoute.netmask"></td>
-                    <td><input [disabled]="loading" class="form-control" name="description-new-iroute" [(ngModel)]="newIRoute.description"></td>
+                    <td><input [disabled]="loading" class="form-control" name="address-new-pushroute" [(ngModel)]="newPush.address"></td>
+                    <td><input [disabled]="loading" class="form-control" name="netmask-new-pushroute" [(ngModel)]="newPush.netmask"></td>
+                    <td><input [disabled]="loading" class="form-control" name="description-new-pushroute" [(ngModel)]="newPush.description"></td>
                     <td class="actions">
-                        <button [disabled]="loading" class="btn btn-primary btn-sm" (click)="addIRoute()">add</button>
+                        <button [disabled]="loading" type="button" class="btn btn-primary btn-sm" (click)="addPush()">add</button>
                     </td>
                 </tr>
 

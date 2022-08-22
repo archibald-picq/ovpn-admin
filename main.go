@@ -222,14 +222,14 @@ type OvpnConfig struct {
 	tlsVersionMin          string   // 1.2
 	tlsCipher              string   // TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
 	log                    string   // /var/log/openvpn.log
-	route                  []string // 10.42.44.0 255.255.255.0
+	routes                 []Route  // 10.42.44.0 255.255.255.0
 	                                // 10.42.78.0 255.255.255.0
 	                                // 10.8.0.0 255.255.255.0
 	push                   []string // "dhcp-option DNS 10.8.0.1"
 	                                // "dhcp-option DNS fd42:42:42:42::1"
 	                                // "redirect-gateway def1 bypass-dhcp"
 	                                // "tun-ipv6"
-	                                // "route-ipv6 2000::/3"
+	                                // "routes-ipv6 2000::/3"
 	                                // "redirect-gateway ipv6"
 }
 
@@ -265,17 +265,17 @@ type openvpnClientConfig struct {
 	PasswdAuth bool
 }
 
-type ccdRoute struct {
-	Address     string `json:"address"`
-	Mask        string `json:"mask"`
-	Description string `json:"description"`
+type Route struct {
+	Address       string `json:"address"`
+	Netmask       string `json:"netmask"`
+	Description   string `json:"description"`
 }
 
 type Ccd struct {
 	User          string     `json:"user"`
 	ClientAddress string     `json:"clientAddress"`
-	CustomRoutes  []ccdRoute `json:"customRoutes"`
-	CustomIRoutes  []ccdRoute `json:"customIRoutes"`
+	CustomRoutes  []Route    `json:"customRoutes"`
+	CustomIRoutes []Route    `json:"customIRoutes"`
 }
 
 type OpenvpnClient struct {
@@ -651,7 +651,7 @@ type ConfigPublicUser struct {
 
 type ConfigPublicOpenvn struct {
 	Url  string `json:"url"`
-	Settings ConfigPublicSettings `json:"settings,omitempty"`
+	Settings *ConfigPublicSettings `json:"settings,omitempty"`
 }
 
 type ConfigPublic struct {
@@ -686,10 +686,11 @@ func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 type ServerSavePayload struct {
-	CompLzo bool `json:"compLzo"`
-	DuplicateCn bool `json:"duplicateCn"`
-	Server string `json:"server"`
-	ServerIpv6 string `json:"serverIpv6"`
+	CompLzo      bool `json:"compLzo"`
+	DuplicateCn  bool `json:"duplicateCn"`
+	Server       string `json:"server"`
+	ServerIpv6   string `json:"serverIpv6"`
+	Routes       []Route `json:"routes"`
 }
 func (oAdmin *OvpnAdmin) restartServer() error {
 	_, err := runBash(*serverRestartCommand)
@@ -701,20 +702,21 @@ type ConfigPublicSettings struct {
 	ServerIpv6 string `json:"serverIpv6"`
 	DuplicateCn bool `json:"duplicateCn"`
 	CompLzo bool `json:"compLzo"`
-	Routes []string `json:"routes"`
+	Routes []Route `json:"routes"`
 	PushRoutes []string `json:"pushRoutes"`
 }
 
-func (oAdmin *OvpnAdmin) exportPublicSettings() ConfigPublicSettings {
-	var settings ConfigPublicSettings
+func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
+	var settings = new(ConfigPublicSettings)
 	settings.Server = convertNetworkMaskCidr(oAdmin.serverConf.server)
 	settings.ServerIpv6 = oAdmin.serverConf.serverIpv6
 	settings.DuplicateCn = oAdmin.serverConf.duplicateCn
 	settings.CompLzo = oAdmin.serverConf.compLzo
-	settings.Routes = make([]string, 0)
-	for _, route := range oAdmin.serverConf.route {
-		settings.Routes = append(settings.Routes, convertNetworkMaskCidr(route))
-	}
+	settings.Routes = oAdmin.serverConf.routes
+	//settings.Routes = make([]string, 0)
+	//for _, routes := range oAdmin.serverConf.routes {
+	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
+	//}
 	return settings
 }
 

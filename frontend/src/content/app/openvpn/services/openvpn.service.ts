@@ -81,8 +81,8 @@ export class OpenvpnService {
     public async saveClientConfig(client: IClientCertificate, model: ClientConfig): Promise<void> {
         const body = {
             clientAddress: model.staticAddress ?? 'dynamic',
-            customIRoutes: model.iRoutes.map((route) => ({address: route.address, mask: route.netmask, description: route.description})),
-            customRoutes: model.pushRoutes.map((route) => ({address: route.address, mask: route.netmask, description: route.description})),
+            customIRoutes: model.iRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
+            customRoutes: model.pushRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
             user: client.username,
         };
         return this.http.post(this.OPENVPN_ADMIN_API+'/api/user/ccd/apply', body, {

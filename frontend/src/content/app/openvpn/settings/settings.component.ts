@@ -15,8 +15,8 @@ export class OpenvpnSettingsPageComponent {
     public loading = false;
     public model: OpenvpnConfig;
     public originalConfig: OpenvpnConfig;
-    public newPushRoute = new Route('', '');
-    public newIRoute = new Route('', '');
+    public newPush = new Route('', '');
+    public newRoute = new Route('', '');
     public enableIpv4 = false;
     public enableIpv6 = false;
     public error = '';
@@ -31,6 +31,7 @@ export class OpenvpnSettingsPageComponent {
         console.warn('config', this.activatedRoute.snapshot.data.config);
         this.originalConfig = this.activatedRoute.snapshot.data.config;
         this.model = this.originalConfig.clone();
+        // console.warn('this.model', this.model.routes);
         if (this.model.server) {
             this.enableIpv4 = true;
         }
@@ -40,32 +41,32 @@ export class OpenvpnSettingsPageComponent {
         this.serialized = JSON.stringify(this.toSave());
     }
 
-    public removePushRoute(route: Route): void {
-        const p = this.model.pushRoutes.indexOf(route);
+    public removePush(route: Route): void {
+        const p = this.model.pushs.indexOf(route);
         if (p === -1) {
             console.warn('Error in page');
             return;
         }
-        this.model.pushRoutes.splice(p, 1);
+        this.model.pushs.splice(p, 1);
     }
 
-    public removeIRoute(route: Route): void {
-        const p = this.model.iRoutes.indexOf(route);
+    public removeRoute(route: Route): void {
+        const p = this.model.routes.indexOf(route);
         if (p === -1) {
             console.warn('Error in page');
             return;
         }
-        this.model.iRoutes.splice(p, 1);
+        this.model.routes.splice(p, 1);
     }
 
-    public addPushRoute(): void {
-        this.model.pushRoutes.push(this.newPushRoute.clone());
-        this.newPushRoute.reset();
+    public addPush(): void {
+        this.model.pushs.push(this.newPush.clone());
+        this.newPush.reset();
     }
 
-    public addIRoute(): void {
-        this.model.iRoutes.push(this.newIRoute.clone());
-        this.newIRoute.reset();
+    public addRoute(): void {
+        this.model.routes.push(this.newRoute.clone());
+        this.newRoute.reset();
     }
 
     public async save(): Promise<void> {

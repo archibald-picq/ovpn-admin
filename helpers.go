@@ -331,7 +331,6 @@ func convertNetworkMaskCidr(networkMask string) string {
 func convertCidrNetworkMask(cidr string) string {
 	ipv4Addr, ipv4Net, _ := net.ParseCIDR(cidr)
 	mask := fmt.Sprintf("%d.%d.%d.%d", ipv4Net.Mask[0], ipv4Net.Mask[1], ipv4Net.Mask[2], ipv4Net.Mask[3])
-	log.Printf("parsed %v --- %v", ipv4Addr, mask)
 	return fmt.Sprintf("%s %s", ipv4Addr, mask)
 }
 

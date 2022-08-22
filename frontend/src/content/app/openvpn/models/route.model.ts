@@ -11,7 +11,7 @@ export class Route {
     }
 
     public static parse(fromServer: Record<string, any>): Route {
-        return new Route(fromServer.address, fromServer.mask, fromServer.description);
+        return new Route(fromServer.address, fromServer.netmask, fromServer.description);
     }
 
     public clone(): Route {
