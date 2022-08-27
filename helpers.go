@@ -3,7 +3,6 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -83,8 +82,16 @@ func fCreate(path string) error {
 	return nil
 }
 
-func fWrite(path, content string) error {
+func fWrite(path string, content string) error {
 	err := ioutil.WriteFile(path, []byte(content), 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return nil
+}
+
+func fWriteBytes(path string, content []byte) error {
+	err := ioutil.WriteFile(path, content, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -304,16 +311,9 @@ func getAuthCookie(r *http.Request) string {
 	return ""
 }
 
-func getEncryptedPasswordForUser(username string) (string, error) {
+func (oAdmin *OvpnAdmin)getEncryptedPasswordForUser(username string) (string, error) {
 
-	var accountsFile AccountsFile
-	jsonAccounts := fRead(*adminAccountsFile)
-	err := json.Unmarshal([]byte(jsonAccounts), &accountsFile)
-	if err != nil {
-		return "", err
-	}
-
-	for _, value := range accountsFile.Users {
+	for _, value := range oAdmin.applicationPreferences.Users {
 		if value.Username == username {
 			return value.Password, nil
 		}
@@ -379,4 +379,39 @@ func getCnFromCertificate(path string) string {
 	log.Printf("CN subject: '%v'", cn)
 
 	return cn
+}
+
+func removeCertificatText(content string) string {
+	lines := strings.Split(content, "\n")
+	begin := regexp.MustCompile("-----BEGIN CERTIFICATE-----")
+	end := regexp.MustCompile("-----END CERTIFICATE-----")
+
+	output := make([]string, 0)
+	isIn := false
+	for _, line := range lines {
+		if match := begin.FindStringSubmatch(line); len(match) > 0 {
+			isIn = true
+		}
+		if match := end.FindStringSubmatch(line); len(match) > 0 {
+			output = append(output, line)
+			break
+		}
+		if isIn {
+			output = append(output, line)
+		}
+	}
+	output = append(output, "")
+	return strings.Join(output, "\n")
+}
+
+// https://community.openvpn.net/openvpn/ticket/623
+func chmodFix() {
+	err := os.Chmod(*easyrsaDirPath+"/pki", 0755)
+	if err != nil {
+		log.Error(err)
+	}
+	err = os.Chmod(*easyrsaDirPath+"/pki/crl.pem", 0644)
+	if err != nil {
+		log.Error(err)
+	}
 }

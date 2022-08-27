@@ -12,6 +12,66 @@ import (
 	"unicode"
 )
 
+type ConfigPublicSettings struct {
+	Server string `json:"server"`
+	ServerIpv6 string `json:"serverIpv6"`
+	DuplicateCn bool `json:"duplicateCn"`
+	CompLzo bool `json:"compLzo"`
+	Auth string `json:"auth"`
+	Routes []Route `json:"routes"`
+	PushRoutes []string `json:"pushRoutes"`
+}
+
+type OvpnConfig struct {
+	server                 string   // 10.8.0.0 255.255.255.0
+	port                   int      // 1194
+	proto                  string   // udp udp6
+	dev                    string   // tun tap
+	tunMtu                 int      // 60000
+	fragment               int      // 0
+	user                   string   // nobody
+	group                  string   // nogroup
+	mssfix                 int      // 0
+	management             string   // localhost 7505
+	ca                     string   // ca.crt
+	cert                   string   // server.crt
+	key                    string   // server.key
+	dh                     string   // dh2048.pem none
+	ifconfigPoolPersist    string   // ipp.txt
+	keepalive              string   // 10 120
+	compLzo                bool
+	allowCompression       bool
+	persistKey             bool
+	persistTun             bool
+	status                 string   // /var/log/openvpn/status.log
+	verb                   int      // 1 3
+	clientConfigDir        string   // ccd
+	clientToClient         bool
+	duplicateCn            bool
+	topology               string   // subnet
+	serverIpv6             string   // fd42:42:42:42::/112
+	tunIpv6                bool
+	ecdhCurve              string   // prime256v1
+	tlsCrypt               string   // tls-crypt.key
+	crlVerify              string   // crl.pem
+	auth                   string   // SHA256
+	cipher                 string   // AES-128-GCM
+	ncpCiphers             string   // AES-128-GCM
+	tlsServer              bool
+	tlsVersionMin          string   // 1.2
+	tlsCipher              string   // TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+	log                    string   // /var/log/openvpn.log
+	routes                 []Route  // 10.42.44.0 255.255.255.0
+	                                // 10.42.78.0 255.255.255.0
+	                                // 10.8.0.0 255.255.255.0
+	push                   []string // "dhcp-option DNS 10.8.0.1"
+	                                // "dhcp-option DNS fd42:42:42:42::1"
+	                                // "redirect-gateway def1 bypass-dhcp"
+	                                // "tun-ipv6"
+	                                // "routes-ipv6 2000::/3"
+	                                // "redirect-gateway ipv6"
+}
+
 func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 	lines := strings.Split(fRead(file), "\n")
 
@@ -345,8 +405,12 @@ func getIntValueWithoutComment(line string) (int, error) {
 		return -1, err
 	}
 }
+func (oAdmin *OvpnAdmin) saveConfigPreferences(w http.ResponseWriter, r *http.Request) {
 
-func (oAdmin *OvpnAdmin) saveConfig(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (oAdmin *OvpnAdmin) saveConfigSettings(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
@@ -391,6 +455,7 @@ func (oAdmin *OvpnAdmin) saveConfig(w http.ResponseWriter, r *http.Request) {
 	conf.compLzo = savePayload.CompLzo
 	conf.duplicateCn = savePayload.DuplicateCn
 	conf.routes = savePayload.Routes
+	conf.auth = savePayload.Auth
 
 	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
 
@@ -422,6 +487,7 @@ func (oAdmin *OvpnAdmin) saveConfig(w http.ResponseWriter, r *http.Request) {
 	oAdmin.serverConf.serverIpv6 = conf.serverIpv6
 	oAdmin.serverConf.compLzo = conf.compLzo
 	oAdmin.serverConf.duplicateCn = conf.duplicateCn
+	oAdmin.serverConf.auth = conf.auth
 
 	w.WriteHeader(http.StatusNoContent)
 }

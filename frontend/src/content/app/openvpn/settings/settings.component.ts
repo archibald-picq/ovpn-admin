@@ -2,7 +2,7 @@ import { Component, Injector } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { OpenvpnService } from '../services/openvpn.service';
-import { OpenvpnConfig } from '../models/openvpn-config.model';
+import { Settings } from '../models/openvpn-config.model';
 import { Route } from '../models/route.model';
 
 
@@ -13,8 +13,8 @@ import { Route } from '../models/route.model';
 })
 export class OpenvpnSettingsPageComponent {
     public loading = false;
-    public model: OpenvpnConfig;
-    public originalConfig: OpenvpnConfig;
+    public model: Settings;
+    public original: Settings;
     public newPush = new Route('', '');
     public newRoute = new Route('', '');
     public enableIpv4 = false;
@@ -29,8 +29,8 @@ export class OpenvpnSettingsPageComponent {
         private readonly openvpnService: OpenvpnService,
     ) {
         console.warn('config', this.activatedRoute.snapshot.data.config);
-        this.originalConfig = this.activatedRoute.snapshot.data.config;
-        this.model = this.originalConfig.clone();
+        this.original = this.activatedRoute.snapshot.data.config.settings;
+        this.model = this.original.clone();
         // console.warn('this.model', this.model.routes);
         if (this.model.server) {
             this.enableIpv4 = true;
@@ -75,7 +75,7 @@ export class OpenvpnSettingsPageComponent {
             this.error = '';
             const toSave = this.toSave();
             await this.openvpnService.saveServerConfig(toSave);
-            Object.assign(this.originalConfig, toSave);
+            Object.assign(this.original, toSave);
             this.serialized = JSON.stringify(toSave);
             this.loading = false;
         } catch (e: any) {

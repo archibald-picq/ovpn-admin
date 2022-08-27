@@ -50,6 +50,17 @@
                     Allow multiple connection per certificate
                 </label>
             </div>
+            <div class="form-group mb-2">
+                <label for="auth">
+                    Auth
+                </label>
+                <select class="form-control form-control" [(ngModel)]="model.auth" name="auth" id="auth">
+                    <option [value]="null">None</option>
+                    <option value="hmac">SHA1 (default)</option>
+                    <option value="hmac">HMAC</option>
+                    <option value="sha256">SHA256</option>
+                </select>
+            </div>
         </div>
     </div>
     <div class="form-group row">

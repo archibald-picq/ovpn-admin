@@ -4,15 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 
 	"github.com/google/uuid"
 	"io/fs"
-	"io/ioutil"
 	"embed"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -77,8 +74,8 @@ var (
 	logLevel                 = kingpin.Flag("log.level", "set log level: trace, debug, info, warn, error (default info)").Default("info").Envar("LOG_LEVEL").String()
 	logFormat                = kingpin.Flag("log.format", "set log format: text, json (default text)").Default("text").Envar("LOG_FORMAT").String()
 	storageBackend           = kingpin.Flag("storage.backend", "storage backend: filesystem, kubernetes.secrets (default filesystem)").Default("filesystem").Envar("STORAGE_BACKEND").String()
-	jwtSecretFile            = kingpin.Flag("jwt.secret", "jwt secret file").Default("jwt.secret.key").Envar("JWT_SECRET").String()
-	adminAccountsFile        = kingpin.Flag("admin.accounts", "Admin accounts files").Default("admin-accounts.json").Envar("ADMIN_ACCOUNT").String()
+	jwtSecretFile  = kingpin.Flag("jwt.secret", "jwt secret file").Default("jwt.secret.key").Envar("JWT_SECRET").String()
+	ovpnConfigFile = kingpin.Flag("admin.accounts", "Admin accounts files").Default("admin-accounts.json").Envar("ADMIN_ACCOUNT").String()
 
 	certsArchivePath = "/tmp/" + certsArchiveFileName
 	ccdArchivePath   = "/tmp/" + ccdArchiveFileName
@@ -183,56 +180,6 @@ var templates embed.FS
 //go:embed frontend/static
 var content embed.FS
 
-type OvpnConfig struct {
-	server                 string   // 10.8.0.0 255.255.255.0
-	port                   int      // 1194
-	proto                  string   // udp udp6
-	dev                    string   // tun tap
-	tunMtu                 int      // 60000
-	fragment               int      // 0
-	user                   string   // nobody
-	group                  string   // nogroup
-	mssfix                 int      // 0
-	management             string   // localhost 7505
-	ca                     string   // ca.crt
-	cert                   string   // server.crt
-	key                    string   // server.key
-	dh                     string   // dh2048.pem none
-	ifconfigPoolPersist    string   // ipp.txt
-	keepalive              string   // 10 120
-	compLzo                bool
-	allowCompression       bool
-	persistKey             bool
-	persistTun             bool
-	status                 string   // /var/log/openvpn/status.log
-	verb                   int      // 1 3
-	clientConfigDir        string   // ccd
-	clientToClient         bool
-	duplicateCn            bool
-	topology               string   // subnet
-	serverIpv6             string   // fd42:42:42:42::/112
-	tunIpv6                bool
-	ecdhCurve              string   // prime256v1
-	tlsCrypt               string   // tls-crypt.key
-	crlVerify              string   // crl.pem
-	auth                   string   // SHA256
-	cipher                 string   // AES-128-GCM
-	ncpCiphers             string   // AES-128-GCM
-	tlsServer              bool
-	tlsVersionMin          string   // 1.2
-	tlsCipher              string   // TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
-	log                    string   // /var/log/openvpn.log
-	routes                 []Route  // 10.42.44.0 255.255.255.0
-	                                // 10.42.78.0 255.255.255.0
-	                                // 10.8.0.0 255.255.255.0
-	push                   []string // "dhcp-option DNS 10.8.0.1"
-	                                // "dhcp-option DNS fd42:42:42:42::1"
-	                                // "redirect-gateway def1 bypass-dhcp"
-	                                // "tun-ipv6"
-	                                // "routes-ipv6 2000::/3"
-	                                // "redirect-gateway ipv6"
-}
-
 type OvpnAdmin struct {
 	role                   string
 	lastSyncTime           string
@@ -248,6 +195,7 @@ type OvpnAdmin struct {
 	mgmtStatusTimeFormat   string
 	createUserMutex        *sync.Mutex
 	masterCn               string
+	applicationPreferences ApplicationConfig
 }
 
 type OpenvpnServer struct {
@@ -257,12 +205,22 @@ type OpenvpnServer struct {
 }
 
 type openvpnClientConfig struct {
-	Hosts      []OpenvpnServer
-	CA         string
-	Cert       string
-	Key        string
-	TLS        string
-	PasswdAuth bool
+	Hosts              []OpenvpnServer
+	CA                 string
+	Cert               string
+	Key                string
+	TLS                string
+	PasswdAuth         bool
+	TlsCrypt           string
+	CompLzo            bool
+	CertCommonName     string
+	ExplicitExitNotify bool
+	Auth               string
+	AuthNocache        bool
+	Cipher             string
+	TlsClient          bool
+	TlsVersionMin      string
+	TlsCipher          string
 }
 
 type Route struct {
@@ -334,15 +292,6 @@ type Roles struct {
 type Claims struct {
 	jwt.StandardClaims
 	Roles Roles `json:"roles"`
-}
-
-type Account struct {
-	Username         string `json:"username"`
-	Password         string `json:"password"`
-}
-
-type AccountsFile struct {
-	Users     []Account `json:"users"`
 }
 
 type MessagePayload struct {
@@ -652,6 +601,7 @@ type ConfigPublicUser struct {
 type ConfigPublicOpenvn struct {
 	Url  string `json:"url"`
 	Settings *ConfigPublicSettings `json:"settings,omitempty"`
+	Preferences *ConfigPublicPreferences `json:"preferences,omitempty"`
 }
 
 type ConfigPublic struct {
@@ -674,6 +624,7 @@ func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		configPublic.User = oAdmin.getUserProfile(jwtUsername)
 		configPublic.Openvpn.Settings = oAdmin.exportPublicSettings()
+		configPublic.Openvpn.Preferences = oAdmin.exportPublicPreferences()
 	}
 
 	rawJson, _ := json.Marshal(configPublic)
@@ -691,19 +642,11 @@ type ServerSavePayload struct {
 	Server       string `json:"server"`
 	ServerIpv6   string `json:"serverIpv6"`
 	Routes       []Route `json:"routes"`
+	Auth         string `json:"auth"`
 }
 func (oAdmin *OvpnAdmin) restartServer() error {
 	_, err := runBash(*serverRestartCommand)
 	return err
-}
-
-type ConfigPublicSettings struct {
-	Server string `json:"server"`
-	ServerIpv6 string `json:"serverIpv6"`
-	DuplicateCn bool `json:"duplicateCn"`
-	CompLzo bool `json:"compLzo"`
-	Routes []Route `json:"routes"`
-	PushRoutes []string `json:"pushRoutes"`
 }
 
 func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
@@ -713,13 +656,13 @@ func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
 	settings.DuplicateCn = oAdmin.serverConf.duplicateCn
 	settings.CompLzo = oAdmin.serverConf.compLzo
 	settings.Routes = oAdmin.serverConf.routes
+	settings.Auth = oAdmin.serverConf.auth
 	//settings.Routes = make([]string, 0)
 	//for _, routes := range oAdmin.serverConf.routes {
 	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
 	//}
 	return settings
 }
-
 func (oAdmin *OvpnAdmin) serverSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
@@ -871,6 +814,7 @@ func main() {
 	ovpnAdmin.mgmtInterfaces = make(map[string]string)
 	ovpnAdmin.parseServerConf(*serverConfFile)
 	ovpnAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile), ovpnAdmin.serverConf)
+	ovpnAdmin.applicationPreferences = loadConfig()
 
 	if mgmtAddress == nil || len(*mgmtAddress) == 0 || len((*mgmtAddress)[0]) == 0 {
 		*mgmtAddress = []string{"main="+strings.Replace(ovpnAdmin.serverConf.management, " ", ":", 1)}
@@ -929,7 +873,9 @@ func main() {
 	staticDir, _ := fs.Sub(content, "frontend/static")
 	embedFs := http.FS(staticDir)
 	http.HandleFunc("/api/config", ovpnAdmin.showConfig)
-	http.HandleFunc("/api/config/save", ovpnAdmin.saveConfig)
+	http.HandleFunc("/api/config/settings/save", ovpnAdmin.saveConfigSettings)
+	http.HandleFunc("/api/config/preferences/save", ovpnAdmin.saveConfigPreferences)
+	http.HandleFunc("/api/config/admin/", ovpnAdmin.saveAdminAccount)
 	http.HandleFunc("/api/authenticate", ovpnAdmin.authenticate)
 	http.HandleFunc("/api/logout", ovpnAdmin.logout)
 	http.HandleFunc("/api/server/settings", ovpnAdmin.serverSettingsHandler)
@@ -1055,14 +1001,31 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 	log.Tracef("hosts for %s\n %v", username, hosts)
 
 	conf := openvpnClientConfig{}
+	conf.ExplicitExitNotify = true
 	conf.Hosts = hosts
 	conf.CA = fRead(*easyrsaDirPath + "/pki/ca.crt")
 	conf.TLS = fRead(*easyrsaDirPath + "/pki/ta.key")
+	if len(oAdmin.masterCn) > 0 {
+		conf.CertCommonName = oAdmin.masterCn
+	}
+	if oAdmin.serverConf.allowCompression {
+		conf.CompLzo = true
+	}
+	if len(oAdmin.serverConf.tlsCrypt) > 0 {
+		conf.TlsCrypt = fRead(absolutizePath(*serverConfFile, oAdmin.serverConf.tlsCrypt))
+	}
+
+	conf.Auth = oAdmin.serverConf.auth
+	conf.AuthNocache = oAdmin.applicationPreferences.Preferences.AuthNocache
+	conf.Cipher = oAdmin.serverConf.cipher
+	conf.TlsClient = oAdmin.serverConf.tlsServer
+	conf.TlsVersionMin = oAdmin.serverConf.tlsVersionMin
+	conf.TlsCipher = oAdmin.serverConf.tlsCipher
 
 	if *storageBackend == "kubernetes.secrets" {
 		conf.Cert, conf.Key = app.easyrsaGetClientCert(username)
 	} else {
-		conf.Cert = fRead(*easyrsaDirPath + "/pki/issued/" + username + ".crt")
+		conf.Cert = removeCertificatText(fRead(*easyrsaDirPath + "/pki/issued/" + username + ".crt"))
 		conf.Key = fRead(*easyrsaDirPath + "/pki/private/" + username + ".key")
 	}
 
@@ -1811,35 +1774,4 @@ func getOvpnServerHostsFromKubeApi() ([]OpenvpnServer, error) {
 	}
 
 	return hosts, nil
-}
-
-func getOvpnCaCertExpireDate() time.Time {
-	caCertPath := *easyrsaDirPath + "/pki/ca.crt"
-	caCert, err := ioutil.ReadFile(caCertPath)
-	if err != nil {
-		log.Errorf("error read file %s: %s", caCertPath, err.Error())
-	}
-
-	certPem, _ := pem.Decode(caCert)
-	certPemBytes := certPem.Bytes
-
-	cert, err := x509.ParseCertificate(certPemBytes)
-	if err != nil {
-		log.Errorf("error parse certificate ca.crt: %s", err.Error())
-		return time.Now()
-	}
-
-	return cert.NotAfter
-}
-
-// https://community.openvpn.net/openvpn/ticket/623
-func chmodFix() {
-	err := os.Chmod(*easyrsaDirPath+"/pki", 0755)
-	if err != nil {
-		log.Error(err)
-	}
-	err = os.Chmod(*easyrsaDirPath+"/pki/crl.pem", 0644)
-	if err != nil {
-		log.Error(err)
-	}
 }

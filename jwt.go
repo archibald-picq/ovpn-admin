@@ -107,7 +107,7 @@ func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expectedPassword, err := getEncryptedPasswordForUser(authPayload.Username)
+	expectedPassword, err := oAdmin.getEncryptedPasswordForUser(authPayload.Username)
 	if err != nil {
 		log.Errorln(err)
 		w.WriteHeader(http.StatusForbidden)

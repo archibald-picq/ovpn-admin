@@ -17,6 +17,9 @@ import { SharedModule } from '../shared/shared.module';
 import { MatIconModule } from '@angular/material/icon';
 import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 import { OpenvpnSettingsPageComponent } from './settings/settings.component';
+import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
+import { EditAdminAccountComponent } from './modals/edit-admin-account.component';
+import { ConfirmDeleteAdminAccountComponent } from './modals/confirm-delete-admin-account.component';
 
 @NgModule({
     declarations: [
@@ -27,6 +30,9 @@ import { OpenvpnSettingsPageComponent } from './settings/settings.component';
         ConfirmRotateClientCertificateComponent,
         CreateClientCertificateComponent,
         OpenvpnSettingsPageComponent,
+        OpenvpnPreferencesPageComponent,
+        EditAdminAccountComponent,
+        ConfirmDeleteAdminAccountComponent,
     ],
     imports: [
         RouterModule.forChild(OPENVPN_ROUTES),

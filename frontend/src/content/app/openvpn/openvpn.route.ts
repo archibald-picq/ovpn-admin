@@ -7,6 +7,7 @@ import { Observable } from 'rxjs';
 import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 import { OpenvpnConfig } from './models/openvpn-config.model';
 import { AppConfigService } from '../shared/services/app-config.service';
+import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
 
 @Injectable({ providedIn: 'root' })
 class ConfigResolve implements Resolve<OpenvpnConfig> {
@@ -17,8 +18,8 @@ class ConfigResolve implements Resolve<OpenvpnConfig> {
 
     public resolve(): OpenvpnConfig|Observable<OpenvpnConfig> {
         const config = this.appConfigService.get();
-        if (config.openvpn?.settings) {
-            return config.openvpn?.settings;
+        if (config.openvpn?.settings && config.openvpn?.preferences) {
+            return config.openvpn;
         }
         return this.service.loadConfig();
     }
@@ -38,15 +39,21 @@ export const OPENVPN_ROUTES: Route[] = [{
     resolve: {
         config: ConfigResolve,
     },
-    children: [{
-        path: '',
-        component: OpenvpnPageComponent,
-        resolve: {
-            clients: ClientsResolve,
+    children: [
+        {
+            path: '',
+            component: OpenvpnPageComponent,
+            resolve: {
+                clients: ClientsResolve,
+            },
         },
-    },
-    {
-        path: 'settings',
-        component: OpenvpnSettingsPageComponent,
-    }],
+        {
+            path: 'settings',
+            component: OpenvpnSettingsPageComponent,
+        },
+        {
+            path: 'preferences',
+            component: OpenvpnPreferencesPageComponent,
+        },
+    ],
 }];

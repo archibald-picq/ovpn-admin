@@ -7,7 +7,7 @@ import { Sort } from '@angular/material/sort';
 import { Observable, throwError } from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
-import { OpenvpnConfig } from '../models/openvpn-config.model';
+import { OpenvpnConfig, User } from '../models/openvpn-config.model';
 
 @Injectable()
 export class OpenvpnService {
@@ -25,7 +25,7 @@ export class OpenvpnService {
         return this.http.get<OpenvpnConfig>(this.OPENVPN_ADMIN_API+'/api/config', { observe: 'response'}).pipe(
             filter((response: HttpResponse<any>) => response.ok),
             map((res: any) => res.body as any[]),
-            map((item: any) => OpenvpnConfig.parse(item.openvpn.settings))
+            map((item: any) => OpenvpnConfig.parse(item.openvpn))
         );
     }
 
@@ -71,7 +71,39 @@ export class OpenvpnService {
     }
 
     public async saveServerConfig(toSave: Record<string, any>) {
-        return this.http.post(this.OPENVPN_ADMIN_API+'/api/config/save', toSave, {
+        return this.http.post(this.OPENVPN_ADMIN_API+'/api/config/settings/save', toSave, {
+            observe: 'response',
+        }).pipe(
+            filter((response: HttpResponse<any>) => response.ok),
+        ).toPromise().then();
+    }
+
+    public async savePreferences(toSave: Record<string, any>) {
+        return this.http.post(this.OPENVPN_ADMIN_API+'/api/config/preference/save', toSave, {
+            observe: 'response',
+        }).pipe(
+            filter((response: HttpResponse<any>) => response.ok),
+        ).toPromise().then();
+    }
+
+    public async createAdminAccount(params: Record<string, any>): Promise<User> {
+        return this.http.post(this.OPENVPN_ADMIN_API+'/api/config/admin/', params, {
+            observe: 'response',
+        }).pipe(
+            filter((response: HttpResponse<any>) => response.ok),
+        ).toPromise().then();
+    }
+
+    public async updateAdminAccount(username: string, params: Record<string, any>): Promise<User> {
+        return this.http.put(this.OPENVPN_ADMIN_API+'/api/config/admin/'+username, params, {
+            observe: 'response',
+        }).pipe(
+            filter((response: HttpResponse<any>) => response.ok),
+        ).toPromise().then();
+    }
+
+    public async deleteAdminAccount(user: User): Promise<User> {
+        return this.http.delete(this.OPENVPN_ADMIN_API+'/api/config/admin/'+user.username, {
             observe: 'response',
         }).pipe(
             filter((response: HttpResponse<any>) => response.ok),

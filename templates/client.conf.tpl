@@ -1,5 +1,7 @@
 client
-
+{{ if .ExplicitExitNotify -}}
+explicit-exit-notify
+{{- end }}
 dev tun
 proto udp
 {{- range $server := .Hosts }}
@@ -11,24 +13,35 @@ nobind
 persist-key
 persist-tun
 
-ns-cert-type server
+remote-cert-tls server
+{{ if .CompLzo -}}
 comp-lzo
-verb 4
+{{ end }}
+verb 3
 
-#cipher AES-128-CBC
-#key-direction 1
-#redirect-gateway def1
-#tls-client
-#remote-cert-tls server
-# uncomment below lines for use with linux
-#script-security 2
-# if you use resolved
-#up /etc/openvpn/update-resolv-conf
-#down /etc/openvpn/update-resolv-conf
-# if you use systemd-resolved first install openvpn-systemd-resolved package
-#up /etc/openvpn/update-systemd-resolved
-#down /etc/openvpn/update-systemd-resolved
-
+{{ if .CertCommonName -}}
+verify-x509-name {{ .CertCommonName }} name
+{{- end }}
+{{ if .Auth -}}
+auth {{ .Auth }}
+{{- end }}
+{{ if .AuthNocache -}}
+auth-nocache
+{{- end }}
+{{ if .Cipher -}}
+cipher {{ .Cipher }}
+{{- end }}
+{{ if .TlsClient -}}
+tls-client
+{{- end }}
+{{ if .TlsVersionMin -}}
+tls-version-min {{ .TlsVersionMin }}
+{{- end }}
+{{ if .TlsCipher -}}
+tls-cipher {{ .TlsCipher }}
+{{- end }}
+ignore-unknown-option block-outside-dns
+setenv opt block-outside-dns # Prevent Windows 10 DNS leak
 {{- if .PasswdAuth }}
 auth-user-pass
 {{- end }}
@@ -42,8 +55,13 @@ auth-user-pass
 <ca>
 {{ .CA -}}
 </ca>
-{{if .TLS}}
+{{- if .TLS}}
 <tls-auth>
 {{ .TLS -}}
 </tls-auth>
-{{end}}
+{{end -}}
+{{- if .TlsCrypt}}
+<tls-crypt>
+{{ .TlsCrypt -}}
+</tls-crypt>
+{{end -}}

@@ -1,0 +1,71 @@
+<div>
+    <a [routerLink]="['../']">&laquo; Certificates list</a>
+</div>
+<div class="d-flex flex-row">
+    <h1 class="flex-grow-1">Preferences</h1>
+    <div></div>
+</div>
+<form (ngSubmit)="save()">
+    <div class="form-group row mb-4">
+        <div class="col-2">General</div>
+        <div class="col-10">
+
+            <div class="form-group mb-2">
+                <label for="certificate-duration">
+                    Default certificate duration
+                </label>
+                <input class="form-control" type="number" step="86400" id="certificate-duration" name="certificateDuration" aria-describedby="Certificate duration" [(ngModel)]="model.certificateDuration">
+            </div>
+            <div class="form-group mb-2">
+                <input class="form-check-input" type="checkbox" id="explicit-exit-notify" name="explicitExitNotify" aria-describedby="Explicit exit notify" [value]="true" [(ngModel)]="model.explicitExitNotify">
+                <label class="form-check-label" for="explicit-exit-notify">
+                    Explicit exit notify
+                </label>
+            </div>
+
+            <div class="form-group mb-2" *ngIf="model.authNoCache">
+                <input class="form-check-input" type="checkbox" id="auth-no-cache" name="authNoCache" aria-describedby="Auth no cache" [value]="true" [(ngModel)]="model.authNoCache">
+                <label class="form-check-label" for="auth-no-cache">
+                    Auth no cache
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="form-group row mb-4">
+        <div class="col-2">Admin accounts</div>
+        <div class="col-10">
+            <div class="actions d-flex justify-content-end mb-2">
+                <button class="btn btn-primary btn-sm" type="button" (click)="createUser()">create</button>
+            </div>
+            <table mat-table [dataSource]="dataSource" matSort (matSortChange)="sortData($event)" style="width: 100%" class="mat-elevation-z8">
+
+                <ng-container matColumnDef="username">
+                    <th mat-header-cell *matHeaderCellDef mat-sort-header="username">Username</th>
+                    <td mat-cell *matCellDef="let element">
+                        {{element.username}}
+                    </td>
+                </ng-container>
+                <ng-container matColumnDef="name">
+                    <th mat-header-cell *matHeaderCellDef mat-sort-header="name">Name</th>
+                    <td mat-cell *matCellDef="let element">
+                        {{element.name}}
+                    </td>
+                </ng-container>
+                <ng-container matColumnDef="actions">
+                    <th mat-header-cell *matHeaderCellDef>Actions</th>
+                    <td mat-cell *matCellDef="let element">
+                        <button class="btn btn-primary btn-sm" type="button" (click)="editUser(element)">edit</button>
+                        <button class="btn btn-danger btn-sm" type="button" (click)="deleteUser(element)">delete</button>
+                    </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+            </table>
+        </div>
+    </div>
+    <div class="button-wrapper">
+        <div class="error">{{error}}</div>
+        <button class="btn btn-primary" type="submit" [disabled]="loading || !hasPendingChanges()">Save</button>
+    </div>
+</form>
