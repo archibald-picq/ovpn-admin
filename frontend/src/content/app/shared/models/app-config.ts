@@ -1,5 +1,6 @@
 import { OpenvpnConfig } from '../../openvpn/models/openvpn-config.model';
 import { ServiceConfig } from './service-config';
+import {UserProfile} from "./user-profile";
 
 
 export class AppConfig {
@@ -19,6 +20,9 @@ export class AppConfig {
 
   import(raw: Record<string, any>) {
     Object.assign(this, raw);
+    if (raw.user) {
+      this.user = UserProfile.parse(raw.user);
+    }
     if (raw.openvpn) {
       this.openvpn = OpenvpnConfig.parse(raw.openvpn);
     }

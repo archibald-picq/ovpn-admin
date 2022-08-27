@@ -145,9 +145,10 @@ func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:    "auth",
-		Value:   tokenString,
-		Expires: expirationTime,
+		Name:     "auth",
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true,
 	})
 	rawJson, _ := json.Marshal(oAdmin.getUserProfile(authPayload.Username))
 	_, err = w.Write(rawJson)
@@ -159,9 +160,11 @@ func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 
 func (oAdmin *OvpnAdmin) logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
-		Name:    "auth",
-		Value:   "",
-		Expires: time.Now(),
+		Name:     "auth",
+		Value:    "",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }

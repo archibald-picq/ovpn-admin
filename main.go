@@ -588,14 +588,20 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (oAdmin *OvpnAdmin) getUserProfile(username string) *ConfigPublicUser {
-	configPublicUser := new(ConfigPublicUser)
-	configPublicUser.Username = username
-	return configPublicUser
-	//return fmt.Sprintf(`{"username":"%s"}`, username)
+	for _, u := range oAdmin.applicationPreferences.Users {
+		if u.Username == username {
+			configPublicUser := new(ConfigPublicUser)
+			configPublicUser.Username = username
+			configPublicUser.Name = u.Name
+			return configPublicUser
+		}
+	}
+	return nil
 }
 
 type ConfigPublicUser struct {
 	Username string `json:"username"`
+	Name     string `json:"name"`
 }
 
 type ConfigPublicOpenvn struct {

@@ -2,3 +2,8 @@
 .navbar-brand {
   margin-right: auto;
 }
+
+.navbar-collapse {
+  flex-grow: inherit;
+  align-items: end;
+}
