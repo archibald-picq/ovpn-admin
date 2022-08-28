@@ -13,13 +13,39 @@ import (
 )
 
 type ConfigPublicSettings struct {
-	Server string `json:"server"`
-	ServerIpv6 string `json:"serverIpv6"`
-	DuplicateCn bool `json:"duplicateCn"`
-	CompLzo bool `json:"compLzo"`
-	Auth string `json:"auth"`
-	Routes []Route `json:"routes"`
-	PushRoutes []string `json:"pushRoutes"`
+	Server      string   `json:"server"`
+	ServerIpv6  string   `json:"serverIpv6"`
+	DuplicateCn bool     `json:"duplicateCn"`
+	CompLzo     bool     `json:"compLzo"`
+	Auth        string   `json:"auth"`
+	Routes      []Route  `json:"routes"`
+	PushRoutes  []string `json:"pushRoutes"`
+}
+
+type ServerSavePayload struct {
+	Server       string  `json:"server"`
+	ServerIpv6   string  `json:"serverIpv6"`
+	DuplicateCn  bool    `json:"duplicateCn"`
+	CompLzo      bool    `json:"compLzo"`
+	Auth         string  `json:"auth"`
+	Routes       []Route `json:"routes"`
+}
+
+
+type ConfigPublicUser struct {
+	Username     string `json:"username"`
+	Name         string `json:"name"`
+}
+
+type ConfigPublicOpenvn struct {
+	Url          string                   `json:"url"`
+	Settings     *ConfigPublicSettings    `json:"settings,omitempty"`
+	Preferences  *ConfigPublicPreferences `json:"preferences,omitempty"`
+}
+
+type ConfigPublic struct {
+	User         *ConfigPublicUser  `json:"user,omitempty"`
+	Openvpn      ConfigPublicOpenvn `json:"openvpn"`
 }
 
 type OvpnConfig struct {
@@ -70,6 +96,60 @@ type OvpnConfig struct {
 	                                // "tun-ipv6"
 	                                // "routes-ipv6 2000::/3"
 	                                // "redirect-gateway ipv6"
+}
+
+func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
+	var settings = new(ConfigPublicSettings)
+	settings.Server = convertNetworkMaskCidr(oAdmin.serverConf.server)
+	settings.ServerIpv6 = oAdmin.serverConf.serverIpv6
+	settings.DuplicateCn = oAdmin.serverConf.duplicateCn
+	settings.CompLzo = oAdmin.serverConf.compLzo
+	settings.Routes = oAdmin.serverConf.routes
+	settings.Auth = oAdmin.serverConf.auth
+	//settings.Routes = make([]string, 0)
+	//for _, routes := range oAdmin.serverConf.routes {
+	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
+	//}
+	return settings
+}
+
+func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+
+	configPublic := new(ConfigPublic)
+	configPublic.Openvpn.Url = ""
+
+	auth := getAuthCookie(r)
+	ok, jwtUsername := jwtUsername(auth)
+	if ok {
+		configPublic.User = oAdmin.getUserProfile(jwtUsername)
+		configPublic.Openvpn.Settings = oAdmin.exportPublicSettings()
+		configPublic.Openvpn.Preferences = oAdmin.exportPublicPreferences()
+	}
+
+	rawJson, _ := json.Marshal(configPublic)
+	_, err := w.Write(rawJson)
+	if err != nil {
+		log.Errorln("Fail to write response")
+		return
+	}
+	//fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
+}
+
+func (oAdmin *OvpnAdmin) getUserProfile(username string) *ConfigPublicUser {
+	for _, u := range oAdmin.applicationPreferences.Users {
+		if u.Username == username {
+			configPublicUser := new(ConfigPublicUser)
+			configPublicUser.Username = username
+			configPublicUser.Name = u.Name
+			return configPublicUser
+		}
+	}
+	return nil
 }
 
 func (oAdmin *OvpnAdmin) parseServerConf(file string) {
@@ -405,11 +485,6 @@ func getIntValueWithoutComment(line string) (int, error) {
 		return -1, err
 	}
 }
-func (oAdmin *OvpnAdmin) saveConfigPreferences(w http.ResponseWriter, r *http.Request) {
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 func (oAdmin *OvpnAdmin) saveConfigSettings(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)

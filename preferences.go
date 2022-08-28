@@ -3,14 +3,21 @@ package main
 import (
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
+	"net/http"
 )
 
+type ConfigPublicPreferencesPost struct {
+	CertificateDuration int    `json:"certificateDuration"`
+	ExplicitExitNotify  bool   `json:"explicitExitNotify"`
+	AuthNoCache         bool   `json:"authNoCache"`
+	VerifyX509Name      string `json:"verifyX509Name"`
+}
 
 type ConfigPublicPreferences struct {
 	CertificateDuration int    `json:"certificateDuration"`
 	ExplicitExitNotify  bool   `json:"explicitExitNotify"`
-	Auth                string `json:"auth"`
 	AuthNoCache         bool   `json:"authNoCache"`
+	VerifyX509Name      string `json:"verifyX509Name"`
 	Users               []ConfigPublicAccount `json:"users"`
 }
 
@@ -28,9 +35,9 @@ type Account struct {
 type ConfigPreferences struct {
 	CertificateDuration int    `json:"certificateDuration"`
 	ExplicitExitNotify  bool   `json:"explicitExitNotify"`
-	Auth                string `json:"auth"`
 	AuthNocache         bool   `json:"authNocache"`
 	Cipher              string `json:"cipher"`
+	VerifyX509Name      string `json:"verifyX509Name"`
 }
 
 type ApplicationConfig struct {
@@ -51,7 +58,19 @@ func loadConfig() ApplicationConfig {
 	return config
 }
 
-func (oAdmin *OvpnAdmin) savePreferences() error {
+func (oAdmin *OvpnAdmin) saveConfigPreferences(w http.ResponseWriter, r *http.Request) {
+	var post ConfigPublicPreferencesPost
+
+	err := json.NewDecoder(r.Body).Decode(&post)
+	if err != nil {
+		log.Errorln(err)
+	}
+	log.Printf("saving preferences %v", post)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+
+func (oAdmin *OvpnAdmin) savePreferencesFile() error {
 	rawJson, err := json.MarshalIndent(oAdmin.applicationPreferences, "", "  ")
 	if err != nil {
 		return err
@@ -63,8 +82,8 @@ func (oAdmin *OvpnAdmin) exportPublicPreferences() *ConfigPublicPreferences {
 	var preferences = new(ConfigPublicPreferences)
 	preferences.CertificateDuration = 3600 * 24 * 365 * 10 // 10 years
 	preferences.ExplicitExitNotify = oAdmin.applicationPreferences.Preferences.ExplicitExitNotify
-	preferences.Auth = oAdmin.applicationPreferences.Preferences.Auth
 	preferences.AuthNoCache = oAdmin.applicationPreferences.Preferences.AuthNocache
+	preferences.VerifyX509Name = oAdmin.applicationPreferences.Preferences.VerifyX509Name
 
 	if oAdmin.applicationPreferences.Preferences.CertificateDuration > 0 {
 		preferences.CertificateDuration = oAdmin.applicationPreferences.Preferences.CertificateDuration

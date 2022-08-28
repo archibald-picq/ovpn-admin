@@ -10,6 +10,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type AuthenticatePayload struct {
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+}
+
 func jwtUsername(auth string) (bool, string) {
 	if len(auth) <= 0 {
 		return false, ""

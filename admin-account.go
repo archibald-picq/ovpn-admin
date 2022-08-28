@@ -92,7 +92,7 @@ func (oAdmin *OvpnAdmin) deleteUser(username string) error {
 	for i, u := range oAdmin.applicationPreferences.Users {
 		if u.Username == username {
 			oAdmin.applicationPreferences.Users = RemoveIndex(oAdmin.applicationPreferences.Users, i)
-			return oAdmin.savePreferences()
+			return oAdmin.savePreferencesFile()
 		}
 	}
 	return errors.New(fmt.Sprintf("User %s not found", username))
@@ -110,7 +110,7 @@ func (oAdmin *OvpnAdmin) updateUser(username string, updates AdminAccountUpdate)
 				}
 				oAdmin.applicationPreferences.Users[i].Password = string(encoded)
 			}
-			return oAdmin.savePreferences()
+			return oAdmin.savePreferencesFile()
 		}
 	}
 	return errors.New(fmt.Sprintf("User %s not found", username))
@@ -131,7 +131,7 @@ func (oAdmin *OvpnAdmin) createUser(updates AdminAccountUpdate) error {
 		Name: updates.Name,
 		Password: string(encoded),
 	})
-	return oAdmin.savePreferences()
+	return oAdmin.savePreferencesFile()
 }
 
 func RemoveIndex(s []Account, index int) []Account {

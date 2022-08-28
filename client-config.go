@@ -1,0 +1,102 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"strings"
+	log "github.com/sirupsen/logrus"
+)
+
+type OpenvpnClientConfig struct {
+	Hosts              []OpenvpnServer
+	CA                 string
+	Cert               string
+	Key                string
+	TLS                string
+	PasswdAuth         bool
+	TlsCrypt           string
+	CompLzo            bool
+	CertCommonName     string
+	ExplicitExitNotify bool
+	Auth               string
+	AuthNocache        bool
+	Cipher             string
+	TlsClient          bool
+	TlsVersionMin      string
+	TlsCipher          string
+}
+func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
+	_, _, err := checkUserExist(username)
+	if err != nil {
+		log.Warnf("user \"%s\" not found", username)
+		return fmt.Sprintf("user \"%s\" not found", username)
+	}
+	var hosts []OpenvpnServer
+
+	for _, server := range *openvpnServer {
+		parts := strings.SplitN(server, ":", 3)
+		l := len(parts)
+		if l > 2 {
+			hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1], Protocol: parts[2]})
+		} else {
+			hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1]})
+		}
+	}
+
+	if *openvpnServerBehindLB {
+		var err error
+		hosts, err = getOvpnServerHostsFromKubeApi()
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
+	log.Tracef("hosts for %s\n %v", username, hosts)
+
+	conf := OpenvpnClientConfig{}
+	conf.ExplicitExitNotify = true
+	conf.Hosts = hosts
+	conf.CA = fRead(*easyrsaDirPath + "/pki/ca.crt")
+	conf.TLS = fRead(*easyrsaDirPath + "/pki/ta.key")
+	if len(oAdmin.masterCn) > 0 {
+		conf.CertCommonName = oAdmin.masterCn
+	}
+	if oAdmin.serverConf.allowCompression {
+		conf.CompLzo = true
+	}
+	if len(oAdmin.serverConf.tlsCrypt) > 0 {
+		conf.TlsCrypt = fRead(absolutizePath(*serverConfFile, oAdmin.serverConf.tlsCrypt))
+	}
+
+	conf.Auth = oAdmin.serverConf.auth
+	conf.AuthNocache = oAdmin.applicationPreferences.Preferences.AuthNocache
+	conf.Cipher = oAdmin.serverConf.cipher
+	conf.TlsClient = oAdmin.serverConf.tlsServer
+	conf.TlsVersionMin = oAdmin.serverConf.tlsVersionMin
+	conf.TlsCipher = oAdmin.serverConf.tlsCipher
+
+	if *storageBackend == "kubernetes.secrets" {
+		conf.Cert, conf.Key = app.easyrsaGetClientCert(username)
+	} else {
+		conf.Cert = removeCertificatText(fRead(*easyrsaDirPath + "/pki/issued/" + username + ".crt"))
+		conf.Key = fRead(*easyrsaDirPath + "/pki/private/" + username + ".key")
+	}
+
+	conf.PasswdAuth = *authByPassword
+
+	t := oAdmin.getClientConfigTemplate()
+
+	var tmp bytes.Buffer
+	err = t.Execute(&tmp, conf)
+	if err != nil {
+		log.Errorf("something goes wrong during rendering config for %s", username)
+		log.Debugf("rendering config for %s failed with error %v", username, err)
+	}
+
+	hosts = nil
+
+	log.Tracef("Rendered config for user %s: %+v", username, tmp.String())
+
+	return fmt.Sprintf("%+v", tmp.String())
+}
+

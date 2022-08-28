@@ -355,32 +355,6 @@ func dirname(path string) string {
 	return path[0:p+1]
 }
 
-func getSubjectFromCertificate(path string) string {
-	content := fRead(path)
-	re := regexp.MustCompile("Subject:\\s*(.*)")
-
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		match := re.FindStringSubmatch(line)
-		if len(match) > 1 {
-			subject := "/"+strings.ReplaceAll(match[1], ", ", "/")
-			return subject
-		}
-	}
-	return ""
-}
-
-func getCnFromCertificate(path string) string {
-
-	log.Printf("extract CN from certif %s", path)
-
-	subject := getSubjectFromCertificate(path)
-	cn := extractUsername(subject)
-	log.Printf("CN subject: '%v'", cn)
-
-	return cn
-}
-
 func removeCertificatText(content string) string {
 	lines := strings.Split(content, "\n")
 	begin := regexp.MustCompile("-----BEGIN CERTIFICATE-----")
