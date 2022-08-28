@@ -489,102 +489,104 @@ func main() {
 		*indexTxtPath = *easyrsaDirPath + "/pki/index.txt"
 	}
 
-	ovpnAdmin := new(OvpnAdmin)
-	ovpnAdmin.lastSyncTime = "unknown"
-	ovpnAdmin.role = *serverRole
-	ovpnAdmin.lastSuccessfulSyncTime = "unknown"
-	ovpnAdmin.masterSyncToken = *masterSyncToken
-	ovpnAdmin.promRegistry = prometheus.NewRegistry()
-	ovpnAdmin.modules = []string{}
-	ovpnAdmin.createUserMutex = &sync.Mutex{}
-	ovpnAdmin.mgmtInterfaces = make(map[string]string)
-	ovpnAdmin.parseServerConf(*serverConfFile)
-	ovpnAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile), ovpnAdmin.serverConf)
-	ovpnAdmin.applicationPreferences = loadConfig()
+	oAdmin := new(OvpnAdmin)
+	oAdmin.lastSyncTime = "unknown"
+	oAdmin.role = *serverRole
+	oAdmin.lastSuccessfulSyncTime = "unknown"
+	oAdmin.masterSyncToken = *masterSyncToken
+	oAdmin.promRegistry = prometheus.NewRegistry()
+	oAdmin.modules = []string{}
+	oAdmin.createUserMutex = &sync.Mutex{}
+	oAdmin.mgmtInterfaces = make(map[string]string)
+	oAdmin.parseServerConf(*serverConfFile)
+	oAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile), oAdmin.serverConf)
+	oAdmin.applicationPreferences = loadConfig()
 
 	if mgmtAddress == nil || len(*mgmtAddress) == 0 || len((*mgmtAddress)[0]) == 0 {
-		*mgmtAddress = []string{"main="+strings.Replace(ovpnAdmin.serverConf.management, " ", ":", 1)}
+		*mgmtAddress = []string{"main="+strings.Replace(oAdmin.serverConf.management, " ", ":", 1)}
 	}
 
 	for _, mgmtInterface := range *mgmtAddress {
 		parts := strings.SplitN(mgmtInterface, "=", 2)
-		ovpnAdmin.mgmtInterfaces[parts[0]] = parts[len(parts)-1]
+		oAdmin.mgmtInterfaces[parts[0]] = parts[len(parts)-1]
 	}
 
-	if len(ovpnAdmin.serverConf.clientConfigDir) > 0 {
+	if len(oAdmin.serverConf.clientConfigDir) > 0 {
 		*ccdEnabled = true
-		*ccdDir = absolutizePath(*serverConfFile, ovpnAdmin.serverConf.clientConfigDir)
+		*ccdDir = absolutizePath(*serverConfFile, oAdmin.serverConf.clientConfigDir)
 	}
 
-	if (openvpnNetwork == nil || len(*openvpnNetwork) == 0) && len(ovpnAdmin.serverConf.server) > 0 {
-		*openvpnNetwork = convertNetworkMaskCidr(ovpnAdmin.serverConf.server)
+	if (openvpnNetwork == nil || len(*openvpnNetwork) == 0) && len(oAdmin.serverConf.server) > 0 {
+		*openvpnNetwork = convertNetworkMaskCidr(oAdmin.serverConf.server)
 	}
 
-	if len(ovpnAdmin.serverConf.cert) > 0 {
-		ovpnAdmin.masterCn = ovpnAdmin.getCommonNameFromCertificate(absolutizePath(*serverConfFile, ovpnAdmin.serverConf.cert))
+	if len(oAdmin.serverConf.cert) > 0 {
+		oAdmin.masterCn = oAdmin.getCommonNameFromCertificate(absolutizePath(*serverConfFile, oAdmin.serverConf.cert))
 	}
 
-	ovpnAdmin.mgmtSetTimeFormat()
+	oAdmin.mgmtSetTimeFormat()
 
-	ovpnAdmin.registerMetrics()
-	ovpnAdmin.setState()
+	oAdmin.registerMetrics()
+	oAdmin.setState()
 
-	go ovpnAdmin.updateState()
+	ovpnServerCaCertExpire.Set(float64((oAdmin.getExpireDateFromCertificate(absolutizePath(*serverConfFile, oAdmin.serverConf.ca)).Unix() - time.Now().Unix()) / 3600 / 24))
 
-	ovpnAdmin.masterHostBasicAuth = *masterBasicAuthPassword != "" && *masterBasicAuthUser != ""
+	go oAdmin.updateState()
 
-	ovpnAdmin.modules = append(ovpnAdmin.modules, "core")
+	oAdmin.masterHostBasicAuth = *masterBasicAuthPassword != "" && *masterBasicAuthUser != ""
+
+	oAdmin.modules = append(oAdmin.modules, "core")
 
 	if *authByPassword {
 		if *storageBackend != "kubernetes.secrets" {
-			ovpnAdmin.modules = append(ovpnAdmin.modules, "passwdAuth")
+			oAdmin.modules = append(oAdmin.modules, "passwdAuth")
 		} else {
 			log.Fatal("Right now the keys `--storage.backend=kubernetes.secret` and `--auth.password` are not working together. Please use only one of them ")
 		}
 	}
 
 	if *ccdEnabled {
-		ovpnAdmin.modules = append(ovpnAdmin.modules, "ccd")
+		oAdmin.modules = append(oAdmin.modules, "ccd")
 	}
 
-	if ovpnAdmin.role == "slave" {
-		ovpnAdmin.syncDataFromMaster()
-		go ovpnAdmin.syncWithMaster()
+	if oAdmin.role == "slave" {
+		oAdmin.syncDataFromMaster()
+		go oAdmin.syncWithMaster()
 	}
 
 	staticDir, _ := fs.Sub(content, "frontend/static")
 	embedFs := http.FS(staticDir)
-	http.HandleFunc("/api/config", ovpnAdmin.showConfig)
-	http.HandleFunc("/api/config/settings/save", ovpnAdmin.saveConfigSettings)
-	http.HandleFunc("/api/config/preferences/save", ovpnAdmin.saveConfigPreferences)
-	http.HandleFunc("/api/config/admin/", ovpnAdmin.saveAdminAccount)
-	http.HandleFunc("/api/authenticate", ovpnAdmin.authenticate)
-	http.HandleFunc("/api/logout", ovpnAdmin.logout)
-	//http.HandleFunc("/api/server/settings", ovpnAdmin.serverSettingsHandler)
-	http.HandleFunc("/api/users/list", ovpnAdmin.userListHandler)
-	http.HandleFunc("/api/user/create", ovpnAdmin.userCreateHandler)
-	http.HandleFunc("/api/user/change-password", ovpnAdmin.userChangePasswordHandler)
-	http.HandleFunc("/api/user/rotate", ovpnAdmin.userRotateHandler)
-	http.HandleFunc("/api/user/delete", ovpnAdmin.userDeleteHandler)
-	http.HandleFunc("/api/user/revoke", ovpnAdmin.userRevokeHandler)
-	http.HandleFunc("/api/user/unrevoke", ovpnAdmin.userUnrevokeHandler)
-	http.HandleFunc("/api/user/config/show", ovpnAdmin.userShowConfigHandler)
-	http.HandleFunc("/api/user/disconnect", ovpnAdmin.userDisconnectHandler)
-	http.HandleFunc("/api/user/statistic", ovpnAdmin.userStatisticHandler)
-	http.HandleFunc("/api/user/ccd", ovpnAdmin.userShowCcdHandler)
-	http.HandleFunc("/api/user/ccd/apply", ovpnAdmin.userApplyCcdHandler)
+	http.HandleFunc("/api/config", oAdmin.showConfig)
+	http.HandleFunc("/api/config/settings/save", oAdmin.saveConfigSettings)
+	http.HandleFunc("/api/config/preferences/save", oAdmin.saveConfigPreferences)
+	http.HandleFunc("/api/config/admin/", oAdmin.saveAdminAccount)
+	http.HandleFunc("/api/authenticate", oAdmin.authenticate)
+	http.HandleFunc("/api/logout", oAdmin.logout)
+	//http.HandleFunc("/api/server/settings", oAdmin.serverSettingsHandler)
+	http.HandleFunc("/api/users/list", oAdmin.userListHandler)
+	http.HandleFunc("/api/user/create", oAdmin.userCreateHandler)
+	http.HandleFunc("/api/user/change-password", oAdmin.userChangePasswordHandler)
+	http.HandleFunc("/api/user/rotate", oAdmin.userRotateHandler)
+	http.HandleFunc("/api/user/delete", oAdmin.userDeleteHandler)
+	http.HandleFunc("/api/user/revoke", oAdmin.userRevokeHandler)
+	http.HandleFunc("/api/user/unrevoke", oAdmin.userUnrevokeHandler)
+	http.HandleFunc("/api/user/config/show", oAdmin.userShowConfigHandler)
+	http.HandleFunc("/api/user/disconnect", oAdmin.userDisconnectHandler)
+	http.HandleFunc("/api/user/statistic", oAdmin.userStatisticHandler)
+	http.HandleFunc("/api/user/ccd", oAdmin.userShowCcdHandler)
+	http.HandleFunc("/api/user/ccd/apply", oAdmin.userApplyCcdHandler)
 
-	http.HandleFunc("/api/sync/last/try", ovpnAdmin.lastSyncTimeHandler)
-	http.HandleFunc("/api/sync/last/successful", ovpnAdmin.lastSuccessfulSyncTimeHandler)
-	http.HandleFunc(downloadCertsApiUrl, ovpnAdmin.downloadCertsHandler)
-	http.HandleFunc(downloadCcdApiUrl, ovpnAdmin.downloadCcdHandler)
+	http.HandleFunc("/api/sync/last/try", oAdmin.lastSyncTimeHandler)
+	http.HandleFunc("/api/sync/last/successful", oAdmin.lastSuccessfulSyncTimeHandler)
+	http.HandleFunc(downloadCertsApiUrl, oAdmin.downloadCertsHandler)
+	http.HandleFunc(downloadCcdApiUrl, oAdmin.downloadCcdHandler)
 
-	http.Handle(*metricsPath, promhttp.HandlerFor(ovpnAdmin.promRegistry, promhttp.HandlerOpts{}))
+	http.Handle(*metricsPath, promhttp.HandlerFor(oAdmin.promRegistry, promhttp.HandlerOpts{}))
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "pong")
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		ovpnAdmin.catchAll(embedFs, w, r)
+		oAdmin.catchAll(embedFs, w, r)
 	})
 
 	log.Printf("Bind: http://%s:%s", *listenHost, *listenPort)
@@ -604,8 +606,6 @@ func (oAdmin *OvpnAdmin) catchAll(embedFs http.FileSystem, w http.ResponseWriter
 func (oAdmin *OvpnAdmin) setState() {
 	oAdmin.activeClients = oAdmin.mgmtGetActiveClients()
 	oAdmin.clients = oAdmin.usersList()
-
-	ovpnServerCaCertExpire.Set(float64((oAdmin.getExpireDateFromCertificate(absolutizePath(*serverConfFile, oAdmin.serverConf.ca)).Unix() - time.Now().Unix()) / 3600 / 24))
 }
 
 func (oAdmin *OvpnAdmin) updateState() {
@@ -616,7 +616,7 @@ func (oAdmin *OvpnAdmin) updateState() {
 		ovpnClientConnectionFrom.Reset()
 		ovpnClientConnectionInfo.Reset()
 		ovpnClientCertificateExpire.Reset()
-		go oAdmin.setState()
+		oAdmin.setState()
 	}
 }
 
