@@ -17,7 +17,9 @@ export class User {
 
 export class Settings {
     server: string;
+    forceGatewayIpv4: boolean;
     serverIpv6: string;
+    forceGatewayIpv6: boolean;
     duplicateCn: boolean;
     compLzo: boolean;
     routes: Route[];
@@ -26,7 +28,9 @@ export class Settings {
 
     constructor(raw: Record<string, any>) {
         this.server = raw?.server;
+        this.forceGatewayIpv4 = raw?.forceGatewayIpv4;
         this.serverIpv6 = raw?.serverIpv6;
+        this.forceGatewayIpv6 = raw?.forceGatewayIpv6;
         this.duplicateCn = raw?.duplicateCn;
         this.compLzo = raw?.compLzo;
         this.auth = raw?.auth === ''? null: raw?.auth;

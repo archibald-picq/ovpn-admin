@@ -39,19 +39,18 @@ export class EditAdminAccountComponent {
         try {
             this.loading = true;
             this.error = '';
-            let user: User;
             const params = {
                 username: this.username,
                 name: this.name,
                 password: this.password,
             };
             if (this.original) {
-                user = await this.openvpnService.updateAdminAccount(this.original.username, params);
+                await this.openvpnService.updateAdminAccount(this.original.username, params);
                 this.original.username = params.username;
                 this.original.name = params.name;
                 this.modal.close(this.original);
             } else {
-                user = await this.openvpnService.createAdminAccount(params);
+                await this.openvpnService.createAdminAccount(params);
                 this.modal.close(new User(params));
             }
         } catch (e: any) {

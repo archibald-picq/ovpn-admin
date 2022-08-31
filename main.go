@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/websocket"
 
 	"io/fs"
 	"embed"
@@ -78,20 +79,20 @@ var (
 	ccdArchivePath   = "/tmp/" + ccdArchiveFileName
 
 	version = "2.0.0"
+	upgrader = websocket.Upgrader{} // use default options
+	logLevels = map[string]log.Level{
+		"trace": log.TraceLevel,
+		"debug": log.DebugLevel,
+		"info":  log.InfoLevel,
+		"warn":  log.WarnLevel,
+		"error": log.ErrorLevel,
+	}
+	logFormats = map[string]log.Formatter{
+		"text": &log.TextFormatter{},
+		"json": &log.JSONFormatter{},
+	}
+
 )
-
-var logLevels = map[string]log.Level{
-	"trace": log.TraceLevel,
-	"debug": log.DebugLevel,
-	"info":  log.InfoLevel,
-	"warn":  log.WarnLevel,
-	"error": log.ErrorLevel,
-}
-
-var logFormats = map[string]log.Formatter{
-	"text": &log.TextFormatter{},
-	"json": &log.JSONFormatter{},
-}
 
 //go:embed templates/*
 var templates embed.FS
@@ -114,6 +115,7 @@ type OvpnAdmin struct {
 	createUserMutex        *sync.Mutex
 	masterCn               string
 	applicationPreferences ApplicationConfig
+	wsConnections          []*websocket.Conn
 }
 
 type OpenvpnServer struct {
@@ -554,8 +556,12 @@ func main() {
 		go oAdmin.syncWithMaster()
 	}
 
+	upgrader.CheckOrigin = oAdmin.checkWebsocketOrigin
+	upgrader.Subprotocols = []string{"ovpn"}
+
 	staticDir, _ := fs.Sub(content, "frontend/static")
 	embedFs := http.FS(staticDir)
+	http.HandleFunc("/api/ws", oAdmin.websocket)
 	http.HandleFunc("/api/config", oAdmin.showConfig)
 	http.HandleFunc("/api/config/settings/save", oAdmin.saveConfigSettings)
 	http.HandleFunc("/api/config/preferences/save", oAdmin.saveConfigPreferences)
@@ -606,6 +612,11 @@ func (oAdmin *OvpnAdmin) catchAll(embedFs http.FileSystem, w http.ResponseWriter
 func (oAdmin *OvpnAdmin) setState() {
 	oAdmin.activeClients = oAdmin.mgmtGetActiveClients()
 	oAdmin.clients = oAdmin.usersList()
+
+	var packet WebsocketPacket
+	packet.Stream = "users"
+	packet.Data = oAdmin.clients
+	oAdmin.broadcast(packet)
 }
 
 func (oAdmin *OvpnAdmin) updateState() {
@@ -617,6 +628,7 @@ func (oAdmin *OvpnAdmin) updateState() {
 		ovpnClientConnectionInfo.Reset()
 		ovpnClientCertificateExpire.Reset()
 		oAdmin.setState()
+		//oAdmin.broadcast()
 	}
 }
 
@@ -731,6 +743,7 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser(text, serverName string) []Cli
 	scanner := bufio.NewScanner(strings.NewReader(text))
 	for scanner.Scan() {
 		txt := scanner.Text()
+		oAdmin.broadcast(WebsocketPacket{Stream: "read", Data: txt})
 		if regexp.MustCompile(`^Common Name,Real Address,Bytes Received,Bytes Sent,Connected Since$`).MatchString(txt) {
 			isClientList = true
 			continue
@@ -810,7 +823,7 @@ func (oAdmin *OvpnAdmin) mgmtKillUserConnection(serverName ClientStatus) {
 }
 
 func (oAdmin *OvpnAdmin) mgmtGetActiveClients() []ClientStatus {
-	var activeClients []ClientStatus
+	var activeClients = make([]ClientStatus, 0)
 
 	for srv, addr := range oAdmin.mgmtInterfaces {
 		conn, err := net.Dial("tcp", addr)
@@ -819,6 +832,7 @@ func (oAdmin *OvpnAdmin) mgmtGetActiveClients() []ClientStatus {
 			break
 		}
 		oAdmin.mgmtRead(conn) // read welcome message
+		oAdmin.broadcast(WebsocketPacket{Stream: "write", Data: "status"})
 		conn.Write([]byte("status\n"))
 		activeClients = append(activeClients, oAdmin.mgmtConnectedUsersParser(oAdmin.mgmtRead(conn), srv)...)
 		conn.Close()

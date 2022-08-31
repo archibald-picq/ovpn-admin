@@ -87,8 +87,14 @@ export class OpenvpnSettingsPageComponent {
 
     private toSave(): Record<string, any> {
         return {
-            server: this.model.server,
-            serverIpv6: this.model.serverIpv6,
+            ...this.enableIpv4? {
+                server: this.model.server,
+                forceGatewayIpv4: this.model.forceGatewayIpv4,
+            }: {},
+            ...this.enableIpv6? {
+                serverIpv6: this.model.serverIpv6,
+                forceGatewayIpv6: this.model.forceGatewayIpv6,
+            }: {},
             compLzo: this.model.compLzo,
             duplicateCn: this.model.duplicateCn,
             routes: this.model.routes.map((route) => ({

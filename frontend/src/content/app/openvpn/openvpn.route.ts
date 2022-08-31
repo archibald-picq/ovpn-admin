@@ -8,6 +8,8 @@ import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 import { OpenvpnConfig } from './models/openvpn-config.model';
 import { AppConfigService } from '../shared/services/app-config.service';
 import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
+import { UploadPageComponent } from './upload/upload.component';
+import { LogPageComponent } from './log/log.component';
 
 @Injectable({ providedIn: 'root' })
 class ConfigResolve implements Resolve<OpenvpnConfig> {
@@ -54,6 +56,14 @@ export const OPENVPN_ROUTES: Route[] = [{
         {
             path: 'preferences',
             component: OpenvpnPreferencesPageComponent,
+        },
+        {
+            path: 'upload',
+            component: UploadPageComponent,
+        },
+        {
+            path: 'logs',
+            component: LogPageComponent,
         },
     ],
 }];

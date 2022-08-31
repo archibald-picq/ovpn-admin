@@ -60,6 +60,7 @@ export class OpenvpnPreferencesPageComponent {
         return {
             certificateDuration: parseInt(`${this.model.certificateDuration}`, 10),
             explicitExitNotify: this.model.explicitExitNotify,
+            autoNoCache: this.model.authNoCache,
         };
     }
 

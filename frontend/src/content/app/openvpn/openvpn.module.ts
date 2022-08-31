@@ -20,6 +20,9 @@ import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
 import { EditAdminAccountComponent } from './modals/edit-admin-account.component';
 import { ConfirmDeleteAdminAccountComponent } from './modals/confirm-delete-admin-account.component';
+import { UploadPageComponent } from './upload/upload.component';
+import { LogPageComponent } from './log/log.component';
+import { WebsocketService } from './services/websocket.service';
 
 @NgModule({
     declarations: [
@@ -33,6 +36,8 @@ import { ConfirmDeleteAdminAccountComponent } from './modals/confirm-delete-admi
         OpenvpnPreferencesPageComponent,
         EditAdminAccountComponent,
         ConfirmDeleteAdminAccountComponent,
+        UploadPageComponent,
+        LogPageComponent,
     ],
     imports: [
         RouterModule.forChild(OPENVPN_ROUTES),
@@ -43,10 +48,11 @@ import { ConfirmDeleteAdminAccountComponent } from './modals/confirm-delete-admi
         FormsModule,
         SharedModule,
         MatIconModule,
-        NgbTooltipModule
+        NgbTooltipModule,
     ],
     providers: [
         OpenvpnService,
+        WebsocketService,
     ],
     schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })

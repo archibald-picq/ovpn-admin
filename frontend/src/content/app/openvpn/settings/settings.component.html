@@ -8,36 +8,53 @@
 <form (ngSubmit)="save()">
     <div class="form-group row mb-4">
         <div class="col-2">General</div>
-        <div class="col-10">
+        <div class="col-10 setting-group">
             <div class="form-group">
                 <input class="form-check-input" type="checkbox" id="enable-ipv4" name="enableIpv4" [value]="true" [(ngModel)]="enableIpv4">
                 <label class="form-check-label" for="enable-ipv4">
-                    Enable IP v4
+                    Enable IPv4
                 </label>
             </div>
-            <div class="form-group mb-2" *ngIf="enableIpv4">
-                <label for="network-ipv4">
-                    IP v4 Network
-                </label>
-                <input class="form-control" id="network-ipv4" name="network" aria-describedby="network" [(ngModel)]="model.server">
-            </div>
+            <ng-container *ngIf="enableIpv4">
+                <div class="form-group mb-2">
+                    <label for="network-ipv4">
+                        IP v4 Network
+                    </label>
+                    <input class="form-control" id="network-ipv4" name="network" aria-describedby="network" [(ngModel)]="model.server">
+                </div>
+                <div class="form-group mb-2">
+                    <input class="form-check-input" type="checkbox" id="force-gateway-ipv4" name="forceGatewayIpv4" [value]="true" [(ngModel)]="model.forceGatewayIpv4">
+                    <label class="form-check-label" for="force-gateway-ipv4">
+                        Force Internet through VPN for IPv4
+                    </label>
+                </div>
+            </ng-container>
+            <hr>
             <div class="form-group">
                 <input class="form-check-input" type="checkbox" id="enable-ipv6" name="enableIpv6" [value]="true" [(ngModel)]="enableIpv6">
                 <label class="form-check-label" for="enable-ipv6">
-                    Enable IP v6
+                    Enable IPv6
                 </label>
             </div>
-            <div class="form-group mb-2" *ngIf="enableIpv6">
-                <label for="network-ipv6">
-                    IP v6 Network
-                </label>
-                <input class="form-control" id="network-ipv6" name="network-ipv6" aria-describedby="network-ipv6" [(ngModel)]="model.serverIpv6">
-            </div>
+            <ng-container *ngIf="enableIpv6">
+                <div class="form-group mb-2">
+                    <label for="network-ipv6">
+                        IP v6 Network
+                    </label>
+                    <input class="form-control" id="network-ipv6" name="network-ipv6" aria-describedby="network-ipv6" [(ngModel)]="model.serverIpv6">
+                </div>
+                <div class="form-group mb-2" *ngIf="enableIpv6">
+                    <input class="form-check-input" type="checkbox" id="force-gateway-ipv6" name="forceGatewayIpv4" [value]="true" [(ngModel)]="model.forceGatewayIpv6">
+                    <label class="form-check-label" for="force-gateway-ipv6">
+                        Force Internet through VPN for IPv6
+                    </label>
+                </div>
+            </ng-container>
         </div>
     </div>
     <div class="form-group row mb-4">
         <div class="col-2">Options</div>
-        <div class="col-10">
+        <div class="col-10 setting-group">
             <div class="form-group mb-2">
                 <input class="form-check-input" type="checkbox" value="" id="enable-compression" name="compLzo" [(ngModel)]="model.compLzo">
                 <label class="form-check-label" for="enable-compression">
@@ -52,7 +69,7 @@
             </div>
             <div class="form-group mb-2">
                 <label for="auth">
-                    Auth
+                    Authentication Algorithm
                 </label>
                 <select class="form-control form-control" [(ngModel)]="model.auth" name="auth" id="auth">
                     <option [value]="null">None</option>
@@ -65,7 +82,7 @@
     </div>
     <div class="form-group row">
         <div class="col-2">Routes</div>
-        <div class="col-10">
+        <div class="col-10 setting-group">
             <table>
                 <tbody>
                 <tr>

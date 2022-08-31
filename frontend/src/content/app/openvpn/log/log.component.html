@@ -1,0 +1,12 @@
+<div class="mx-3">
+    <div>
+        <a [routerLink]="['../']">&laquo; Certificates list</a>
+    </div>
+    <div class="d-flex flex-row">
+        <h1 class="flex-grow-1">OpenVPN logs</h1>
+        <div></div>
+    </div>
+</div>
+<pre class="mx-3 mb-5">
+    <div *ngFor="let line of lines">{{line}}</div>
+</pre>
