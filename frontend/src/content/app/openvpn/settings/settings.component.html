@@ -28,6 +28,18 @@
                         Force Internet through VPN for IPv4
                     </label>
                 </div>
+                <div class="form-group mb-2 ms-5">
+                    <input class="form-check-input" type="checkbox" id="force-gateway-ipv4-except-dhcp" name="forceGatewayIpv4ExceptDhcp" [value]="true" [(ngModel)]="model.forceGatewayIpv4ExceptDhcp" [disabled]="!model.forceGatewayIpv4">
+                    <label class="form-check-label" for="force-gateway-ipv4-except-dhcp">
+                        Except for DHCP (recommended)
+                    </label>
+                </div>
+                <div class="form-group mb-2 ms-5">
+                    <input class="form-check-input" type="checkbox" id="force-gateway-ipv4-except-dns" name="forceGatewayIpv4ExceptDns" [value]="true" [(ngModel)]="model.forceGatewayIpv4ExceptDns" [disabled]="!model.forceGatewayIpv4">
+                    <label class="form-check-label" for="force-gateway-ipv4-except-dns">
+                        Except for DNS
+                    </label>
+                </div>
             </ng-container>
             <hr>
             <div class="form-group">

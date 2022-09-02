@@ -13,26 +13,30 @@ import (
 )
 
 type ConfigPublicSettings struct {
-	Server            string   `json:"server"`
-	ForceGatewayIpv4  bool     `json:"forceGatewayIpv4"`
-	ServerIpv6        string   `json:"serverIpv6"`
-	ForceGatewayIpv6  bool     `json:"forceGatewayIpv6"`
-	DuplicateCn       bool     `json:"duplicateCn"`
-	CompLzo           bool     `json:"compLzo"`
-	Auth              string   `json:"auth"`
-	Routes            []Route  `json:"routes"`
-	PushRoutes        []string `json:"pushRoutes"`
+	Server                      string   `json:"server"`
+	ForceGatewayIpv4            bool     `json:"forceGatewayIpv4"`
+	ForceGatewayIpv4ExceptDhcp  bool     `json:"forceGatewayIpv4ExceptDhcp"`
+	ForceGatewayIpv4ExceptDns   bool     `json:"forceGatewayIpv4ExceptDns"`
+	ServerIpv6                  string   `json:"serverIpv6"`
+	ForceGatewayIpv6            bool     `json:"forceGatewayIpv6"`
+	DuplicateCn                 bool     `json:"duplicateCn"`
+	CompLzo                     bool     `json:"compLzo"`
+	Auth                        string   `json:"auth"`
+	Routes                      []Route  `json:"routes"`
+	PushRoutes                  []string `json:"pushRoutes"`
 }
 
 type ServerSavePayload struct {
-	Server            string  `json:"server"`
-	ForceGatewayIpv4  bool    `json:"forceGatewayIpv4"`
-	ServerIpv6        string  `json:"serverIpv6"`
-	ForceGatewayIpv6  bool    `json:"forceGatewayIpv6"`
-	DuplicateCn       bool    `json:"duplicateCn"`
-	CompLzo           bool    `json:"compLzo"`
-	Auth              string  `json:"auth"`
-	Routes            []Route `json:"routes"`
+	Server                      string  `json:"server"`
+	ForceGatewayIpv4            bool    `json:"forceGatewayIpv4"`
+	ForceGatewayIpv4ExceptDhcp  bool    `json:"forceGatewayIpv4ExceptDhcp"`
+	ForceGatewayIpv4ExceptDns   bool    `json:"forceGatewayIpv4ExceptDns"`
+	ServerIpv6                  string  `json:"serverIpv6"`
+	ForceGatewayIpv6            bool    `json:"forceGatewayIpv6"`
+	DuplicateCn                 bool    `json:"duplicateCn"`
+	CompLzo                     bool    `json:"compLzo"`
+	Auth                        string  `json:"auth"`
+	Routes                      []Route `json:"routes"`
 }
 
 
@@ -53,61 +57,65 @@ type ConfigPublic struct {
 }
 
 type OvpnConfig struct {
-	server                 string   // 10.8.0.0 255.255.255.0
-	forceGatewayIpv4       bool     // push "redirect-gateway def1 bypass-dhcp"
-	port                   int      // 1194
-	proto                  string   // udp udp6
-	dev                    string   // tun tap
-	tunMtu                 int      // 60000
-	fragment               int      // 0
-	user                   string   // nobody
-	group                  string   // nogroup
-	mssfix                 int      // 0
-	management             string   // localhost 7505
-	ca                     string   // ca.crt
-	cert                   string   // server.crt
-	key                    string   // server.key
-	dh                     string   // dh2048.pem none
-	ifconfigPoolPersist    string   // ipp.txt
-	keepalive              string   // 10 120
-	compLzo                bool
-	allowCompression       bool
-	persistKey             bool
-	persistTun             bool
-	status                 string   // /var/log/openvpn/status.log
-	verb                   int      // 1 3
-	clientConfigDir        string   // ccd
-	clientToClient         bool
-	duplicateCn            bool
-	topology               string   // subnet
-	serverIpv6             string   // fd42:42:42:42::/112
-	forceGatewayIpv6       bool     // push "redirect-gateway ipv6"
-	tunIpv6                bool
-	ecdhCurve              string   // prime256v1
-	tlsCrypt               string   // tls-crypt.key
-	crlVerify              string   // crl.pem
-	auth                   string   // SHA256
-	cipher                 string   // AES-128-GCM
-	ncpCiphers             string   // AES-128-GCM
-	tlsServer              bool
-	tlsVersionMin          string   // 1.2
-	tlsCipher              string   // TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
-	log                    string   // /var/log/openvpn.log
-	routes                 []Route  // 10.42.44.0 255.255.255.0
-	                                // 10.42.78.0 255.255.255.0
-	                                // 10.8.0.0 255.255.255.0
-	push                   []string // "dhcp-option DNS 10.8.0.1"
-	                                // "dhcp-option DNS fd42:42:42:42::1"
-	                                // "redirect-gateway def1 bypass-dhcp"
-	                                // "tun-ipv6"
-	                                // "routes-ipv6 2000::/3"
-	                                // "redirect-gateway ipv6"
+	server                     string   // 10.8.0.0 255.255.255.0
+	forceGatewayIpv4           bool     // push "redirect-gateway def1 bypass-dhcp"
+	forceGatewayIpv4ExceptDhcp bool     // push "redirect-gateway def1 bypass-dhcp"
+	forceGatewayIpv4ExceptDns  bool     // push "redirect-gateway def1 bypass-dns"
+	port                       int      // 1194
+	proto                      string   // udp udp6
+	dev                        string   // tun tap
+	tunMtu                     int      // 60000
+	fragment                   int      // 0
+	user                       string   // nobody
+	group                      string   // nogroup
+	mssfix                     int      // 0
+	management                 string   // localhost 7505
+	ca                         string   // ca.crt
+	cert                       string   // server.crt
+	key                        string   // server.key
+	dh                         string   // dh2048.pem none
+	ifconfigPoolPersist        string   // ipp.txt
+	keepalive                  string   // 10 120
+	compLzo                    bool
+	allowCompression           bool
+	persistKey                 bool
+	persistTun                 bool
+	status                     string   // /var/log/openvpn/status.log
+	verb                       int      // 1 3
+	clientConfigDir            string   // ccd
+	clientToClient             bool
+	duplicateCn                bool
+	topology                   string   // subnet
+	serverIpv6                 string   // fd42:42:42:42::/112
+	forceGatewayIpv6           bool     // push "redirect-gateway ipv6"
+	tunIpv6                    bool
+	ecdhCurve                  string   // prime256v1
+	tlsCrypt                   string   // tls-crypt.key
+	crlVerify                  string   // crl.pem
+	auth                       string   // SHA256
+	cipher                     string   // AES-128-GCM
+	ncpCiphers                 string   // AES-128-GCM
+	tlsServer                  bool
+	tlsVersionMin              string   // 1.2
+	tlsCipher                  string   // TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+	log                        string   // /var/log/openvpn.log
+	routes                     []Route  // 10.42.44.0 255.255.255.0
+	                                    // 10.42.78.0 255.255.255.0
+	                                    // 10.8.0.0 255.255.255.0
+	push                       []string // "dhcp-option DNS 10.8.0.1"
+	                                    // "dhcp-option DNS fd42:42:42:42::1"
+	                                    // "redirect-gateway def1 bypass-dhcp"
+	                                    // "tun-ipv6"
+	                                    // "routes-ipv6 2000::/3"
+	                                    // "redirect-gateway ipv6"
 }
 
 func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
 	var settings = new(ConfigPublicSettings)
 	settings.Server = convertNetworkMaskCidr(oAdmin.serverConf.server)
 	settings.ForceGatewayIpv4 = oAdmin.serverConf.forceGatewayIpv4
+	settings.ForceGatewayIpv4ExceptDhcp = oAdmin.serverConf.forceGatewayIpv4ExceptDhcp
+	settings.ForceGatewayIpv4ExceptDns = oAdmin.serverConf.forceGatewayIpv4ExceptDns
 	settings.ServerIpv6 = oAdmin.serverConf.serverIpv6
 	settings.ForceGatewayIpv6 = oAdmin.serverConf.forceGatewayIpv6
 	settings.DuplicateCn = oAdmin.serverConf.duplicateCn
@@ -275,20 +283,36 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 				log.Error(err)
 			}
 		case key == "push":
-			quotedValue := getQuotedValueWithoutComment(line)
-			if quotedValue == "redirect-gateway def1 bypass-dhcp" {
-				oAdmin.serverConf.forceGatewayIpv4 = true
-			} else if quotedValue == "redirect-gateway ipv6" {
-				oAdmin.serverConf.forceGatewayIpv6 = true
-			} else {
-				oAdmin.serverConf.push = append(oAdmin.serverConf.push, quotedValue)
-			}
+			oAdmin.extractPushConfig(getQuotedValueWithoutComment(line))
+
 		default:
 			log.Printf("skipped '%s'", line)
 		}
 	}
 
 	log.Printf("config %v", oAdmin.serverConf)
+}
+
+func (oAdmin *OvpnAdmin) extractPushConfig(line string) {
+	parts := strings.Split(line, " ")
+	if parts[0] == "redirect-gateway" {
+		parts = parts[1:]
+		for _, part := range parts {
+			if part == "def1" {
+				oAdmin.serverConf.forceGatewayIpv4 = true
+			} else if part == "ipv6" {
+				oAdmin.serverConf.forceGatewayIpv6 = true
+			} else if part == "bypass-dhcp" {
+				oAdmin.serverConf.forceGatewayIpv4ExceptDhcp = true
+			} else if part == "bypass-dns" {
+				oAdmin.serverConf.forceGatewayIpv4ExceptDns = true
+			} else {
+				log.Printf("Unrecognized redirect-gateway option '%s'", part)
+			}
+		}
+	} else {
+		oAdmin.serverConf.push = append(oAdmin.serverConf.push, line)
+	}
 }
 
 func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, error) {
@@ -415,7 +439,14 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 		}
 	}
 	if config.forceGatewayIpv4 {
-		lines = append(lines, "push \"redirect-gateway def1 bypass-dhcp\"")
+		options := ""
+		if config.forceGatewayIpv4ExceptDhcp {
+			options = options + " bypass-dhcp"
+		}
+		if config.forceGatewayIpv4ExceptDns {
+			options = options + " bypass-dns"
+		}
+		lines = append(lines, fmt.Sprintf("push \"redirect-gateway def1%s\"", options))
 	}
 	if config.forceGatewayIpv6 {
 		lines = append(lines, "push \"redirect-gateway ipv6\"")
@@ -464,6 +495,7 @@ func getValueWithoutComment(line string) string {
 func getQuotedValueWithoutComment(line string) string {
 	line = getValueWithoutComment(line)
 	line = strings.TrimPrefix(strings.TrimSuffix(line, "\""), "\"")
+	line = strings.ReplaceAll(line, "\\\"", "\"")
 	return line
 }
 
@@ -548,6 +580,8 @@ func (oAdmin *OvpnAdmin) saveConfigSettings(w http.ResponseWriter, r *http.Reque
 	conf := oAdmin.serverConf
 	conf.server = convertCidrNetworkMask(savePayload.Server)
 	conf.forceGatewayIpv4 = savePayload.ForceGatewayIpv4
+	conf.forceGatewayIpv4ExceptDhcp = savePayload.ForceGatewayIpv4ExceptDhcp
+	conf.forceGatewayIpv4ExceptDns = savePayload.ForceGatewayIpv4ExceptDns
 	conf.serverIpv6 = savePayload.ServerIpv6
 	conf.forceGatewayIpv6 = savePayload.ForceGatewayIpv6
 	conf.compLzo = savePayload.CompLzo
@@ -574,6 +608,7 @@ func (oAdmin *OvpnAdmin) saveConfigSettings(w http.ResponseWriter, r *http.Reque
 
 	err = oAdmin.restartServer()
 	if err != nil {
+		// rollback config and restart server on error
 		fCopy(backupFile, *serverConfFile)
 		err = oAdmin.restartServer()
 		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
@@ -583,6 +618,8 @@ func (oAdmin *OvpnAdmin) saveConfigSettings(w http.ResponseWriter, r *http.Reque
 
 	oAdmin.serverConf.server = conf.server
 	oAdmin.serverConf.forceGatewayIpv4 = conf.forceGatewayIpv4
+	oAdmin.serverConf.forceGatewayIpv4ExceptDhcp = conf.forceGatewayIpv4ExceptDhcp
+	oAdmin.serverConf.forceGatewayIpv4ExceptDns = conf.forceGatewayIpv4ExceptDns
 	oAdmin.serverConf.serverIpv6 = conf.serverIpv6
 	oAdmin.serverConf.forceGatewayIpv6 = conf.forceGatewayIpv6
 	oAdmin.serverConf.compLzo = conf.compLzo

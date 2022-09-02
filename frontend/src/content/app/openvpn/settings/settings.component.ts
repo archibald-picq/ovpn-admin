@@ -90,6 +90,8 @@ export class OpenvpnSettingsPageComponent {
             ...this.enableIpv4? {
                 server: this.model.server,
                 forceGatewayIpv4: this.model.forceGatewayIpv4,
+                forceGatewayIpv4ExceptDhcp: this.model.forceGatewayIpv4ExceptDhcp,
+                forceGatewayIpv4ExceptDns: this.model.forceGatewayIpv4ExceptDns,
             }: {},
             ...this.enableIpv6? {
                 serverIpv6: this.model.serverIpv6,
