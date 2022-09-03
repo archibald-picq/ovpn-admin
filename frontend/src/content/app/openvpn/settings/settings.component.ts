@@ -28,8 +28,8 @@ export class OpenvpnSettingsPageComponent {
         private readonly injector: Injector,
         private readonly openvpnService: OpenvpnService,
     ) {
-        console.warn('config', this.activatedRoute.snapshot.data.config);
-        this.original = this.activatedRoute.snapshot.data.config.settings;
+        console.warn('config', this.activatedRoute.parent?.snapshot.data.config);
+        this.original = this.activatedRoute.parent?.snapshot.data.config.settings;
         this.model = this.original.clone();
         // console.warn('this.model', this.model.routes);
         if (this.model.server) {

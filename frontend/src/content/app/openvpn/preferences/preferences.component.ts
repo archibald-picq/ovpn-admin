@@ -1,8 +1,8 @@
-import { Component, Injector } from '@angular/core';
+import {Component, Injector, Input} from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { OpenvpnService } from '../services/openvpn.service';
-import { Preferences, User } from '../models/openvpn-config.model';
+import {OpenvpnConfig, Preferences, User} from '../models/openvpn-config.model';
 import { Sort } from '@angular/material/sort';
 import { EditAdminAccountComponent, EditAdminAccountOptions } from '../modals/edit-admin-account.component';
 import { MatTableDataSource } from '@angular/material/table';
@@ -34,7 +34,7 @@ export class OpenvpnPreferencesPageComponent {
         private readonly injector: Injector,
         private readonly openvpnService: OpenvpnService,
     ) {
-        this.original = this.activatedRoute.snapshot.data.config.preferences;
+        this.original = this.activatedRoute.parent?.snapshot.data.config.preferences;
         this.dataSource.data = this.original.users;
         this.model = this.original.clone();
         this.serialized = JSON.stringify(this.toSave());

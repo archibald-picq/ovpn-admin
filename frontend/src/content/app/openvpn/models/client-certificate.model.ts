@@ -32,6 +32,7 @@ export class Node implements INode {
 }
 
 export class Connection implements IConnection {
+    clientId: number;
     bytesReceived: number;
     bytesSent: number;
     connectedSince: Date;
@@ -42,6 +43,7 @@ export class Connection implements IConnection {
     nodes: INode[];
 
     constructor(fromServer: Record<string, any>) {
+        this.clientId = fromServer.clientId;
         this.bytesReceived = +fromServer.bytesReceived;
         this.bytesSent = +fromServer.bytesSent;
         this.virtualAddress = fromServer.virtualAddress;
@@ -109,5 +111,8 @@ export class ClientCertificate implements IClientCertificate {
         client.expirationDate = this.expirationDate? new Date(this.expirationDate): undefined;
         client.revocationDate = this.revocationDate? new Date(this.revocationDate): undefined;
         return client;
+    }
+    public merge(newClient: IClientCertificate): void {
+        this.connections = newClient.connections;
     }
 }

@@ -37,4 +37,5 @@ export interface IClientCertificate {
     ccd?: ClientConfig;
 
     clone(): IClientCertificate;
+    merge(newClient: IClientCertificate): void;
 }

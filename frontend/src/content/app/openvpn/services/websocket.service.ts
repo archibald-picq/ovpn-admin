@@ -198,6 +198,9 @@ export class WebsocketService {
     public bind(streamName: string, callback: Callback): void {
         if (!this.streams[streamName]) {
             this.streams[streamName] = [];
+            if (this.server && this.status === 'opened') {
+                this.server.send(JSON.stringify({action: 'register', data: streamName}));
+            }
         }
         this.streams[streamName].push(callback);
     }
@@ -213,6 +216,7 @@ export class WebsocketService {
         }
         this.streams[streamName].splice(p, 1);
         if (this.streams[streamName].length === 0) {
+            this.server?.send(JSON.stringify({action: 'unregister', data: streamName}));
             delete this.streams[streamName];
         }
     }
@@ -235,7 +239,7 @@ export class WebsocketService {
         }
         this.shouldConnect = true;
         const url = this.url.replace(/http:\/\//, 'ws://').replace(/https:\/\//, 'wss://')+'/api/ws';
-        console.warn('WS url', url);
+        // console.warn('WS url', url);
         this.server = new WebSocket(url, this.protocol);
 
         this.server.onmessage = (msg) => this.onmessage(msg);
@@ -281,7 +285,7 @@ export class WebsocketService {
             if (this.streams[obj.stream]) {
                 this.trigger(obj.stream, obj.data);
             } else {
-                console.warn('Stream', obj.streams, 'has not been requested');
+                console.warn(`Stream '${obj.stream}' has not been requested`);
             }
         } else {
             console.warn('Unsupported object: ', obj);
@@ -310,6 +314,9 @@ export class WebsocketService {
         //     stream.status = 'opened';
         // });
         this.status = 'opened';
+        Object.keys(this.streams).forEach((streamName) => {
+           this.server?.send(JSON.stringify({action: 'register', data: streamName}));
+        });
         // this.send({
         //     register: 'peripherals',
         // });

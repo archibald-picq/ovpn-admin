@@ -14,8 +14,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func indexTxtParser(txt string) []OpenvpnClient {
-	var indexTxt = make([]OpenvpnClient, 0)
+func indexTxtParser(txt string) []*OpenvpnClient {
+	var indexTxt = make([]*OpenvpnClient, 0)
 	apochNow := time.Now().Unix()
 
 	txtLinesArray := strings.Split(txt, "\n")
@@ -29,15 +29,15 @@ func indexTxtParser(txt string) []OpenvpnClient {
 			case strings.HasPrefix(str[0], "V"):
 				identity := strings.Join(str[4:], " ")
 				//log.Printf("read line for '%s' with flag: %v\n", extractUsername(identity), str[0])
-				line := OpenvpnClient{
-					Username:       extractUsername(identity),
-					flag:           str[0],
-					ExpirationDate: parseDateToString(indexTxtDateLayout, str[1], stringDateFormat),
-					SerialNumber:   str[2],
-					Filename:       str[3],
-					Identity:       identity,
-					AccountStatus:  "Active",
-				}
+				line := new(OpenvpnClient)
+				line.Username = extractUsername(identity)
+				line.flag = str[0]
+				line.ExpirationDate = parseDateToString(indexTxtDateLayout, str[1], stringDateFormat)
+				line.SerialNumber = str[2]
+				line.Filename = str[3]
+				line.Identity = identity
+				line.AccountStatus = "Active"
+
 				line.Country = extractCountry(line.Identity)
 				line.Province = extractProvince(line.Identity)
 				line.City = extractCity(line.Identity)
@@ -51,16 +51,16 @@ func indexTxtParser(txt string) []OpenvpnClient {
 			case strings.HasPrefix(str[0], "R"):
 				identity := strings.Join(str[5:], " ")
 				//log.Printf("read line for '%s' with flag: %v\n", extractUsername(identity), str[0])
-				line := OpenvpnClient{
-					Username:       extractUsername(identity),
-					flag:           str[0],
-					ExpirationDate: parseDateToString(indexTxtDateLayout, str[1], stringDateFormat),
-					RevocationDate: parseDateToString(indexTxtDateLayout, str[2], stringDateFormat),
-					SerialNumber:   str[3],
-					Filename:       str[4],
-					Identity:       identity,
-					AccountStatus:  "Revoked",
-				}
+				line := new(OpenvpnClient)
+				line.Username = extractUsername(identity)
+				line.flag = str[0]
+				line.ExpirationDate = parseDateToString(indexTxtDateLayout, str[1], stringDateFormat)
+				line.RevocationDate = parseDateToString(indexTxtDateLayout, str[2], stringDateFormat)
+				line.SerialNumber = str[3]
+				line.Filename = str[4]
+				line.Identity = identity
+				line.AccountStatus = "Revoked"
+
 				line.Country = extractCountry(line.Identity)
 				line.Province = extractProvince(line.Identity)
 				line.City = extractCity(line.Identity)
@@ -85,7 +85,7 @@ func indexTxtParser(txt string) []OpenvpnClient {
 	return indexTxt
 }
 
-func renderIndexTxt(data []OpenvpnClient) string {
+func renderIndexTxt(data []*OpenvpnClient) string {
 	indexTxt := ""
 	for _, line := range data {
 		///C=FR/ST=Meurthe-et-Moselle/L=Nancy/O=Architech/OU=ROOT-CA/CN=paris/emailAddress=archibald.picq@gmail.com
@@ -258,12 +258,12 @@ func checkUserActiveExist(username string) bool {
 	return false
 }
 
-func checkUserExist(username string) (*OpenvpnClient, []OpenvpnClient, error) {
+func checkUserExist(username string) (*OpenvpnClient, []*OpenvpnClient, error) {
 	all := indexTxtParser(fRead(*indexTxtPath))
 	for _, u := range all {
 		log.Debugf("search username %s match %s", username, u.Username)
 		if u.Username == username {
-			return &u, all, nil
+			return u, all, nil
 		}
 	}
 	return nil, all, errors.New(fmt.Sprint("User %s not found", username))

@@ -1,6 +1,6 @@
 import { NgModule, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import {OpenvpnPageComponent} from "./openvpn.component";
+import {OpenvpnClientsComponent} from "./clients/clients.component";
 import { OPENVPN_ROUTES } from './openvpn.route';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatSortModule } from '@angular/material/sort';
@@ -23,10 +23,12 @@ import { ConfirmDeleteAdminAccountComponent } from './modals/confirm-delete-admi
 import { UploadPageComponent } from './upload/upload.component';
 import { LogPageComponent } from './log/log.component';
 import { WebsocketService } from './services/websocket.service';
+import {OpenvpnComponent} from "./openvpn.component";
 
 @NgModule({
     declarations: [
-        OpenvpnPageComponent,
+        OpenvpnComponent,
+        OpenvpnClientsComponent,
         EditClientComponent,
         ConfirmRevokeClientCertificateComponent,
         ConfirmDeleteClientCertificateComponent,

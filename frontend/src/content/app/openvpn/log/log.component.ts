@@ -1,6 +1,10 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { WebsocketService } from '../services/websocket.service';
 
+export class Packet {
+    constructor(public readonly time: Date, public readonly dir: string, public readonly content: string) {}
+}
+
 @Component({
     selector: 'bus-openvpn-log',
     templateUrl: './log.component.html',
@@ -8,15 +12,13 @@ import { WebsocketService } from '../services/websocket.service';
 })
 export class LogPageComponent implements OnInit, OnDestroy {
     public loading = false;
-    public lines: string[] = [];
-    private callback = (data: any) => {
-        // console.warn('data', data);
-    };
+    public lines: Packet[] = [];
+
     private rawRead = (data: any) => {
-        this.lines.push(data);
+        this.lines.push(new Packet(new Date(), 'read', data));
     };
     private rawWrite = (data: any) => {
-        this.lines.push(data);
+        this.lines.push(new Packet(new Date(), 'write', data));
     };
 
     constructor(
@@ -25,8 +27,6 @@ export class LogPageComponent implements OnInit, OnDestroy {
     }
 
     ngOnInit(): void {
-        this.websocketService.connect();
-        this.websocketService.bind('users', this.callback);
         this.websocketService.bind('read', this.rawRead);
         this.websocketService.bind('write', this.rawWrite);
     }
@@ -34,8 +34,6 @@ export class LogPageComponent implements OnInit, OnDestroy {
     ngOnDestroy(): void {
         this.websocketService.unbind('read', this.rawRead);
         this.websocketService.unbind('write', this.rawWrite);
-        this.websocketService.unbind('users', this.callback);
-        this.websocketService.disconnect();
     }
 
 

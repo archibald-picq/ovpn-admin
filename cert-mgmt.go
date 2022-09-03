@@ -292,7 +292,6 @@ func (oAdmin *OvpnAdmin) userRevoke(username string) (string, string) {
 		}
 	}
 
-	oAdmin.setState()
 	return fmt.Sprintln(shellOut), ""
 }
 

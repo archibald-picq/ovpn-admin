@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Resolve, Route } from '@angular/router';
-import { OpenvpnPageComponent } from "./openvpn.component";
+import { OpenvpnClientsComponent } from "./clients/clients.component";
 import { OpenvpnService } from './services/openvpn.service';
 import { IClientCertificate } from './models/client-certificate.interface';
 import { Observable } from 'rxjs';
@@ -10,6 +10,7 @@ import { AppConfigService } from '../shared/services/app-config.service';
 import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
 import { UploadPageComponent } from './upload/upload.component';
 import { LogPageComponent } from './log/log.component';
+import { OpenvpnComponent } from './openvpn.component';
 
 @Injectable({ providedIn: 'root' })
 class ConfigResolve implements Resolve<OpenvpnConfig> {
@@ -38,13 +39,14 @@ class ClientsResolve implements Resolve<IClientCertificate[]> {
 
 export const OPENVPN_ROUTES: Route[] = [{
     path: '',
+    component: OpenvpnComponent,
     resolve: {
         config: ConfigResolve,
     },
     children: [
         {
             path: '',
-            component: OpenvpnPageComponent,
+            component: OpenvpnClientsComponent,
             resolve: {
                 clients: ClientsResolve,
             },
