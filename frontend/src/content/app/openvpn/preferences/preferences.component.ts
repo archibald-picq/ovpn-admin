@@ -1,8 +1,8 @@
-import {Component, Injector, Input} from '@angular/core';
+import { Component, Injector } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { OpenvpnService } from '../services/openvpn.service';
-import {OpenvpnConfig, Preferences, User} from '../models/openvpn-config.model';
+import { Preferences, User } from '../models/openvpn-config.model';
 import { Sort } from '@angular/material/sort';
 import { EditAdminAccountComponent, EditAdminAccountOptions } from '../modals/edit-admin-account.component';
 import { MatTableDataSource } from '@angular/material/table';
@@ -26,7 +26,6 @@ export class OpenvpnPreferencesPageComponent {
     public displayedColumns = ['username', 'name', 'actions'];
     public sort?: Sort;
     public dataSource = new MatTableDataSource<User>();
-    // public usersList: User[] = [];
 
     constructor(
         private readonly activatedRoute: ActivatedRoute,

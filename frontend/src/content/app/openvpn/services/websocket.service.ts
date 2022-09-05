@@ -183,8 +183,8 @@ export class WebsocketService {
     constructor(
         protected readonly appConfigService: AppConfigService,
     ) {
+        console.warn('global config', appConfigService.get());
         this.url = appConfigService.get().openvpn?.url;
-        // this.BOX_URL = appConfigService.get().peripherals?.url;
     }
 
     // synchronize(streamName: string): StreamCallback {
@@ -229,7 +229,7 @@ export class WebsocketService {
     }
 
     public connect(): void {
-        if (!this.url) {
+        if (this.url === undefined) {
             console.warn('Cant connect to ovpn-admin: no url provided');
             return;
         }
@@ -238,7 +238,7 @@ export class WebsocketService {
             return;
         }
         this.shouldConnect = true;
-        const url = this.url.replace(/http:\/\//, 'ws://').replace(/https:\/\//, 'wss://')+'/api/ws';
+        const url = (this.url || document.location.href.replace(/\/$/, '')).replace(/http:\/\//, 'ws://').replace(/https:\/\//, 'wss://')+'/api/ws';
         // console.warn('WS url', url);
         this.server = new WebSocket(url, this.protocol);
 

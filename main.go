@@ -344,15 +344,15 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 		log.Debugln("description [%v]", ccd.CustomIRoutes[i].Description)
 	}
 
-	ccdApplied, applyStatus := oAdmin.modifyCcd(ccd)
+	err = oAdmin.modifyCcd(ccd)
 
-	if ccdApplied {
+	if err == nil {
 		w.WriteHeader(http.StatusNoContent)
-		fmt.Fprintf(w, applyStatus)
+		fmt.Fprintf(w, fmt.Sprintf("%s", err))
 		return
 	} else {
-		json, _ := json.Marshal(MessagePayload{Message: applyStatus})
-		http.Error(w, string(json), http.StatusUnprocessableEntity)
+		rawJson, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("%s", err)})
+		http.Error(w, string(rawJson), http.StatusUnprocessableEntity)
 	}
 }
 

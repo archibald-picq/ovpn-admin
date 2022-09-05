@@ -3,6 +3,8 @@ import {WebsocketService} from "./services/websocket.service";
 
 @Component({
     selector: 'bus-openvpn',
+    // templateUrl: './openvpn.component.html',
+    // styleUrls: ['./openvpn.component.scss'],
     template: `<router-outlet></router-outlet>`,
 })
 export class OpenvpnComponent implements OnInit, OnDestroy {

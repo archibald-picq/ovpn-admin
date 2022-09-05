@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 
-	"text/template"
 	"regexp"
 	"strings"
 	"errors"
@@ -131,32 +129,42 @@ func renderIndexTxt(data []*OpenvpnClient) string {
 	return indexTxt
 }
 
-func (oAdmin *OvpnAdmin) modifyCcd(ccd Ccd) (bool, string) {
-	ccdValid, err := oAdmin.validateCcd(ccd)
-	if err != "" {
-		return false, err
+func (oAdmin *OvpnAdmin) modifyCcd(ccd Ccd) error {
+	err := oAdmin.validateCcd(ccd)
+	if err != nil {
+		return err
 	}
 
-	if ccdValid {
-		t := oAdmin.getCcdTemplate()
-		var tmp bytes.Buffer
-		err := t.Execute(&tmp, ccd)
-		if err != nil {
-			log.Error(err)
-		}
-		if *storageBackend == "kubernetes.secrets" {
-			app.secretUpdateCcd(ccd.User, tmp.Bytes())
-		} else {
-			err = fWrite(*ccdDir+"/"+ccd.User, tmp.String())
-			if err != nil {
-				log.Errorf("modifyCcd: fWrite(): %v", err)
-			}
-		}
+	var lines = make([]string, 0)
 
-		return true, "ccd updated successfully"
+	if len(ccd.ClientAddress) > 0 {
+		lines = append(lines, fmt.Sprintf("ifconfig-push %s 255.255.255.0", ccd.ClientAddress))
 	}
 
-	return false, "something goes wrong"
+	for _, route := range ccd.CustomRoutes {
+		desc := ""
+		if len(route.Description) > 0 {
+			desc = " # " + route.Description
+		}
+		lines = append(lines, fmt.Sprintf(`push "route %s %s"%s`, route.Address, route.Netmask, desc))
+	}
+
+	for _, route := range ccd.CustomIRoutes {
+		desc := ""
+		if len(route.Description) > 0 {
+			desc = " # " + route.Description
+		}
+		lines = append(lines, fmt.Sprintf(`push "route %s %s"%s`, route.Address, route.Netmask, desc))
+	}
+
+	ccdContent := strings.Join(lines, "\n")+"\n"
+	ccdFile := *ccdDir+"/"+ccd.User
+	err = fWrite(ccdFile, ccdContent)
+	if err != nil {
+		log.Errorf("modifyCcd: fWrite(): %v", err)
+	}
+
+	return nil
 }
 
 func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
@@ -187,14 +195,21 @@ func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
 		// log.Warnf("reading ccd line [%s] [%s]", code, description)
 		str := strings.Fields(code)
 		if len(str) > 0 {
-			switch {
-			case strings.HasPrefix(str[0], "ifconfig-push"):
+			if strings.HasPrefix(str[0], "ifconfig-push") && len(str) > 1 {
 				ccd.ClientAddress = str[1]
-			case strings.HasPrefix(str[0], "push"):
-				ccd.CustomRoutes = append(ccd.CustomRoutes, Route{Address: strings.Trim(str[2], "\""), Netmask: strings.Trim(str[3], "\""), Description: strings.Trim(description, " ")})
-			case strings.HasPrefix(str[0], "iroute"):
-				ccd.CustomIRoutes = append(ccd.CustomIRoutes, Route{Address: strings.Trim(str[1], "\""), Netmask: strings.Trim(str[2], "\""), Description: strings.Trim(description, " ")})
-			default:
+			} else if strings.HasPrefix(str[0], "push") && len(str) > 3 {
+				ccd.CustomRoutes = append(ccd.CustomRoutes, Route{
+					Address:     strings.Trim(str[2], "\""),
+					Netmask:     strings.Trim(str[3], "\""),
+					Description: strings.Trim(description, " "),
+				})
+			} else if strings.HasPrefix(str[0], "iroute") && len(str) > 2 {
+				ccd.CustomIRoutes = append(ccd.CustomIRoutes, Route{
+					Address:     strings.Trim(str[1], "\""),
+					Netmask:     strings.Trim(str[2], "\""),
+					Description: strings.Trim(description, " "),
+				})
+			} else {
 				log.Warnf("ignored ccd line in \"%s\": \"%s\"", username, v)
 			}
 		}
@@ -203,10 +218,7 @@ func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
 	return ccd
 }
 
-func (oAdmin *OvpnAdmin) validateCcd(ccd Ccd) (bool, string) {
-
-	ccdErr := ""
-
+func (oAdmin *OvpnAdmin) validateCcd(ccd Ccd) error {
 	if ccd.ClientAddress != "dynamic" && len(ccd.ClientAddress) > 0 {
 		_, ovpnNet, err := net.ParseCIDR(*openvpnNetwork)
 		if err != nil {
@@ -214,39 +226,39 @@ func (oAdmin *OvpnAdmin) validateCcd(ccd Ccd) (bool, string) {
 		}
 
 		if !oAdmin.checkStaticAddressIsFree(ccd.ClientAddress, ccd.User) {
-			ccdErr = fmt.Sprintf("ClientAddress \"%s\" already assigned to another user", ccd.ClientAddress)
+			ccdErr := fmt.Sprintf("ClientAddress \"%s\" already assigned to another user", ccd.ClientAddress)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return false, ccdErr
+			return errors.New(ccdErr)
 		}
 
 		if net.ParseIP(ccd.ClientAddress) == nil {
-			ccdErr = fmt.Sprintf("ClientAddress \"%s\" not a valid IP address", ccd.ClientAddress)
+			ccdErr := fmt.Sprintf("ClientAddress \"%s\" not a valid IP address", ccd.ClientAddress)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return false, ccdErr
+			return errors.New(ccdErr)
 		}
 
 		if !ovpnNet.Contains(net.ParseIP(ccd.ClientAddress)) {
-			ccdErr = fmt.Sprintf("ClientAddress \"%s\" not belongs to openvpn server network \"%s\"", ccd.ClientAddress, ovpnNet)
+			ccdErr := fmt.Sprintf("ClientAddress \"%s\" not belongs to openvpn server network \"%s\"", ccd.ClientAddress, ovpnNet)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return false, ccdErr
+			return errors.New(ccdErr)
 		}
 	}
 
 	for _, route := range ccd.CustomRoutes {
 		if net.ParseIP(route.Address) == nil {
-			ccdErr = fmt.Sprintf("CustomRoute.Address \"%s\" must be a valid IP address", route.Address)
+			ccdErr := fmt.Sprintf("CustomRoute.Address \"%s\" must be a valid IP address", route.Address)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return false, ccdErr
+			return errors.New(ccdErr)
 		}
 
 		if net.ParseIP(route.Netmask) == nil {
-			ccdErr = fmt.Sprintf("CustomRoute.Mask \"%s\" must be a valid IP address", route.Netmask)
+			ccdErr := fmt.Sprintf("CustomRoute.Mask \"%s\" must be a valid IP address", route.Netmask)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return false, ccdErr
+			return errors.New(ccdErr)
 		}
 	}
 
-	return true, ccdErr
+	return nil
 }
 
 func checkUserActiveExist(username string) bool {
@@ -270,20 +282,17 @@ func checkUserExist(username string) (*OpenvpnClient, []*OpenvpnClient, error) {
 }
 
 func (oAdmin *OvpnAdmin) getCcd(username string) Ccd {
-	ccd := Ccd{}
-	ccd.User = username
-	ccd.ClientAddress = "dynamic"
-	ccd.CustomRoutes = []Route{}
-
+	ccd := Ccd{
+		User: username,
+		ClientAddress: "dynamic",
+		CustomRoutes: []Route{},
+	}
 	ccd = oAdmin.parseCcd(username)
-
 	return ccd
 }
 
 func (oAdmin *OvpnAdmin) checkStaticAddressIsFree(staticAddress string, username string) bool {
-
 	oAdmin.clients = oAdmin.usersList()
-
 	for _, client := range oAdmin.clients {
 		if client.Username != username {
 			ccd := oAdmin.getCcd(client.Username)
@@ -374,11 +383,7 @@ func extractUsername(identity string) string {
 	if len(match) <= 0 {
 		return ""
 	}
-	//if strings.HasPrefix(match[1], "REVOKED") {
-	//	matched := string(match[1][len("REVOKED"):])
-	//	matched, _, _ = strings.Cut(matched, "-")
-	//	return matched
-	//} else
+
 	if strings.HasPrefix(match[1], "DELETED-") {
 		matched := string(match[1][len("DELETED-"):])
 		matched, _, _ = strings.Cut(matched, "-")
@@ -393,14 +398,3 @@ func extractUsername(identity string) string {
 	}
 }
 
-func (oAdmin *OvpnAdmin) getCcdTemplate() *template.Template {
-	if *ccdTemplatePath != "" {
-		return template.Must(template.ParseFiles(*ccdTemplatePath))
-	} else {
-		ccdTpl, ccdTplErr := templates.ReadFile("templates/ccd.tpl")
-		if ccdTplErr != nil {
-			log.Errorf("ccdTpl not found in templates box")
-		}
-		return template.Must(template.New("ccd").Parse(string(ccdTpl)))
-	}
-}

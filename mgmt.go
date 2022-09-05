@@ -45,12 +45,18 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*ClientStat
 			for i := range u {
 				if u[i].commonName == userName && u[i].RealAddress == realAddress {
 					if strings.HasSuffix(peerAddress, "C") {
-						u[i].Nodes = append(u[i].Nodes, NodeInfo{Address: peerAddress[:len(peerAddress)-1], LastSeen: userConnectedSince})
+						u[i].Nodes = append(u[i].Nodes, NodeInfo{
+							Address: peerAddress[:len(peerAddress)-1],
+							LastSeen: userConnectedSince,
+						})
 					} else if strings.Contains(peerAddress, "/") {
-						u[i].Networks = append(u[i].Networks, Network{Address: peerAddress, LastSeen: userConnectedSince})
+						u[i].Networks = append(u[i].Networks, Network{
+							Address: peerAddress,
+							LastSeen: userConnectedSince,
+						})
 					} else {
 
-						u[i].VirtualAddress = peerAddress
+						//u[i].VirtualAddress = peerAddress
 						u[i].LastRef = userConnectedSince
 					}
 					//ovpnClientConnectionInfo.WithLabelValues(user[1], user[0]).Set(float64(parseDateToUnix(oAdmin.mgmtStatusTimeFormat, user[3])))
