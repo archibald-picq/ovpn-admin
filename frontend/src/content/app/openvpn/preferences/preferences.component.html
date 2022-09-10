@@ -11,6 +11,12 @@
         <div class="col-10">
 
             <div class="form-group mb-2">
+                <label for="address">
+                    OpenVPN address
+                </label>
+                <input class="form-control" id="address" name="address" aria-describedby="OpenVPN address" [(ngModel)]="model.address" [placeholder]="model.defaultAddress">
+            </div>
+            <div class="form-group mb-2">
                 <label for="certificate-duration">
                     Default certificate duration
                 </label>
@@ -27,6 +33,12 @@
                 <input class="form-check-input" type="checkbox" id="auth-no-cache" name="authNoCache" aria-describedby="Auth no cache" [value]="true" [(ngModel)]="model.authNoCache">
                 <label class="form-check-label" for="auth-no-cache">
                     Auth no cache
+                </label>
+            </div>
+            <div class="form-group mb-2">
+                <input class="form-check-input" type="checkbox" id="verifyX509Name" name="verifyX509Name" aria-describedby="Verify x509 Name" [value]="true" [(ngModel)]="model.verifyX509Name">
+                <label class="form-check-label" for="verifyX509Name">
+                    Verify x509 Name
                 </label>
             </div>
         </div>

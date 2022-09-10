@@ -57,9 +57,11 @@ export class OpenvpnPreferencesPageComponent {
 
     private toSave(): Record<string, any> {
         return {
+            address: this.model.address,
             certificateDuration: parseInt(`${this.model.certificateDuration}`, 10),
             explicitExitNotify: this.model.explicitExitNotify,
             autoNoCache: this.model.authNoCache,
+            verifyX509Name: this.model.verifyX509Name,
         };
     }
 

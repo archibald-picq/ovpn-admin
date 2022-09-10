@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	log "github.com/sirupsen/logrus"
 )
@@ -34,12 +35,14 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 	var hosts []OpenvpnServer
 
 	for _, server := range *openvpnServer {
-		parts := strings.SplitN(server, ":", 3)
-		l := len(parts)
-		if l > 2 {
-			hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1], Protocol: parts[2]})
-		} else {
-			hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1]})
+		if len(server) > 0 {
+			parts := strings.SplitN(server, ":", 3)
+			l := len(parts)
+			if l > 2 {
+				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1], Protocol: parts[2]})
+			} else {
+				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1]})
+			}
 		}
 	}
 
@@ -51,14 +54,28 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 		}
 	}
 
-	log.Tracef("hosts for %s\n %v", username, hosts)
+	if len(hosts) == 0 {
+		if len(oAdmin.applicationPreferences.Preferences.Address) > 0 {
+			parts := strings.SplitN(oAdmin.applicationPreferences.Preferences.Address, ":", 2)
+			if len(parts) == 1 {
+				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: fmt.Sprintf("%d", oAdmin.serverConf.port)})
+			} else {
+				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1]})
+			}
+		} else {
+			hosts = append(hosts, OpenvpnServer{Host: oAdmin.outboundIp.String(), Port: fmt.Sprintf("%d", oAdmin.serverConf.port)})
+		}
+	}
+
+	log.Infof("hosts for %s\n %v", username, hosts)
 
 	conf := OpenvpnClientConfig{}
-	conf.ExplicitExitNotify = true
 	conf.Hosts = hosts
-	conf.CA = fRead(*easyrsaDirPath + "/pki/ca.crt")
-	conf.TLS = fRead(*easyrsaDirPath + "/pki/ta.key")
-	if len(oAdmin.masterCn) > 0 {
+	conf.CA = fRead(*easyrsaDirPath + "pki/ca.crt")
+	if _, err := os.Stat(*easyrsaDirPath + "pki/ta.key"); err == nil {
+		conf.TLS = fRead(*easyrsaDirPath + "pki/ta.key")
+	}
+	if len(oAdmin.masterCn) > 0 && oAdmin.applicationPreferences.Preferences.VerifyX509Name {
 		conf.CertCommonName = oAdmin.masterCn
 	}
 	if oAdmin.serverConf.allowCompression {
@@ -69,6 +86,7 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 	}
 
 	conf.Auth = oAdmin.serverConf.auth
+	conf.ExplicitExitNotify = oAdmin.applicationPreferences.Preferences.ExplicitExitNotify
 	conf.AuthNocache = oAdmin.applicationPreferences.Preferences.AuthNocache
 	conf.Cipher = oAdmin.serverConf.cipher
 	conf.TlsClient = oAdmin.serverConf.tlsServer

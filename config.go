@@ -140,7 +140,7 @@ func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 	configPublic.Openvpn.Url = ""
 
 	auth := getAuthCookie(r)
-	ok, jwtUsername := jwtUsername(auth)
+	ok, jwtUsername := oAdmin.jwtUsername(auth)
 	if ok {
 		configPublic.User = oAdmin.getUserProfile(jwtUsername)
 		configPublic.Openvpn.Settings = oAdmin.exportPublicSettings()
@@ -538,7 +538,7 @@ func getIntValueWithoutComment(line string) (int, error) {
 		return -1, err
 	}
 }
-func (oAdmin *OvpnAdmin) saveConfigSettings(w http.ResponseWriter, r *http.Request) {
+func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
@@ -546,7 +546,7 @@ func (oAdmin *OvpnAdmin) saveConfigSettings(w http.ResponseWriter, r *http.Reque
 	}
 
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}

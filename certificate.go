@@ -15,7 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (oAdmin *OvpnAdmin) getExpireDateFromCertificate(path string) time.Time {
+func (oAdmin *OvpnAdmin) getCommonNameFromCertificate(path string) *x509.Certificate {
 	caCert, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Errorf("error read file %s: %s", oAdmin.serverConf.ca, err.Error())
@@ -27,28 +27,10 @@ func (oAdmin *OvpnAdmin) getExpireDateFromCertificate(path string) time.Time {
 	cert, err := x509.ParseCertificate(certPemBytes)
 	if err != nil {
 		log.Errorf("error parse certificate ca.crt: %s", err.Error())
-		return time.Now()
+		return nil
 	}
 
-	return cert.NotAfter
-}
-
-func (oAdmin *OvpnAdmin) getCommonNameFromCertificate(path string) string {
-	caCert, err := ioutil.ReadFile(path)
-	if err != nil {
-		log.Errorf("error read file %s: %s", oAdmin.serverConf.ca, err.Error())
-	}
-
-	certPem, _ := pem.Decode(caCert)
-	certPemBytes := certPem.Bytes
-
-	cert, err := x509.ParseCertificate(certPemBytes)
-	if err != nil {
-		log.Errorf("error parse certificate ca.crt: %s", err.Error())
-		return ""
-	}
-
-	return cert.Subject.CommonName
+	return cert
 }
 
 // decode certificate from PEM to x509

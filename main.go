@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/websocket"
+	"math/rand"
 
 	"io/fs"
 	"embed"
@@ -44,10 +45,10 @@ const (
 )
 
 var (
-	serverConfFile           = kingpin.Flag("server.conf", "conf file for the server").Default("/etc/openvpn/server.conf").Envar("OPENVPN_SERVER_CONF").String()
-	serverRestartCommand     = kingpin.Flag("restart.cmd", "systemctl restart openvpn@server.service").Default("").Envar("OPENVPN_RESTART_CMD").String()
+	serverConfFile           = kingpin.Flag("server.conf", "Configuration file for the server").Default("/etc/openvpn/server.conf").Envar("OPENVPN_SERVER_CONF").String()
+	serverRestartCommand     = kingpin.Flag("restart.cmd", "Command to restart the server").Default("systemctl restart openvpn@server.service").Envar("OPENVPN_RESTART_CMD").String()
 	listenHost               = kingpin.Flag("listen.host", "host for ovpn-admin").Default("0.0.0.0").Envar("OVPN_LISTEN_HOST").String()
-	listenPort               = kingpin.Flag("listen.port", "port for ovpn-admin").Default("8080").Envar("OVPN_LISTEN_PORT").String()
+	listenPort               = kingpin.Flag("listen.port", "port for ovpn-admin").Default("8042").Envar("OVPN_LISTEN_PORT").String()
 	serverRole               = kingpin.Flag("role", "server role, master or slave").Default("master").Envar("OVPN_ROLE").HintOptions("master", "slave").String()
 	masterHost               = kingpin.Flag("master.host", "URL for the master server").Default("http://127.0.0.1").Envar("OVPN_MASTER_HOST").String()
 	masterBasicAuthUser      = kingpin.Flag("master.basic-auth.user", "user for master server's Basic Auth").Default("").Envar("OVPN_MASTER_USER").String()
@@ -55,24 +56,23 @@ var (
 	masterSyncFrequency      = kingpin.Flag("master.sync-frequency", "master host data sync frequency in seconds").Default("600").Envar("OVPN_MASTER_SYNC_FREQUENCY").Int()
 	masterSyncToken          = kingpin.Flag("master.sync-token", "master host data sync security token").Default("VerySecureToken").Envar("OVPN_MASTER_TOKEN").PlaceHolder("TOKEN").String()
 	openvpnNetwork           = kingpin.Flag("ovpn.network", "NETWORK/MASK_PREFIX for OpenVPN server").Default("").Envar("OVPN_NETWORK").String()
-	openvpnServer            = kingpin.Flag("ovpn.server", "HOST:PORT:PROTOCOL for OpenVPN server; can have multiple values").Default("127.0.0.1:7777:tcp").Envar("OVPN_SERVER").PlaceHolder("HOST:PORT:PROTOCOL").Strings()
+	openvpnServer            = kingpin.Flag("ovpn.server", "HOST:PORT:PROTOCOL for OpenVPN server; can have multiple values").Default("").Envar("OVPN_SERVER").PlaceHolder("HOST:PORT:PROTOCOL").Strings()
 	openvpnServerBehindLB    = kingpin.Flag("ovpn.server.behindLB", "enable if your OpenVPN server is behind Kubernetes Service having the LoadBalancer type").Default("false").Envar("OVPN_LB").Bool()
 	openvpnServiceName       = kingpin.Flag("ovpn.service", "the name of Kubernetes Service having the LoadBalancer type if your OpenVPN server is behind it").Default("openvpn-external").Envar("OVPN_LB_SERVICE").Strings()
 	mgmtAddress              = kingpin.Flag("mgmt", "ALIAS=HOST:PORT for OpenVPN server mgmt interface; can have multiple values").Default("").Envar("OPENVPN_MANAGEMENT").String()
 	metricsPath              = kingpin.Flag("metrics.path", "URL path for exposing collected metrics").Default("/metrics").Envar("OVPN_METRICS_PATH").String()
-	easyrsaDirPath           = kingpin.Flag("easyrsa.path", "path to easyrsa dir").Default("./easyrsa").Envar("EASYRSA_PATH").String()
+	easyrsaDirPath           = kingpin.Flag("easyrsa.path", "path to easyrsa dir").Default("/usr/share/easy-rsa/").Envar("EASYRSA_PATH").String()
 	indexTxtPath             = kingpin.Flag("easyrsa.index-path", "path to easyrsa index file").Default("").Envar("EASYRSA_INDEX_PATH").String()
 	ccdEnabled               = kingpin.Flag("ccd", "enable client-config-dir").Default("false").Envar("OVPN_CCD").Bool()
 	ccdDir                   = kingpin.Flag("ccd.path", "path to client-config-dir").Default("./ccd").Envar("OVPN_CCD_PATH").String()
 	clientConfigTemplatePath = kingpin.Flag("templates.clientconfig-path", "path to custom client.conf.tpl").Default("").Envar("OVPN_TEMPLATES_CC_PATH").String()
-	ccdTemplatePath          = kingpin.Flag("templates.ccd-path", "path to custom ccd.tpl").Default("").Envar("OVPN_TEMPLATES_CCD_PATH").String()
 	authByPassword           = kingpin.Flag("auth.password", "enable additional password authentication").Default("false").Envar("OVPN_AUTH").Bool()
 	authDatabase             = kingpin.Flag("auth.db", "database path for password authentication").Default("./easyrsa/pki/users.db").Envar("OVPN_AUTH_DB_PATH").String()
 	logLevel                 = kingpin.Flag("log.level", "set log level: trace, debug, info, warn, error (default info)").Default("info").Envar("LOG_LEVEL").String()
 	logFormat                = kingpin.Flag("log.format", "set log format: text, json (default text)").Default("text").Envar("LOG_FORMAT").String()
 	storageBackend           = kingpin.Flag("storage.backend", "storage backend: filesystem, kubernetes.secrets (default filesystem)").Default("filesystem").Envar("STORAGE_BACKEND").String()
-	jwtSecretFile  = kingpin.Flag("jwt.secret", "jwt secret file").Default("jwt.secret.key").Envar("JWT_SECRET").String()
-	ovpnConfigFile = kingpin.Flag("admin.accounts", "Admin accounts files").Default("admin-accounts.json").Envar("ADMIN_ACCOUNT").String()
+	jwtSecretFile            = kingpin.Flag("jwt.secret", "jwt secret file").Default("").Envar("JWT_SECRET").String()
+	ovpnConfigFile           = kingpin.Flag("admin.accounts", "Admin accounts files").Default("/etc/openvpn/admin-config.json").Envar("ADMIN_ACCOUNT").String()
 
 	certsArchivePath = "/tmp/" + certsArchiveFileName
 	ccdArchivePath   = "/tmp/" + ccdArchiveFileName
@@ -126,6 +126,7 @@ type OvpnAdmin struct {
 	masterCn               string
 	applicationPreferences ApplicationConfig
 	wsConnections          []*WsSafeConn
+	outboundIp             net.IP
 }
 
 type OpenvpnServer struct {
@@ -212,7 +213,7 @@ func (oAdmin *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -228,7 +229,7 @@ func (oAdmin *OvpnAdmin) userStatisticHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -244,7 +245,7 @@ func (oAdmin *OvpnAdmin) userChangePasswordHandler(w http.ResponseWriter, r *htt
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -253,11 +254,11 @@ func (oAdmin *OvpnAdmin) userChangePasswordHandler(w http.ResponseWriter, r *htt
 		passwordChanged, passwordChangeMessage := oAdmin.userChangePassword(r.FormValue("username"), r.FormValue("password"))
 		if passwordChanged {
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, `{"status":"ok", "message": "%s"}`, passwordChangeMessage)
+			fmt.Fprintf(w, `{"message": "%s"}`, passwordChangeMessage)
 			return
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, `{"status":"error", "message": "%s"}`, passwordChangeMessage)
+			fmt.Fprintf(w, `{"message": "%s"}`, passwordChangeMessage)
 			return
 		}
 	} else {
@@ -273,7 +274,7 @@ func (oAdmin *OvpnAdmin) userShowConfigHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -299,7 +300,7 @@ func (oAdmin *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -315,7 +316,7 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -368,7 +369,7 @@ func (oAdmin *OvpnAdmin) restartServer() error {
 //		return
 //	}
 //	auth := getAuthCookie(r)
-//	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+//	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 //		w.WriteHeader(http.StatusForbidden)
 //		return
 //	}
@@ -386,7 +387,7 @@ func (oAdmin *OvpnAdmin) lastSyncTimeHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -400,7 +401,7 @@ func (oAdmin *OvpnAdmin) lastSuccessfulSyncTimeHandler(w http.ResponseWriter, r 
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -414,7 +415,7 @@ func (oAdmin *OvpnAdmin) downloadCertsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -450,7 +451,7 @@ func (oAdmin *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -482,6 +483,7 @@ func enableCors(w *http.ResponseWriter, r *http.Request) {
 var app OpenVPNPKI
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	kingpin.Version(version)
 	kingpin.Parse()
 
@@ -511,8 +513,10 @@ func main() {
 	oAdmin.createUserMutex = &sync.Mutex{}
 	oAdmin.mgmtInterface = *mgmtAddress
 	oAdmin.parseServerConf(*serverConfFile)
-	oAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile), oAdmin.serverConf)
-	oAdmin.applicationPreferences = loadConfig()
+	//oAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile), oAdmin.serverConf)
+	oAdmin.loadPreferences()
+	oAdmin.outboundIp = GetOutboundIP()
+	//oAdmin.applicationPreferences.JwtSecretData = []byte(fRead(*jwtSecretFile))
 
 	//log.Printf("mgmt interface %v", oAdmin.mgmtInterface)
 	if len(oAdmin.mgmtInterface) == 0 {
@@ -530,17 +534,18 @@ func main() {
 	}
 
 	if len(oAdmin.serverConf.cert) > 0 {
-		oAdmin.masterCn = oAdmin.getCommonNameFromCertificate(absolutizePath(*serverConfFile, oAdmin.serverConf.cert))
+		cert := oAdmin.getCommonNameFromCertificate(absolutizePath(*serverConfFile, oAdmin.serverConf.cert))
+		if cert != nil {
+			oAdmin.masterCn = cert.Subject.CommonName
+			ovpnServerCaCertExpire.Set(float64((cert.NotAfter.Unix() - time.Now().Unix()) / 3600 / 24))
+		}
 	}
 
-	//oAdmin.mgmtSetTimeFormat()
-
 	oAdmin.registerMetrics()
-	//oAdmin.pollActiveClients()
 
-	ovpnServerCaCertExpire.Set(float64((oAdmin.getExpireDateFromCertificate(absolutizePath(*serverConfFile, oAdmin.serverConf.ca)).Unix() - time.Now().Unix()) / 3600 / 24))
-
-	go oAdmin.connectToManagementInterface()
+	if len(oAdmin.mgmtInterface) > 0 {
+		go oAdmin.connectToManagementInterface()
+	}
 
 	oAdmin.masterHostBasicAuth = *masterBasicAuthPassword != "" && *masterBasicAuthUser != ""
 
@@ -571,8 +576,8 @@ func main() {
 	embedFs := http.FS(staticDir)
 	http.HandleFunc("/api/ws", oAdmin.websocket)
 	http.HandleFunc("/api/config", oAdmin.showConfig)
-	http.HandleFunc("/api/config/settings/save", oAdmin.saveConfigSettings)
-	http.HandleFunc("/api/config/preferences/save", oAdmin.saveConfigPreferences)
+	http.HandleFunc("/api/config/settings/save", oAdmin.postServerConfig)
+	http.HandleFunc("/api/config/preferences/save", oAdmin.postPreferences)
 	http.HandleFunc("/api/config/admin/", oAdmin.saveAdminAccount)
 	http.HandleFunc("/api/authenticate", oAdmin.authenticate)
 	http.HandleFunc("/api/logout", oAdmin.logout)

@@ -52,15 +52,21 @@ export class Settings {
 }
 
 export class Preferences {
+    address: string;
+    defaultAddress: string;
     certificateDuration: number;
     explicitExitNotify: boolean;
     authNoCache: boolean;
+    verifyX509Name: boolean;
     users: User[];
 
     constructor(raw?: Record<string, any>) {
+        this.address = raw?.address;
+        this.defaultAddress = raw?.defaultAddress ?? '';
         this.certificateDuration = raw?.certificateDuration;
         this.explicitExitNotify = raw?.explicitExitNotify;
         this.authNoCache = raw?.authNoCache;
+        this.verifyX509Name = raw?.verifyX509Name;
         this.users = (raw?.users ?? []).map((u: Record<string, any>) => User.parse(u));
     }
 

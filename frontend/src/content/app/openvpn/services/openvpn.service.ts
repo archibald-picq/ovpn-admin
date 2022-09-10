@@ -79,7 +79,7 @@ export class OpenvpnService {
     }
 
     public async savePreferences(toSave: Record<string, any>) {
-        return this.http.post(this.OPENVPN_ADMIN_API+'/api/config/preference/save', toSave, {
+        return this.http.post(this.OPENVPN_ADMIN_API+'/api/config/preferences/save', toSave, {
             observe: 'response',
         }).pipe(
             filter((response: HttpResponse<any>) => response.ok),
@@ -111,8 +111,6 @@ export class OpenvpnService {
     }
 
     public async saveClientConfig(client: IClientCertificate, model: ClientConfig): Promise<void> {
-        console.warn('model.iRoutes', model.iRoutes);
-        console.warn('model.pushRoutes', model.pushRoutes);
         const body = {
             clientAddress: model.staticAddress ?? 'dynamic',
             customIRoutes: model.iRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),

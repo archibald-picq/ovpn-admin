@@ -30,7 +30,7 @@ func (oAdmin *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		json, _ := json.Marshal(MessagePayload{Message: "User not authorized to create certificate"})
 		http.Error(w, string(json), http.StatusUnauthorized)
 		//w.WriteHeader(http.StatusForbidden)
@@ -73,7 +73,7 @@ func (oAdmin *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -97,7 +97,7 @@ func (oAdmin *OvpnAdmin) userDeleteHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -116,7 +116,7 @@ func (oAdmin *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -136,7 +136,7 @@ func (oAdmin *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}

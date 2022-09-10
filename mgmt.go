@@ -98,6 +98,10 @@ func (oAdmin *OvpnAdmin) connectToManagementInterface() {
 		}
 	}()
 	for {
+		if len(oAdmin.mgmtInterface) == 0 {
+			time.Sleep(time.Duration(30) * time.Second)
+			continue
+		}
 		conn, err := net.Dial("tcp", oAdmin.mgmtInterface)
 		if err != nil {
 			log.Warnf("openvpn mgmt interface is not reachable at %s", oAdmin.mgmtInterface)
@@ -253,6 +257,10 @@ func (oAdmin *OvpnAdmin) handleClientEvent(lines []string) {
 }
 
 func (oAdmin *OvpnAdmin) sendManagementCommand(cmd string) {
+	if oAdmin.conn == nil {
+		log.Errorf("Fail to send command %s, not connected", cmd)
+		return
+	}
 	_, err := oAdmin.conn.Write([]byte(cmd + "\n"))
 	if err != nil {
 		log.Errorf("Fail to send command %s", cmd)
