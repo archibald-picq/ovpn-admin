@@ -24,6 +24,7 @@ type ConfigPublicSettings struct {
 	CompLzo                     bool     `json:"compLzo"`
 	Auth                        string   `json:"auth"`
 	Routes                      []Route  `json:"routes"`
+	Pushs                       []Push   `json:"pushs"`
 	PushRoutes                  []string `json:"pushRoutes"`
 }
 
@@ -56,6 +57,13 @@ type ConfigPublicOpenvn struct {
 type ConfigPublic struct {
 	User         *ConfigPublicUser  `json:"user,omitempty"`
 	Openvpn      ConfigPublicOpenvn `json:"openvpn"`
+}
+
+type Push struct {
+	Enabled bool   `json:"enabled"`
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+	Comment string `json:"comment"`
 }
 
 type OvpnConfig struct {
@@ -104,7 +112,7 @@ type OvpnConfig struct {
 	routes                     []Route  // 10.42.44.0 255.255.255.0
 	                                    // 10.42.78.0 255.255.255.0
 	                                    // 10.8.0.0 255.255.255.0
-	push                       []string // "dhcp-option DNS 10.8.0.1"
+	push                       []Push   // "dhcp-option DNS 10.8.0.1"
 	                                    // "dhcp-option DNS fd42:42:42:42::1"
 	                                    // "redirect-gateway def1 bypass-dhcp"
 	                                    // "tun-ipv6"
@@ -125,6 +133,7 @@ func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
 	settings.CompLzo = oAdmin.serverConf.compLzo
 	settings.Routes = oAdmin.serverConf.routes
 	settings.Auth = oAdmin.serverConf.auth
+	settings.Pushs = oAdmin.serverConf.push
 	//settings.Routes = make([]string, 0)
 	//for _, routes := range oAdmin.serverConf.routes {
 	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
@@ -178,137 +187,152 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 	oAdmin.serverConf.fragment = -1
 	oAdmin.serverConf.mssfix = -1
 	for _, line := range lines {
-		if len(line) == 0 || line[0:1] == "#" {
+		line = strings.TrimLeft(line, " ")
+		if len(line) == 0 {
 			continue
 		}
-		key := extractKey(line)
-		switch {
-		case key == "server":
-			oAdmin.serverConf.server = getValueWithoutComment(line)
-		case key == "port":
-			if n, err := getIntValueWithoutComment(line); err == nil {
-				oAdmin.serverConf.port = n
-			} else {
-				log.Error(err)
-			}
-		case key == "proto":
-			oAdmin.serverConf.proto = getValueWithoutComment(line)
-		case key == "dev":
-			oAdmin.serverConf.dev = getValueWithoutComment(line)
-		case key == "tun-mtu":
-			if n, err := getIntValueWithoutComment(line); err == nil {
-				oAdmin.serverConf.tunMtu = n
-			} else {
-				log.Error(err)
-			}
-		case key == "fragment":
-			if n, err := getIntValueWithoutComment(line); err == nil {
-				oAdmin.serverConf.fragment = n
-			} else {
-				log.Error(err)
-			}
-		case key == "user":
-			oAdmin.serverConf.user = getValueWithoutComment(line)
-		case key == "group":
-			oAdmin.serverConf.group = getValueWithoutComment(line)
-		case key == "mssfix":
-			if n, err := getIntValueWithoutComment(line); err == nil {
-				oAdmin.serverConf.mssfix = n
-			} else {
-				log.Error(err)
-			}
-		case key == "management":
-			oAdmin.serverConf.management = getValueWithoutComment(line)
-		case key == "ca":
-			oAdmin.serverConf.ca = getValueWithoutComment(line)
-		case key == "cert":
-			oAdmin.serverConf.cert = getValueWithoutComment(line)
-		case key == "key":
-			oAdmin.serverConf.key = getValueWithoutComment(line)
-		case key == "dh":
-			oAdmin.serverConf.dh = getValueWithoutComment(line)
-		case key == "ifconfig-pool-persist":
-			oAdmin.serverConf.ifconfigPoolPersist = getValueWithoutComment(line)
-		case key == "keepalive":
-			oAdmin.serverConf.keepalive = getValueWithoutComment(line)
-		case key == "comp-lzo":
-			oAdmin.serverConf.compLzo = true
-		case key == "allow-compression":
-			oAdmin.serverConf.allowCompression = true
-		case key == "persist-key":
-			oAdmin.serverConf.persistKey = true
-		case key == "persist-tun":
-			oAdmin.serverConf.persistTun = true
-		case key == "status":
-			oAdmin.serverConf.status = getValueWithoutComment(line)
-		case key == "verb":
-			if n, err := getIntValueWithoutComment(line); err == nil {
-				oAdmin.serverConf.verb = n
-			} else {
-				log.Error(err)
-			}
-		case key == "client-config-dir":
-			oAdmin.serverConf.clientConfigDir = getValueWithoutComment(line)
-		case key == "client-to-client":
-			oAdmin.serverConf.clientToClient = true
-		case key == "duplicate-cn":
-			oAdmin.serverConf.duplicateCn = true
-		case key == "topology":
-			oAdmin.serverConf.topology = getValueWithoutComment(line)
-		case key == "server-ipv6":
-			oAdmin.serverConf.serverIpv6 = getValueWithoutComment(line)
-		case key == "tun-ipv6":
-			oAdmin.serverConf.tunIpv6 = true
-		case key == "ecdh-curve":
-			oAdmin.serverConf.ecdhCurve = getValueWithoutComment(line)
-		case key == "tls-crypt":
-			oAdmin.serverConf.tlsCrypt = getValueWithoutComment(line)
-		case key == "crl-verify":
-			oAdmin.serverConf.crlVerify = getValueWithoutComment(line)
-		case key == "auth":
-			oAdmin.serverConf.auth = getValueWithoutComment(line)
-		case key == "cipher":
-			oAdmin.serverConf.cipher = getValueWithoutComment(line)
-		case key == "ncp-ciphers":
-			oAdmin.serverConf.ncpCiphers = getValueWithoutComment(line)
-		case key == "tls-server":
-			oAdmin.serverConf.tlsServer = true
-		case key == "tls-version-min":
-			oAdmin.serverConf.tlsVersionMin = getValueWithoutComment(line)
-		case key == "tls-cipher":
-			oAdmin.serverConf.tlsCipher = getValueWithoutComment(line)
-		case key == "log":
-			oAdmin.serverConf.log = getValueWithoutComment(line)
-		case key == "route":
-			if route, err := getRouteValueWithComment(line); err == nil {
-				oAdmin.serverConf.routes = append(oAdmin.serverConf.routes, route)
-			} else {
-				log.Error(err)
-			}
-		case key == "push":
-			oAdmin.extractPushConfig(getQuotedValueWithoutComment(line))
-
-		default:
-			log.Printf("skipped '%s'", line)
+		if line[0:1] == "#" {
+			line = strings.TrimLeft(line, "# ")
+			parseServerConfLine(&oAdmin.serverConf, line, true)
+		} else {
+			parseServerConfLine(&oAdmin.serverConf, line, false)
 		}
 	}
 
 	log.Printf("config %v", oAdmin.serverConf)
 }
 
-func (oAdmin *OvpnAdmin) extractPushConfig(line string) {
+func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
+	key, value := getKeyValue(line)
+
+	switch {
+	case key == "server":
+		serverConf.server = getValueWithoutComment(line)
+	case key == "port":
+		if n, err := getIntValueWithoutComment(line); err == nil {
+			serverConf.port = n
+		} else {
+			log.Error(err)
+		}
+	case key == "proto":
+		serverConf.proto = getValueWithoutComment(line)
+	case key == "dev":
+		serverConf.dev = getValueWithoutComment(line)
+	case key == "tun-mtu":
+		if n, err := getIntValueWithoutComment(line); err == nil {
+			serverConf.tunMtu = n
+		} else {
+			log.Error(err)
+		}
+	case key == "fragment":
+		if n, err := getIntValueWithoutComment(line); err == nil {
+			serverConf.fragment = n
+		} else {
+			log.Error(err)
+		}
+	case key == "user":
+		serverConf.user = getValueWithoutComment(line)
+	case key == "group":
+		serverConf.group = getValueWithoutComment(line)
+	case key == "mssfix":
+		if n, err := getIntValueWithoutComment(line); err == nil {
+			serverConf.mssfix = n
+		} else {
+			log.Error(err)
+		}
+	case key == "management":
+		serverConf.management = getValueWithoutComment(line)
+	case key == "ca":
+		serverConf.ca = getValueWithoutComment(line)
+	case key == "cert":
+		serverConf.cert = getValueWithoutComment(line)
+	case key == "key":
+		serverConf.key = getValueWithoutComment(line)
+	case key == "dh":
+		serverConf.dh = getValueWithoutComment(line)
+	case key == "ifconfig-pool-persist":
+		serverConf.ifconfigPoolPersist = getValueWithoutComment(line)
+	case key == "keepalive":
+		serverConf.keepalive = getValueWithoutComment(line)
+	case key == "comp-lzo":
+		serverConf.compLzo = true
+	case key == "allow-compression":
+		serverConf.allowCompression = true
+	case key == "persist-key":
+		serverConf.persistKey = true
+	case key == "persist-tun":
+		serverConf.persistTun = true
+	case key == "status":
+		serverConf.status = getValueWithoutComment(line)
+	case key == "verb":
+		if n, err := getIntValueWithoutComment(line); err == nil {
+			serverConf.verb = n
+		} else {
+			log.Error(err)
+		}
+	case key == "client-config-dir":
+		serverConf.clientConfigDir = getValueWithoutComment(line)
+	case key == "client-to-client":
+		serverConf.clientToClient = true
+	case key == "duplicate-cn":
+		serverConf.duplicateCn = true
+	case key == "topology":
+		serverConf.topology = getValueWithoutComment(line)
+	case key == "server-ipv6":
+		serverConf.serverIpv6 = getValueWithoutComment(line)
+	case key == "tun-ipv6":
+		serverConf.tunIpv6 = true
+	case key == "ecdh-curve":
+		serverConf.ecdhCurve = getValueWithoutComment(line)
+	case key == "tls-crypt":
+		serverConf.tlsCrypt = getValueWithoutComment(line)
+	case key == "crl-verify":
+		serverConf.crlVerify = getValueWithoutComment(line)
+	case key == "auth":
+		serverConf.auth = getValueWithoutComment(line)
+	case key == "cipher":
+		serverConf.cipher = getValueWithoutComment(line)
+	case key == "ncp-ciphers":
+		serverConf.ncpCiphers = getValueWithoutComment(line)
+	case key == "tls-server":
+		serverConf.tlsServer = true
+	case key == "tls-version-min":
+		serverConf.tlsVersionMin = getValueWithoutComment(line)
+	case key == "tls-cipher":
+		serverConf.tlsCipher = getValueWithoutComment(line)
+	case key == "log":
+		serverConf.log = getValueWithoutComment(line)
+	case key == "route":
+		if route, err := getRouteValueWithComment(line); err == nil {
+			serverConf.routes = append(serverConf.routes, route)
+		} else {
+			log.Error(err)
+		}
+	case key == "push":
+		value, comment := getQuotedValueAndComment(value)
+		log.Infof("parsed [%d] [%s] [%s]", commented, value, comment)
+		//getQuotedValueWithoutComment(line)
+		extractPushConfig(serverConf, !commented, value, comment)
+
+	default:
+		log.Printf("skipped '%s'", line)
+	}
+}
+
+func extractPushConfig(serverConf *OvpnConfig, enabled bool, line string, comment string) {
 	parts := strings.Split(line, " ")
+
 	if parts[0] == "redirect-gateway" {
 		parts = parts[1:]
 		for _, part := range parts {
 			if part == "def1" {
-				oAdmin.serverConf.forceGatewayIpv4 = true
+				serverConf.forceGatewayIpv4 = true
 			} else if part == "ipv6" {
-				oAdmin.serverConf.forceGatewayIpv6 = true
+				serverConf.forceGatewayIpv6 = true
 			} else if part == "bypass-dhcp" {
-				oAdmin.serverConf.forceGatewayIpv4ExceptDhcp = true
+				serverConf.forceGatewayIpv4ExceptDhcp = true
 			} else if part == "bypass-dns" {
-				oAdmin.serverConf.forceGatewayIpv4ExceptDns = true
+				serverConf.forceGatewayIpv4ExceptDns = true
 			} else {
 				log.Printf("Unrecognized redirect-gateway option '%s'", part)
 			}
@@ -330,7 +354,7 @@ func (oAdmin *OvpnAdmin) extractPushConfig(line string) {
 		//     - dhcp-option DNS fd42:42:42:42::1
 		//     - routes
 		//
-		oAdmin.serverConf.push = append(oAdmin.serverConf.push, line)
+		serverConf.push = append(serverConf.push, Push{Enabled: enabled, Name:parts[0], Value: line, Comment: comment})
 	}
 }
 
@@ -475,7 +499,7 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 	if len(config.push) > 0 {
 		lines = append(lines, "")
 		for _, s := range config.push {
-			lines = append(lines, fmt.Sprintf("push \"%s\"", s))
+			lines = append(lines, formatPush(s))
 		}
 	}
 	lines = append(lines, "")
@@ -484,6 +508,18 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 		return "Can't write file", err
 	}
 	return "", nil
+}
+
+func formatPush(push Push) string {
+	var line = ""
+	if !push.Enabled {
+		line += "# "
+	}
+	line += "push \"" + strings.Replace(push.Value, "\"", "\\\"", -1) + "\""
+	if len(push.Comment) > 0 {
+		line += " ## "+push.Comment
+	}
+	return line
 }
 
 func formatRoute(route Route) string {
@@ -498,8 +534,18 @@ func formatRoute(route Route) string {
 	return strings.Join(parts, " ")
 }
 
-func extractKey(line string) string {
-	return strings.Fields(line)[0]
+func getKeyValue(line string) (string, string) {
+	parts := strings.SplitN(line, " ", 2)
+	if len(parts) > 1 {
+		return parts[0], strings.TrimLeft(parts[1], " ")
+	}
+	return parts[0], ""
+}
+
+func getQuotedValue(line string) string {
+	line = strings.TrimPrefix(strings.TrimSuffix(line, "\""), "\"")
+	line = strings.ReplaceAll(line, "\\\"", "\"")
+	return line
 }
 
 func getValueWithoutComment(line string) string {
@@ -513,11 +559,20 @@ func getValueWithoutComment(line string) string {
 	return line
 }
 
+func getQuotedValueAndComment(line string) (string, string) {
+	var comment = ""
+	if p := strings.Index(line, "#"); p >= 0 {
+		comment = strings.TrimLeft(line[p+1:], "# ")
+		line = strings.TrimRight(line[:p], " ")
+	} else {
+		line = strings.TrimRight(line, " ")
+	}
+	return getQuotedValue(line), comment
+}
+
 func getQuotedValueWithoutComment(line string) string {
 	line = getValueWithoutComment(line)
-	line = strings.TrimPrefix(strings.TrimSuffix(line, "\""), "\"")
-	line = strings.ReplaceAll(line, "\\\"", "\"")
-	return line
+	return getQuotedValue(line)
 }
 
 func getRouteValueWithComment(line string) (Route, error) {
