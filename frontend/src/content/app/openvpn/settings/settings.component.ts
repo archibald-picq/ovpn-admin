@@ -99,6 +99,7 @@ export class OpenvpnSettingsPageComponent {
             }: {},
             compLzo: this.model.compLzo,
             duplicateCn: this.model.duplicateCn,
+            clientToClient: this.model.clientToClient,
             routes: this.model.routes.map((route) => ({
                 address: route.address,
                 netmask: route.netmask,

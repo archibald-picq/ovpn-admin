@@ -23,6 +23,7 @@ export class Settings {
     serverIpv6: string;
     forceGatewayIpv6: boolean;
     duplicateCn: boolean;
+    clientToClient: boolean;
     compLzo: boolean;
     routes: Route[];
     pushs: Route[];
@@ -36,6 +37,7 @@ export class Settings {
         this.serverIpv6 = raw?.serverIpv6;
         this.forceGatewayIpv6 = raw?.forceGatewayIpv6;
         this.duplicateCn = raw?.duplicateCn;
+        this.clientToClient = raw?.clientToClient;
         this.compLzo = raw?.compLzo;
         this.auth = raw?.auth === ''? null: raw?.auth;
         this.routes = (raw?.routes ?? []).map((r: Record<string, any>) => Route.parse(r));

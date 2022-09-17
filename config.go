@@ -19,6 +19,7 @@ type ConfigPublicSettings struct {
 	ForceGatewayIpv4ExceptDns   bool     `json:"forceGatewayIpv4ExceptDns"`
 	ServerIpv6                  string   `json:"serverIpv6"`
 	ForceGatewayIpv6            bool     `json:"forceGatewayIpv6"`
+	ClientToClient              bool     `json:"clientToClient"`
 	DuplicateCn                 bool     `json:"duplicateCn"`
 	CompLzo                     bool     `json:"compLzo"`
 	Auth                        string   `json:"auth"`
@@ -33,6 +34,7 @@ type ServerSavePayload struct {
 	ForceGatewayIpv4ExceptDns   bool    `json:"forceGatewayIpv4ExceptDns"`
 	ServerIpv6                  string  `json:"serverIpv6"`
 	ForceGatewayIpv6            bool    `json:"forceGatewayIpv6"`
+	ClientToClient              bool    `json:"clientToClient"`
 	DuplicateCn                 bool    `json:"duplicateCn"`
 	CompLzo                     bool    `json:"compLzo"`
 	Auth                        string  `json:"auth"`
@@ -119,6 +121,7 @@ func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
 	settings.ServerIpv6 = oAdmin.serverConf.serverIpv6
 	settings.ForceGatewayIpv6 = oAdmin.serverConf.forceGatewayIpv6
 	settings.DuplicateCn = oAdmin.serverConf.duplicateCn
+	settings.ClientToClient = oAdmin.serverConf.clientToClient
 	settings.CompLzo = oAdmin.serverConf.compLzo
 	settings.Routes = oAdmin.serverConf.routes
 	settings.Auth = oAdmin.serverConf.auth
@@ -311,6 +314,22 @@ func (oAdmin *OvpnAdmin) extractPushConfig(line string) {
 			}
 		}
 	} else {
+		// TODO: extract:
+		//   - #push "dhcp-option DNS 10.8.0.1"
+		//   - #push "tun-ipv6"
+		//   - #push "route-ipv6 2000::/3"
+		//   - #push "dhcp-option DNS fd42:42:42:42::1"
+		// should be grouped by purpose:
+		//   ipv4:
+		//     - dhcp-option DNS 10.8.0.1
+		//     - routes
+		//   ipv6:
+		//     - tun-ipv6
+		//     - redirect-gateway ipv6
+		//     - route-ipv6 2000::/3
+		//     - dhcp-option DNS fd42:42:42:42::1
+		//     - routes
+		//
 		oAdmin.serverConf.push = append(oAdmin.serverConf.push, line)
 	}
 }
@@ -398,10 +417,12 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 	}
 	if len(config.serverIpv6) > 0 {
 		lines = append(lines, fmt.Sprintf("server-ipv6 %s", config.serverIpv6))
+		if config.tunIpv6 {
+			// tun-ipv6 is for old clients
+			lines = append(lines, fmt.Sprintf("tun-ipv6"))
+		}
 	}
-	if config.tunIpv6 {
-		lines = append(lines, fmt.Sprintf("tun-ipv6"))
-	}
+
 	if len(config.ecdhCurve) > 0 {
 		lines = append(lines, fmt.Sprintf("ecdh-curve %s", config.ecdhCurve))
 	}
@@ -585,6 +606,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	conf.serverIpv6 = savePayload.ServerIpv6
 	conf.forceGatewayIpv6 = savePayload.ForceGatewayIpv6
 	conf.compLzo = savePayload.CompLzo
+	conf.clientToClient = savePayload.ClientToClient
 	conf.duplicateCn = savePayload.DuplicateCn
 	conf.routes = savePayload.Routes
 	conf.auth = savePayload.Auth
@@ -623,6 +645,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	oAdmin.serverConf.serverIpv6 = conf.serverIpv6
 	oAdmin.serverConf.forceGatewayIpv6 = conf.forceGatewayIpv6
 	oAdmin.serverConf.compLzo = conf.compLzo
+	oAdmin.serverConf.clientToClient = conf.clientToClient
 	oAdmin.serverConf.duplicateCn = conf.duplicateCn
 	oAdmin.serverConf.auth = conf.auth
 

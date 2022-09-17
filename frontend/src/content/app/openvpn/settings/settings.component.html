@@ -56,7 +56,7 @@
                     <input class="form-control" id="network-ipv6" name="network-ipv6" aria-describedby="network-ipv6" [(ngModel)]="model.serverIpv6">
                 </div>
                 <div class="form-group mb-2" *ngIf="enableIpv6">
-                    <input class="form-check-input" type="checkbox" id="force-gateway-ipv6" name="forceGatewayIpv4" [value]="true" [(ngModel)]="model.forceGatewayIpv6">
+                    <input class="form-check-input" type="checkbox" id="force-gateway-ipv6" name="forceGatewayIpv6" [value]="true" [(ngModel)]="model.forceGatewayIpv6">
                     <label class="form-check-label" for="force-gateway-ipv6">
                         Force Internet through VPN for IPv6
                     </label>
@@ -68,15 +68,21 @@
         <div class="col-2">Options</div>
         <div class="col-10 setting-group">
             <div class="form-group mb-2">
-                <input class="form-check-input" type="checkbox" value="" id="enable-compression" name="compLzo" [(ngModel)]="model.compLzo">
-                <label class="form-check-label" for="enable-compression">
-                    Enable compression
-                </label>
-            </div>
-            <div class="form-group mb-2">
                 <input class="form-check-input" type="checkbox" value="" id="duplicate-cn" name="duplicateCn" [(ngModel)]="model.duplicateCn">
                 <label class="form-check-label" for="duplicate-cn">
                     Allow multiple connection per certificate
+                </label>
+            </div>
+            <div class="form-group mb-2">
+                <input class="form-check-input" type="checkbox" value="" id="client-to-client" name="clientToClient" [(ngModel)]="model.clientToClient">
+                <label class="form-check-label" for="client-to-client">
+                    Allow clients to communicate with each others
+                </label>
+            </div>
+            <div class="form-group mb-2">
+                <input class="form-check-input" type="checkbox" value="" id="enable-compression" name="compLzo" [(ngModel)]="model.compLzo">
+                <label class="form-check-label" for="enable-compression">
+                    Enable compression
                 </label>
             </div>
             <div class="form-group mb-2">
@@ -122,31 +128,31 @@
                         <button [disabled]="loading" type="button" class="btn btn-primary btn-sm" (click)="addRoute()">add</button>
                     </td>
                 </tr>
-                <tr>
-                    <td colspan="4"><hr></td>
-                </tr>
-                <tr>
-                    <th>Adresse</th>
-                    <th>Mask</th>
-                    <th>Description</th>
-                    <th>Actions</th>
-                </tr>
-                <tr *ngFor="let push of model.pushs; let index = index">
-                    <td><input [disabled]="loading" class="form-control" name="address-{{index}}-pushroute" [(ngModel)]="push.address" /></td>
-                    <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-pushroute" [(ngModel)]="push.netmask" /></td>
-                    <td><input [disabled]="loading" class="form-control" name="description-{{index}}-pushroute" [(ngModel)]="push.description" /></td>
-                    <td class="actions">
-                        <button [disabled]="loading" type="button" class="btn btn-warning btn-sm" (click)="removePush(push)">remove</button>
-                    </td>
-                </tr>
-                <tr>
-                    <td><input [disabled]="loading" class="form-control" name="address-new-pushroute" [(ngModel)]="newPush.address"></td>
-                    <td><input [disabled]="loading" class="form-control" name="netmask-new-pushroute" [(ngModel)]="newPush.netmask"></td>
-                    <td><input [disabled]="loading" class="form-control" name="description-new-pushroute" [(ngModel)]="newPush.description"></td>
-                    <td class="actions">
-                        <button [disabled]="loading" type="button" class="btn btn-primary btn-sm" (click)="addPush()">add</button>
-                    </td>
-                </tr>
+<!--                <tr>-->
+<!--                    <td colspan="4"><hr></td>-->
+<!--                </tr>-->
+<!--                <tr>-->
+<!--                    <th>Adresse</th>-->
+<!--                    <th>Mask</th>-->
+<!--                    <th>Description</th>-->
+<!--                    <th>Actions</th>-->
+<!--                </tr>-->
+<!--                <tr *ngFor="let push of model.pushs; let index = index">-->
+<!--                    <td><input [disabled]="loading" class="form-control" name="address-{{index}}-pushroute" [(ngModel)]="push.address" /></td>-->
+<!--                    <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-pushroute" [(ngModel)]="push.netmask" /></td>-->
+<!--                    <td><input [disabled]="loading" class="form-control" name="description-{{index}}-pushroute" [(ngModel)]="push.description" /></td>-->
+<!--                    <td class="actions">-->
+<!--                        <button [disabled]="loading" type="button" class="btn btn-warning btn-sm" (click)="removePush(push)">remove</button>-->
+<!--                    </td>-->
+<!--                </tr>-->
+<!--                <tr>-->
+<!--                    <td><input [disabled]="loading" class="form-control" name="address-new-pushroute" [(ngModel)]="newPush.address"></td>-->
+<!--                    <td><input [disabled]="loading" class="form-control" name="netmask-new-pushroute" [(ngModel)]="newPush.netmask"></td>-->
+<!--                    <td><input [disabled]="loading" class="form-control" name="description-new-pushroute" [(ngModel)]="newPush.description"></td>-->
+<!--                    <td class="actions">-->
+<!--                        <button [disabled]="loading" type="button" class="btn btn-primary btn-sm" (click)="addPush()">add</button>-->
+<!--                    </td>-->
+<!--                </tr>-->
 
                 </tbody>
             </table>
