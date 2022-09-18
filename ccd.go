@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 
 	"regexp"
 	"strings"
@@ -11,6 +13,87 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+	auth := getAuthCookie(r)
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	//if oAdmin.role == "slave" {
+	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
+	//	return
+	//}
+	var ccd Ccd
+	if r.Body == nil {
+		json, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
+		http.Error(w, string(json), http.StatusBadRequest)
+		return
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&ccd)
+	if err != nil {
+		log.Errorln(err)
+	}
+
+	for i, _ := range ccd.CustomRoutes {
+		ccd.CustomRoutes[i].Description = strings.Trim(ccd.CustomRoutes[i].Description, " ")
+		log.Debugln("description [%v]", ccd.CustomRoutes[i].Description)
+	}
+	for i, _ := range ccd.CustomIRoutes {
+		ccd.CustomIRoutes[i].Description = strings.Trim(ccd.CustomIRoutes[i].Description, " ")
+		log.Debugln("description [%v]", ccd.CustomIRoutes[i].Description)
+	}
+
+	err = oAdmin.modifyCcd(ccd)
+
+	if err == nil {
+		w.WriteHeader(http.StatusNoContent)
+		fmt.Fprintf(w, fmt.Sprintf("%s", err))
+		return
+	} else {
+		rawJson, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("%s", err)})
+		http.Error(w, string(rawJson), http.StatusUnprocessableEntity)
+	}
+}
+
+func (oAdmin *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+	//if oAdmin.role == "slave" {
+	//	http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
+	//	return
+	//}
+	auth := getAuthCookie(r)
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	if *storageBackend == "kubernetes.secrets" {
+		http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
+		return
+	}
+	_ = r.ParseForm()
+	token := r.Form.Get("token")
+
+	if token != oAdmin.masterSyncToken {
+		http.Error(w, `{"status":"error"}`, http.StatusForbidden)
+		return
+	}
+
+	archiveCcd()
+	w.Header().Set("Content-Disposition", "attachment; filename="+ccdArchiveFileName)
+	http.ServeFile(w, r, ccdArchivePath)
+}
 
 func indexTxtParser(txt string) []*OpenvpnClient {
 	var indexTxt = make([]*OpenvpnClient, 0)
@@ -292,7 +375,7 @@ func (oAdmin *OvpnAdmin) getCcd(username string) Ccd {
 }
 
 func (oAdmin *OvpnAdmin) checkStaticAddressIsFree(staticAddress string, username string) bool {
-	oAdmin.clients = oAdmin.usersList()
+	oAdmin.usersList()
 	for _, client := range oAdmin.clients {
 		if client.Username != username {
 			ccd := oAdmin.getCcd(client.Username)

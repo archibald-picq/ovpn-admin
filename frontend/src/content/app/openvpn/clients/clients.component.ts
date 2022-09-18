@@ -109,6 +109,15 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         }
     }
 
+    public async killConnection(client: IClientCertificate, connection: IConnection): Promise<void> {
+        console.warn('Kill connection to '+client.username+' #'+connection.clientId);
+        try {
+            await this.openvpnService.killConnection(client, connection);
+        } catch (e) {
+            console.warn('Cancel kill connection', e)
+        }
+    }
+
     public async unrevokeClientCertificate(client: IClientCertificate): Promise<void> {
         try {
             console.warn('unrevoke client certificate', client);
@@ -117,7 +126,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
             client.revocationDate = undefined;
             this.applySorting();
         } catch (e) {
-            console.warn('Cancel revoke client');
+            console.warn('Cancel revoke client', e);
         }
     }
 

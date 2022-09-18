@@ -19,6 +19,8 @@ export class OpenvpnSettingsPageComponent {
     public newRoute = new Route('', '');
     public enableIpv4 = false;
     public enableIpv6 = false;
+    public advertiseDnsIpv4 = false;
+    public advertiseDnsIpv6 = false;
     public error = '';
     private serialized = '';
 

@@ -36,33 +36,25 @@ func (oAdmin *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Reques
 		//w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	if oAdmin.role == "slave" {
-		json, _ := json.Marshal(MessagePayload{Message: "This instance is a slave, cant process"})
-		http.Error(w, string(json), http.StatusLocked)
-		return
-	}
 	var userDefinition UserDefinition
 	err := json.NewDecoder(r.Body).Decode(&userDefinition)
 	if err != nil {
-		json, _ := json.Marshal(MessagePayload{Message: "Cant parse JSON"})
-		http.Error(w, string(json), http.StatusUnprocessableEntity)
+		jsonErr, _ := json.Marshal(MessagePayload{Message: "Cant parse JSON"})
+		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
 		return
 	}
-	//_ = r.ParseForm()
 	log.Printf("create user with %v\n", userDefinition)
 	userCreated, userCreateStatus := oAdmin.userCreate(userDefinition)
 
 	if userCreated {
-		//oAdmin.clients = oAdmin.usersList()
 		user, _, _ := checkUserExist(userDefinition.Username)
 		log.Printf("created user with %v\n", user)
-		json, _ := json.Marshal(user)
-		w.Write(json)
-		//fmt.Fprintf(w, string(json))
+		jsonErr, _ := json.Marshal(user)
+		w.Write(jsonErr)
 		return
 	} else {
-		json, _ := json.Marshal(MessagePayload{Message: userCreateStatus})
-		http.Error(w, string(json), http.StatusUnprocessableEntity)
+		jsonErr, _ := json.Marshal(MessagePayload{Message: userCreateStatus})
+		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
 	}
 }
 
@@ -77,10 +69,10 @@ func (oAdmin *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	if oAdmin.role == "slave" {
-		http.Error(w, `{"status":"error"}`, http.StatusLocked)
-		return
-	}
+	//if oAdmin.role == "slave" {
+	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
+	//	return
+	//}
 	_ = r.ParseForm()
 	username := r.FormValue("username")
 	_, err := oAdmin.userRotate(username, r.FormValue("password"))
@@ -101,10 +93,10 @@ func (oAdmin *OvpnAdmin) userDeleteHandler(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	if oAdmin.role == "slave" {
-		http.Error(w, `{"status":"error"}`, http.StatusLocked)
-		return
-	}
+	//if oAdmin.role == "slave" {
+	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
+	//	return
+	//}
 	_ = r.ParseForm()
 	fmt.Fprintf(w, "%s", oAdmin.userDelete(r.FormValue("username")))
 }
@@ -120,10 +112,10 @@ func (oAdmin *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	if oAdmin.role == "slave" {
-		http.Error(w, `{"status":"error"}`, http.StatusLocked)
-		return
-	}
+	//if oAdmin.role == "slave" {
+	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
+	//	return
+	//}
 	_ = r.ParseForm()
 	ret, _ := oAdmin.userRevoke(r.FormValue("username"))
 	fmt.Fprintf(w, "%s", ret)
@@ -140,10 +132,10 @@ func (oAdmin *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Requ
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	if oAdmin.role == "slave" {
-		http.Error(w, `{"status":"error"}`, http.StatusLocked)
-		return
-	}
+	//if oAdmin.role == "slave" {
+	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
+	//	return
+	//}
 
 	_ = r.ParseForm()
 	fmt.Fprintf(w, "%s", oAdmin.userUnrevoke(r.FormValue("username")))
@@ -216,6 +208,7 @@ func (oAdmin *OvpnAdmin) userCreate(definition UserDefinition) (bool, string) {
 	return true, ucErr
 }
 
+// WARN: highly risky
 func (oAdmin *OvpnAdmin) userChangePassword(username, password string) (bool, string) {
 	_, _, err := checkUserExist(username)
 	if err != nil {
@@ -283,14 +276,22 @@ func (oAdmin *OvpnAdmin) userRevoke(username string) (string, string) {
 	//}
 
 	chmodFix()
-	userConnected, userConnectedTo := isUserConnected(username, oAdmin.activeClients)
-	log.Tracef("User %s connected: %t", username, userConnected)
-	if userConnected {
-		for _, connection := range userConnectedTo {
-			oAdmin.mgmtKillUserConnection(connection)
-			log.Infof("Session for user \"%s\" killed", username)
+	user := oAdmin.getUser(username)
+	//userConnectedTo := getUserConnections(username, oAdmin.activeClients)
+	if user != nil {
+		if len(user.Connections) > 0 {
+			log.Tracef("User %s connected: %d", username, len(user.Connections))
+			oAdmin.killUserConnections(user)
+		} else {
+			log.Tracef("User %s not connected: %d")
 		}
 	}
+	//if len(userConnectedTo) > 0 {
+	//	for _, connection := range userConnectedTo {
+	//		oAdmin.killConnection(connection)
+	//		log.Infof("Session for user \"%s\" killed", username)
+	//	}
+	//}
 
 	return fmt.Sprintln(shellOut), ""
 }
@@ -348,7 +349,7 @@ func (oAdmin *OvpnAdmin) userUnrevoke(username string) string {
 		}
 	}
 	chmodFix()
-	oAdmin.clients = oAdmin.usersList()
+	oAdmin.usersList()
 	return fmt.Sprintf("{\"msg\":\"User %s successfully unrevoked\"}", username)
 }
 
@@ -396,11 +397,11 @@ func (oAdmin *OvpnAdmin) userRotate(username, newPassword string) (bool, string)
 		fWrite(*indexTxtPath, renderIndexTxt(usersFromIndexTxt))
 
 		runBash(fmt.Sprintf("cd %s && ./easyrsa gen-crl 1>/dev/null", *easyrsaDirPath))
-		oAdmin.clients = oAdmin.usersList()
+		oAdmin.usersList()
 		chmodFix()
 		return true, fmt.Sprintf("{\"msg\":\"User %s successfully rotated\"}", username)
 	}
-	oAdmin.clients = oAdmin.usersList()
+	oAdmin.usersList()
 	return true, ""
 }
 
@@ -427,7 +428,7 @@ func (oAdmin *OvpnAdmin) userDelete(username string) string {
 		_, _ = runBash(fmt.Sprintf("cd %s && ./easyrsa gen-crl", *easyrsaDirPath))
 	}
 	chmodFix()
-	oAdmin.clients = oAdmin.usersList()
+	oAdmin.usersList()
 	return fmt.Sprintf("{\"msg\":\"User %s successfully deleted\"}", username)
 }
 

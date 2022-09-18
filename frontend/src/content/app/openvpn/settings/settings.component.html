@@ -22,6 +22,7 @@
                     </label>
                     <input class="form-control" id="network-ipv4" name="network" aria-describedby="network" [(ngModel)]="model.server">
                 </div>
+
                 <div class="form-group mb-2">
                     <input class="form-check-input" type="checkbox" id="force-gateway-ipv4" name="forceGatewayIpv4" [value]="true" [(ngModel)]="model.forceGatewayIpv4">
                     <label class="form-check-label" for="force-gateway-ipv4">
@@ -40,6 +41,18 @@
                         Except for DNS
                     </label>
                 </div>
+
+<!--                <div class="form-group mb-2">-->
+<!--                    <input class="form-check-input" type="checkbox" id="advertise-dns-ipv4" name="advertiseDnsIpv4" [value]="true" [(ngModel)]="advertiseDnsIpv4" placeholder="10.8.0.1">-->
+<!--                    <label class="form-check-label" for="advertise-dns-ipv4">-->
+<!--                        Advertise DNS-->
+<!--                    </label>-->
+<!--                </div>-->
+
+<!--                <div class="form-group mb-2 ms-5">-->
+<!--                    <input class="form-control" id="dns-ipv4" name="dns-ipv4" [disabled]="!advertiseDnsIpv4" aria-describedby="DNS IPv4" [(ngModel)]="model.dnsIpv4">-->
+<!--                </div>-->
+
             </ng-container>
             <hr>
             <div class="form-group">
@@ -61,6 +74,16 @@
                         Force Internet through VPN for IPv6
                     </label>
                 </div>
+<!--                <div class="form-group mb-2">-->
+<!--                    <input class="form-check-input" type="checkbox" id="advertise-dns-ipv6" name="advertiseDnsIpv6" [value]="true" [(ngModel)]="advertiseDnsIpv6">-->
+<!--                    <label class="form-check-label" for="advertise-dns-ipv6">-->
+<!--                        Advertise DNS-->
+<!--                    </label>-->
+<!--                </div>-->
+
+<!--                <div class="form-group mb-2 ms-5">-->
+<!--                    <input class="form-control" id="dns-ipv6" name="dns-ipv6" [disabled]="!advertiseDnsIpv6" aria-describedby="DNS IPv6" [(ngModel)]="model.dnsIpv6" placeholder="fd42:42:42:42::1">-->
+<!--                </div>-->
             </ng-container>
         </div>
     </div>

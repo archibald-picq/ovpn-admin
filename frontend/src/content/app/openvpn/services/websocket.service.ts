@@ -183,7 +183,6 @@ export class WebsocketService {
     constructor(
         protected readonly appConfigService: AppConfigService,
     ) {
-        console.warn('global config', appConfigService.get());
         this.url = appConfigService.get().openvpn?.url;
     }
 

@@ -46,13 +46,6 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 		}
 	}
 
-	if *openvpnServerBehindLB {
-		var err error
-		hosts, err = getOvpnServerHostsFromKubeApi()
-		if err != nil {
-			log.Error(err)
-		}
-	}
 
 	if len(hosts) == 0 {
 		if len(oAdmin.applicationPreferences.Preferences.Address) > 0 {

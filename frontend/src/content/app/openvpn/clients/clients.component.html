@@ -49,10 +49,15 @@
         <th mat-header-cell *matHeaderCellDef mat-sort-header="connections">Active Connections</th>
         <td mat-cell *matCellDef="let element" class="px-1 text-nowrap">
             <ng-container *ngIf="!element.connections.length">no</ng-container>
-            <div *ngFor="let conn of element.connections">
-                <span ngbTooltip="Public IP">{{conn.realAddress.split(':')[0]}}</span>
-                /
-                <span ngbTooltip="Internal IP">{{conn.virtualAddress}}</span>
+            <div *ngFor="let conn of element.connections" class="d-flex flex-row justify-content-center">
+                <div>
+                    <span ngbTooltip="Public IP">{{conn.realAddress.split(':')[0]}}</span>
+                    /
+                    <span ngbTooltip="Internal IP">{{conn.virtualAddress}}</span>
+                </div>
+                <div>
+                    <button class="btn-kill" (click)="killConnection(element, conn)" [title]="'Kill connection '+conn.clientId">❌</button>
+                </div>
             </div>
         </td>
     </ng-container>

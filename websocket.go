@@ -91,7 +91,7 @@ func removeString(s []string, search string) []string {
 }
 
 func next(conn *WsSafeConn) {
-	log.Printf("send keep alive after %d second", time.Now().Unix() - conn.last.Unix())
+	//log.Printf("send keep alive after %d second", time.Now().Unix() - conn.last.Unix())
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
 	conn.last = time.Now()

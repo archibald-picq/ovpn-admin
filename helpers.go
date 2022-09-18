@@ -158,7 +158,7 @@ func fDownload(path, url string, basicAuth bool) error {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if basicAuth {
-		req.SetBasicAuth(*masterBasicAuthUser, *masterBasicAuthPassword)
+		//req.SetBasicAuth(*masterBasicAuthUser, *masterBasicAuthPassword)
 	}
 
 	resp, err := client.Do(req)

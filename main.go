@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
@@ -10,14 +9,11 @@ import (
 
 	"io/fs"
 	"embed"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"net"
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
+	//"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -49,16 +45,10 @@ var (
 	serverRestartCommand     = kingpin.Flag("restart.cmd", "Command to restart the server").Default("systemctl restart openvpn@server.service").Envar("OPENVPN_RESTART_CMD").String()
 	listenHost               = kingpin.Flag("listen.host", "host for ovpn-admin").Default("0.0.0.0").Envar("OVPN_LISTEN_HOST").String()
 	listenPort               = kingpin.Flag("listen.port", "port for ovpn-admin").Default("8042").Envar("OVPN_LISTEN_PORT").String()
-	serverRole               = kingpin.Flag("role", "server role, master or slave").Default("master").Envar("OVPN_ROLE").HintOptions("master", "slave").String()
 	masterHost               = kingpin.Flag("master.host", "URL for the master server").Default("http://127.0.0.1").Envar("OVPN_MASTER_HOST").String()
-	masterBasicAuthUser      = kingpin.Flag("master.basic-auth.user", "user for master server's Basic Auth").Default("").Envar("OVPN_MASTER_USER").String()
-	masterBasicAuthPassword  = kingpin.Flag("master.basic-auth.password", "password for master server's Basic Auth").Default("").Envar("OVPN_MASTER_PASSWORD").String()
-	masterSyncFrequency      = kingpin.Flag("master.sync-frequency", "master host data sync frequency in seconds").Default("600").Envar("OVPN_MASTER_SYNC_FREQUENCY").Int()
 	masterSyncToken          = kingpin.Flag("master.sync-token", "master host data sync security token").Default("VerySecureToken").Envar("OVPN_MASTER_TOKEN").PlaceHolder("TOKEN").String()
 	openvpnNetwork           = kingpin.Flag("ovpn.network", "NETWORK/MASK_PREFIX for OpenVPN server").Default("").Envar("OVPN_NETWORK").String()
 	openvpnServer            = kingpin.Flag("ovpn.server", "HOST:PORT:PROTOCOL for OpenVPN server; can have multiple values").Default("").Envar("OVPN_SERVER").PlaceHolder("HOST:PORT:PROTOCOL").Strings()
-	openvpnServerBehindLB    = kingpin.Flag("ovpn.server.behindLB", "enable if your OpenVPN server is behind Kubernetes Service having the LoadBalancer type").Default("false").Envar("OVPN_LB").Bool()
-	openvpnServiceName       = kingpin.Flag("ovpn.service", "the name of Kubernetes Service having the LoadBalancer type if your OpenVPN server is behind it").Default("openvpn-external").Envar("OVPN_LB_SERVICE").Strings()
 	mgmtAddress              = kingpin.Flag("mgmt", "ALIAS=HOST:PORT for OpenVPN server mgmt interface; can have multiple values").Default("").Envar("OPENVPN_MANAGEMENT").String()
 	metricsPath              = kingpin.Flag("metrics.path", "URL path for exposing collected metrics").Default("/metrics").Envar("OVPN_METRICS_PATH").String()
 	easyrsaDirPath           = kingpin.Flag("easyrsa.path", "path to easyrsa dir").Default("/usr/share/easy-rsa/").Envar("EASYRSA_PATH").String()
@@ -107,20 +97,19 @@ type WsSafeConn struct {
 }
 
 type OvpnAdmin struct {
-	role                   string
+	//role                   string
 	lastSyncTime           string
 	lastSuccessfulSyncTime string
 	masterHostBasicAuth    bool
 	masterSyncToken        string
 	serverConf             OvpnConfig
 	clients                []*OpenvpnClient
-	activeClients          []*ClientStatus
+	activeConnections      []*ClientStatus
 	promRegistry           *prometheus.Registry
 	mgmtInterface          string
-	modules                []string
-	mgmtStatusTimeFormat   string
 	createUserMutex        *sync.Mutex
 	conn                   net.Conn
+	waitingCommands        []WaitingCommand
 	mgmtBuffer             []string
 	updatedUsers           []*OpenvpnClient
 	masterCn               string
@@ -206,6 +195,44 @@ type MessagePayload struct {
 	Message   string `json:"message"`
 }
 
+type ConnectionId struct {
+	 ClientId   int64 `json:"clientId"`
+}
+
+func (oAdmin *OvpnAdmin) apiUserKill(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+	auth := getAuthCookie(r)
+	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	var req ConnectionId
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		jsonErr, _ := json.Marshal(MessagePayload{Message: "Cant parse JSON"})
+		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
+		return
+	}
+
+	for _, c := range oAdmin.clients {
+		for _, conn := range c.Connections {
+			if conn.ClientId == req.ClientId {
+				if err := oAdmin.killAndRemoveConnection(c, conn); err != nil {
+					jsonErr, _ := json.Marshal(MessagePayload{Message: err.Error()})
+					http.Error(w, string(jsonErr), http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (oAdmin *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
@@ -217,26 +244,27 @@ func (oAdmin *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	oAdmin.clients = oAdmin.usersList()
+	oAdmin.usersList()
 	usersList, _ := json.Marshal(oAdmin.clients)
-	fmt.Fprintf(w, "%s", usersList)
+	_, _ = w.Write(usersList)
+	//fmt.Fprintf(w, "%s", usersList)
 }
 
-func (oAdmin *OvpnAdmin) userStatisticHandler(w http.ResponseWriter, r *http.Request) {
-	log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
-		return
-	}
-	auth := getAuthCookie(r)
-	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-	_ = r.ParseForm()
-	userStatistic, _ := json.Marshal(oAdmin.getUserStatistic(r.FormValue("username")))
-	fmt.Fprintf(w, "%s", userStatistic)
-}
+//func (oAdmin *OvpnAdmin) userStatisticHandler(w http.ResponseWriter, r *http.Request) {
+//	log.Info(r.RemoteAddr, " ", r.RequestURI)
+//	enableCors(&w, r)
+//	if (*r).Method == "OPTIONS" {
+//		return
+//	}
+//	auth := getAuthCookie(r)
+//	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+//		w.WriteHeader(http.StatusForbidden)
+//		return
+//	}
+//	_ = r.ParseForm()
+//	userStatistic, _ := json.Marshal(oAdmin.getUserStatistic(r.FormValue("username")))
+//	fmt.Fprintf(w, "%s", userStatistic)
+//}
 
 func (oAdmin *OvpnAdmin) userChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
@@ -282,16 +310,16 @@ func (oAdmin *OvpnAdmin) userShowConfigHandler(w http.ResponseWriter, r *http.Re
 	fmt.Fprintf(w, "%s", oAdmin.renderClientConfig(r.FormValue("username")))
 }
 
-func (oAdmin *OvpnAdmin) userDisconnectHandler(w http.ResponseWriter, r *http.Request) {
-	log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
-		return
-	}
-	_ = r.ParseForm()
-	// 	fmt.Fprintf(w, "%s", userDisconnect(r.FormValue("username")))
-	fmt.Fprintf(w, "%s", r.FormValue("username"))
-}
+//func (oAdmin *OvpnAdmin) userDisconnectHandler(w http.ResponseWriter, r *http.Request) {
+//	log.Info(r.RemoteAddr, " ", r.RequestURI)
+//	enableCors(&w, r)
+//	if (*r).Method == "OPTIONS" {
+//		return
+//	}
+//	_ = r.ParseForm()
+//	// 	fmt.Fprintf(w, "%s", userDisconnect(r.FormValue("username")))
+//	fmt.Fprintf(w, "%s", r.FormValue("username"))
+//}
 
 func (oAdmin *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
@@ -309,76 +337,10 @@ func (oAdmin *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Reque
 	fmt.Fprintf(w, "%s", ccd)
 }
 
-func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request) {
-	log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
-		return
-	}
-	auth := getAuthCookie(r)
-	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-	if oAdmin.role == "slave" {
-		http.Error(w, `{"status":"error"}`, http.StatusLocked)
-		return
-	}
-	var ccd Ccd
-	if r.Body == nil {
-		json, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
-		http.Error(w, string(json), http.StatusBadRequest)
-		return
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&ccd)
-	if err != nil {
-		log.Errorln(err)
-	}
-
-	for i, _ := range ccd.CustomRoutes {
-		ccd.CustomRoutes[i].Description = strings.Trim(ccd.CustomRoutes[i].Description, " ")
-		log.Debugln("description [%v]", ccd.CustomRoutes[i].Description)
-	}
-	for i, _ := range ccd.CustomIRoutes {
-		ccd.CustomIRoutes[i].Description = strings.Trim(ccd.CustomIRoutes[i].Description, " ")
-		log.Debugln("description [%v]", ccd.CustomIRoutes[i].Description)
-	}
-
-	err = oAdmin.modifyCcd(ccd)
-
-	if err == nil {
-		w.WriteHeader(http.StatusNoContent)
-		fmt.Fprintf(w, fmt.Sprintf("%s", err))
-		return
-	} else {
-		rawJson, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("%s", err)})
-		http.Error(w, string(rawJson), http.StatusUnprocessableEntity)
-	}
-}
-
 func (oAdmin *OvpnAdmin) restartServer() error {
 	_, err := runBash(*serverRestartCommand)
 	return err
 }
-
-//func (oAdmin *OvpnAdmin) serverSettingsHandler(w http.ResponseWriter, r *http.Request) {
-//	log.Info(r.RemoteAddr, " ", r.RequestURI)
-//	enableCors(&w, r)
-//	if (*r).Method == "OPTIONS" {
-//		return
-//	}
-//	auth := getAuthCookie(r)
-//	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
-//		w.WriteHeader(http.StatusForbidden)
-//		return
-//	}
-//	enabledModules, enabledModulesErr := json.Marshal(oAdmin.modules)
-//	if enabledModulesErr != nil {
-//		log.Errorln(enabledModulesErr)
-//	}
-//	fmt.Fprintf(w, `{"status":"ok", "serverRole": "%s", "modules": %s }`, oAdmin.role, string(enabledModules))
-//}
 
 func (oAdmin *OvpnAdmin) lastSyncTimeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug(r.RemoteAddr, " ", r.RequestURI)
@@ -419,10 +381,10 @@ func (oAdmin *OvpnAdmin) downloadCertsHandler(w http.ResponseWriter, r *http.Req
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	if oAdmin.role == "slave" {
-		http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
-		return
-	}
+	//if oAdmin.role == "slave" {
+	//	http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
+	//	return
+	//}
 	if *storageBackend == "kubernetes.secrets" {
 		http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
 		return
@@ -438,39 +400,6 @@ func (oAdmin *OvpnAdmin) downloadCertsHandler(w http.ResponseWriter, r *http.Req
 	archiveCerts()
 	w.Header().Set("Content-Disposition", "attachment; filename="+certsArchiveFileName)
 	http.ServeFile(w, r, certsArchivePath)
-}
-
-func (oAdmin *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Request) {
-	log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
-		return
-	}
-	if oAdmin.role == "slave" {
-		http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
-		return
-	}
-	auth := getAuthCookie(r)
-	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
-	if *storageBackend == "kubernetes.secrets" {
-		http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
-		return
-	}
-	_ = r.ParseForm()
-	token := r.Form.Get("token")
-
-	if token != oAdmin.masterSyncToken {
-		http.Error(w, `{"status":"error"}`, http.StatusForbidden)
-		return
-	}
-
-	archiveCcd()
-	w.Header().Set("Content-Disposition", "attachment; filename="+ccdArchiveFileName)
-	http.ServeFile(w, r, ccdArchivePath)
 }
 
 func enableCors(w *http.ResponseWriter, r *http.Request) {
@@ -505,11 +434,11 @@ func main() {
 
 	oAdmin := new(OvpnAdmin)
 	oAdmin.lastSyncTime = "unknown"
-	oAdmin.role = *serverRole
+	//oAdmin.role = *serverRole
 	oAdmin.lastSuccessfulSyncTime = "unknown"
 	oAdmin.masterSyncToken = *masterSyncToken
 	oAdmin.promRegistry = prometheus.NewRegistry()
-	oAdmin.modules = []string{}
+	//oAdmin.modules = []string{}
 	oAdmin.createUserMutex = &sync.Mutex{}
 	oAdmin.mgmtInterface = *mgmtAddress
 	oAdmin.parseServerConf(*serverConfFile)
@@ -525,7 +454,6 @@ func main() {
 	}
 
 	if len(oAdmin.serverConf.clientConfigDir) > 0 {
-		*ccdEnabled = true
 		*ccdDir = absolutizePath(*serverConfFile, oAdmin.serverConf.clientConfigDir)
 	}
 
@@ -547,30 +475,11 @@ func main() {
 		go oAdmin.connectToManagementInterface()
 	}
 
-	oAdmin.masterHostBasicAuth = *masterBasicAuthPassword != "" && *masterBasicAuthUser != ""
-
-	oAdmin.modules = append(oAdmin.modules, "core")
-
-	if *authByPassword {
-		if *storageBackend != "kubernetes.secrets" {
-			oAdmin.modules = append(oAdmin.modules, "passwdAuth")
-		} else {
-			log.Fatal("Right now the keys `--storage.backend=kubernetes.secret` and `--auth.password` are not working together. Please use only one of them ")
-		}
-	}
-
-	if *ccdEnabled {
-		oAdmin.modules = append(oAdmin.modules, "ccd")
-	}
-
-	if oAdmin.role == "slave" {
-		oAdmin.syncDataFromMaster()
-		go oAdmin.syncWithMaster()
-	}
+	//oAdmin.masterHostBasicAuth = *masterBasicAuthPassword != "" && *masterBasicAuthUser != ""
 
 	upgrader.CheckOrigin = oAdmin.checkWebsocketOrigin
 	upgrader.Subprotocols = []string{"ovpn"}
-	oAdmin.clients = oAdmin.usersList()
+	oAdmin.usersList()
 
 	staticDir, _ := fs.Sub(content, "frontend/static")
 	embedFs := http.FS(staticDir)
@@ -586,12 +495,13 @@ func main() {
 	http.HandleFunc("/api/user/create", oAdmin.userCreateHandler)
 	http.HandleFunc("/api/user/change-password", oAdmin.userChangePasswordHandler)
 	http.HandleFunc("/api/user/rotate", oAdmin.userRotateHandler)
+	http.HandleFunc("/api/user/kill", oAdmin.apiUserKill)
 	http.HandleFunc("/api/user/delete", oAdmin.userDeleteHandler)
 	http.HandleFunc("/api/user/revoke", oAdmin.userRevokeHandler)
 	http.HandleFunc("/api/user/unrevoke", oAdmin.userUnrevokeHandler)
 	http.HandleFunc("/api/user/config/show", oAdmin.userShowConfigHandler)
-	http.HandleFunc("/api/user/disconnect", oAdmin.userDisconnectHandler)
-	http.HandleFunc("/api/user/statistic", oAdmin.userStatisticHandler)
+	//http.HandleFunc("/api/user/disconnect", oAdmin.userDisconnectHandler)
+	//http.HandleFunc("/api/user/statistic", oAdmin.userStatisticHandler)
 	http.HandleFunc("/api/user/ccd", oAdmin.userShowCcdHandler)
 	http.HandleFunc("/api/user/ccd/apply", oAdmin.userApplyCcdHandler)
 
@@ -648,7 +558,7 @@ func validatePassword(password string) bool {
 	}
 }
 
-func (oAdmin *OvpnAdmin) usersList() []*OpenvpnClient {
+func (oAdmin *OvpnAdmin) usersList() {
 	totalCerts := 0
 	validCerts := 0
 	revokedCerts := 0
@@ -657,7 +567,7 @@ func (oAdmin *OvpnAdmin) usersList() []*OpenvpnClient {
 	totalActiveConnections := 0
 	apochNow := time.Now().Unix()
 	clients := indexTxtParser(fRead(*indexTxtPath))
-	var users = make([]*OpenvpnClient, 0)
+	oAdmin.clients = make([]*OpenvpnClient, 0)
 
 	for _, line := range clients {
 		if line.Username != oAdmin.masterCn && line.flag != "D" {
@@ -672,13 +582,15 @@ func (oAdmin *OvpnAdmin) usersList() []*OpenvpnClient {
 			}
 
 			ovpnClientCertificateExpire.WithLabelValues(line.Identity).Set(float64((parseDateToUnix(stringDateFormat, line.ExpirationDate) - apochNow) / 3600 / 24))
-			line.Connections = getUserConnections(line.Username, oAdmin.activeClients)
-			users = append(users, line)
+			oAdmin.clients = append(oAdmin.clients, line)
 
 		} else {
 			ovpnServerCertExpire.Set(float64((parseDateToUnix(stringDateFormat, line.ExpirationDate) - apochNow) / 3600 / 24))
 		}
 	}
+
+	oAdmin.updateConnections(oAdmin.activeConnections)
+	//line.Connections = getUserConnections(line.Username, oAdmin.activeClients)
 
 	otherCerts := totalCerts - validCerts - revokedCerts - expiredCerts
 
@@ -691,25 +603,23 @@ func (oAdmin *OvpnAdmin) usersList() []*OpenvpnClient {
 	ovpnClientsExpired.Set(float64(expiredCerts))
 	ovpnClientsConnected.Set(float64(totalActiveConnections))
 	ovpnUniqClientsConnected.Set(float64(connectedUniqUsers))
-
-	return users
 }
 
-func (oAdmin *OvpnAdmin) updateConnections() {
+func (oAdmin *OvpnAdmin) updateConnections(activeClients []*ClientStatus) {
 	for _, client := range oAdmin.clients {
-		client.Connections = getUserConnections(client.Username, oAdmin.activeClients)
+		client.Connections = getUserConnections(client.Username, activeClients)
 	}
 }
 
-func (oAdmin *OvpnAdmin) getUserStatistic(username string) []*ClientStatus {
-	var userStatistic = make([]*ClientStatus, 0)
-	for _, u := range oAdmin.activeClients {
-		if u.commonName == username {
-			userStatistic = append(userStatistic, u)
-		}
-	}
-	return userStatistic
-}
+//func (oAdmin *OvpnAdmin) getUserStatistic(username string) []*ClientStatus {
+//	var userStatistic = make([]*ClientStatus, 0)
+//	for _, u := range oAdmin.activeClients {
+//		if u.commonName == username {
+//			userStatistic = append(userStatistic, u)
+//		}
+//	}
+//	return userStatistic
+//}
 
 
 func getUserConnections(username string, connectedUsers []*ClientStatus) []*ClientStatus {
@@ -722,17 +632,13 @@ func getUserConnections(username string, connectedUsers []*ClientStatus) []*Clie
 	return connections
 }
 
-func isUserConnected(username string, connectedUsers []*ClientStatus) (bool, []*ClientStatus) {
-	var connections = make([]*ClientStatus, 0)
-	var connected = false
-
-	for _, connectedUser := range connectedUsers {
-		if connectedUser.commonName == username {
-			connected = true
-			connections = append(connections, connectedUser)
+func (oAdmin *OvpnAdmin) getUser(username string) *OpenvpnClient {
+	for _, connectedUser := range oAdmin.clients {
+		if connectedUser.Username == username {
+			return connectedUser
 		}
 	}
-	return connected, connections
+	return nil
 }
 
 func (oAdmin *OvpnAdmin) downloadCerts() bool {
@@ -767,94 +673,4 @@ func (oAdmin *OvpnAdmin) downloadCcd() bool {
 	}
 
 	return true
-}
-
-
-func (oAdmin *OvpnAdmin) syncDataFromMaster() {
-	retryCountMax := 3
-	certsDownloadFailed := true
-	ccdDownloadFailed := true
-
-	for certsDownloadRetries := 0; certsDownloadRetries < retryCountMax; certsDownloadRetries++ {
-		log.Infof("Downloading archive with certificates from master. Attempt %d", certsDownloadRetries)
-		if oAdmin.downloadCerts() {
-			certsDownloadFailed = false
-			log.Info("Decompressing archive with certificates from master")
-			unArchiveCerts()
-			log.Info("Decompression archive with certificates from master completed")
-			break
-		} else {
-			log.Warnf("Something goes wrong during downloading archive with certificates from master. Attempt %d", certsDownloadRetries)
-		}
-	}
-
-	for ccdDownloadRetries := 0; ccdDownloadRetries < retryCountMax; ccdDownloadRetries++ {
-		log.Infof("Downloading archive with ccd from master. Attempt %d", ccdDownloadRetries)
-		if oAdmin.downloadCcd() {
-			ccdDownloadFailed = false
-			log.Info("Decompressing archive with ccd from master")
-			unArchiveCcd()
-			log.Info("Decompression archive with ccd from master completed")
-			break
-		} else {
-			log.Warnf("Something goes wrong during downloading archive with ccd from master. Attempt %d", ccdDownloadRetries)
-		}
-	}
-
-	oAdmin.lastSyncTime = time.Now().Format(stringDateFormat)
-	if !ccdDownloadFailed && !certsDownloadFailed {
-		oAdmin.lastSuccessfulSyncTime = time.Now().Format(stringDateFormat)
-	}
-}
-
-func (oAdmin *OvpnAdmin) syncWithMaster() {
-	for {
-		time.Sleep(time.Duration(*masterSyncFrequency) * time.Second)
-		oAdmin.syncDataFromMaster()
-	}
-}
-
-func getOvpnServerHostsFromKubeApi() ([]OpenvpnServer, error) {
-	var hosts []OpenvpnServer
-	var lbHost string
-
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		log.Errorf("%s", err.Error())
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Errorf("%s", err.Error())
-	}
-
-	for _, serviceName := range *openvpnServiceName {
-		service, err := clientset.CoreV1().Services(fRead(kubeNamespaceFilePath)).Get(context.TODO(), serviceName, metav1.GetOptions{})
-		if err != nil {
-			log.Error(err)
-		}
-
-		log.Tracef("service from kube api %v", service)
-		log.Tracef("service.Status from kube api %v", service.Status)
-		log.Tracef("service.Status.LoadBalancer from kube api %v", service.Status.LoadBalancer)
-
-		lbIngress := service.Status.LoadBalancer.Ingress
-		if len(lbIngress) > 0 {
-			if lbIngress[0].Hostname != "" {
-				lbHost = lbIngress[0].Hostname
-			}
-
-			if lbIngress[0].IP != "" {
-				lbHost = lbIngress[0].IP
-			}
-		}
-
-		hosts = append(hosts, OpenvpnServer{lbHost, strconv.Itoa(int(service.Spec.Ports[0].Port)), strings.ToLower(string(service.Spec.Ports[0].Protocol))})
-	}
-
-	if len(hosts) == 0 {
-		return []OpenvpnServer{{Host: "kubernetes services not found"}}, err
-	}
-
-	return hosts, nil
 }

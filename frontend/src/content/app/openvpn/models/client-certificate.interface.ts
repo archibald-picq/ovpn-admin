@@ -12,6 +12,7 @@ export interface INetwork {
 }
 
 export interface IConnection {
+    clientId: number;
     bytesReceived: number;
     bytesSent: number;
     connectedSince: Date;

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
-import { IClientCertificate } from '../models/client-certificate.interface';
+import {IClientCertificate, IConnection} from '../models/client-certificate.interface';
 import { ClientCertificate } from '../models/client-certificate.model';
 import { filter, map } from 'rxjs/operators';
 import { Sort } from '@angular/material/sort';
@@ -138,6 +138,31 @@ export class OpenvpnService {
                 if (!response.body.match(/An updated CRL has been created/g)) {
                     throwError(() => new Error('Invalid return value'));
                 }
+            })
+        ).toPromise();
+    }
+
+    public killConnection(client: IClientCertificate, conn: IConnection): Promise<void> {
+        const body = {
+            clientId: conn.clientId,
+        }
+        return this.http.post(this.OPENVPN_ADMIN_API+'/api/user/kill', body, {
+            // headers,
+            observe: 'response',
+            // responseType: 'text',
+        }).pipe(
+            filter((response: HttpResponse<any>) => response.ok),
+            map((response) => {
+                console.warn('response', response);
+                const p = client.connections.indexOf(conn);
+                if (p !== -1) {
+                    client.connections.splice(p, 1);
+                } else {
+                    console.warn('Cant find connection by reference', conn, client.connections);
+                }
+                // if (response.body.msg === `User ${client.username} successfully unrevoked`) {
+                //     throwError(() => new Error('Invalid return value'));
+                // }
             })
         ).toPromise();
     }

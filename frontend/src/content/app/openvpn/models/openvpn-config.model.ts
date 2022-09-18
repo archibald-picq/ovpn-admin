@@ -20,8 +20,12 @@ export class Settings {
     forceGatewayIpv4: boolean;
     forceGatewayIpv4ExceptDhcp: boolean;
     forceGatewayIpv4ExceptDns: boolean;
+    dnsIpv4: string;
+
     serverIpv6: string;
     forceGatewayIpv6: boolean;
+    dnsIpv6: string;
+
     duplicateCn: boolean;
     clientToClient: boolean;
     compLzo: boolean;
@@ -34,8 +38,12 @@ export class Settings {
         this.forceGatewayIpv4 = raw?.forceGatewayIpv4;
         this.forceGatewayIpv4ExceptDhcp = raw?.forceGatewayIpv4ExceptDhcp;
         this.forceGatewayIpv4ExceptDns = raw?.forceGatewayIpv4ExceptDns;
+        this.dnsIpv4 = raw?.dnsIpv4;
+
         this.serverIpv6 = raw?.serverIpv6;
         this.forceGatewayIpv6 = raw?.forceGatewayIpv6;
+        this.dnsIpv6 = raw?.dnsIpv6;
+
         this.duplicateCn = raw?.duplicateCn;
         this.clientToClient = raw?.clientToClient;
         this.compLzo = raw?.compLzo;
