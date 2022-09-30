@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.0.1
+VERSION=1.0.2
 PACKAGE=ovpn-admin
 
 PATH=$PATH:~/go/bin
@@ -33,7 +33,7 @@ if [ $SKIP_FRONT = 0 ]; then
 fi
 
 if [ $SKIP_BACK = 0 ]; then
-  CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags "-linkmode external -extldflags -static -s -w"
+  CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags "-X main.version=$VERSION -linkmode external -extldflags -static -s -w"
 fi
 
 if [ $SKIP_DEB = 0 ]; then

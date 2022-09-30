@@ -22,6 +22,7 @@ import {
 } from '../modals/confirm-rotate-client-certificate.component';
 import {WebsocketService} from "../services/websocket.service";
 import {ClientCertificate} from "../models/client-certificate.model";
+import {ConfirmKillConnectionComponent, KillConnectionOptions} from "../modals/confirm-kill-connection.component";
 
 @Component({
     selector: 'bus-openvpn-clients',
@@ -30,10 +31,11 @@ import {ClientCertificate} from "../models/client-certificate.model";
 })
 export class OpenvpnClientsComponent implements OnInit, OnDestroy {
     public clients: IClientCertificate[] = [];
-    public displayedColumns: string[] = ['username', 'accountStatus', 'connections', 'upload-download', 'expirationDate', 'actions'];
+    public displayedColumns: string[] = ['username', /*'accountStatus',*/ 'connections', 'speed-upload-download', 'upload-download', 'expirationDate', 'actions'];
     public dataSource = new MatTableDataSource<IClientCertificate>();
     public hideRevoked = !!localStorage.getItem('hideRevoked');
     private sort?: Sort;
+    public minSpeedThreshold = 1024; // don't show speed lower thant 1kb/s
 
     private usersCallback = (data: any) => {
         this.mergeLists(this.clients, data);
@@ -110,11 +112,17 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
     }
 
     public async killConnection(client: IClientCertificate, connection: IConnection): Promise<void> {
-        console.warn('Kill connection to '+client.username+' #'+connection.clientId);
+        // console.warn('Kill connection to '+client.username+' #'+connection.clientId);
         try {
-            await this.openvpnService.killConnection(client, connection);
+            await this.modalService.open(ConfirmKillConnectionComponent, {
+                centered: true,
+                injector: Injector.create([{
+                    provide: KillConnectionOptions,
+                    useValue: new KillConnectionOptions(client, connection),
+                }], this.injector),
+            }).result;
         } catch (e) {
-            console.warn('Cancel kill connection', e)
+            console.warn('Cancel confirmation kill connection', e)
         }
     }
 
@@ -238,8 +246,14 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         this.applySorting();
     }
 
+    public sumSpeedBytesReceived(connections: IConnection[]): number {
+        return connections.reduce((acc, conn) => acc + conn.speedBytesReceived, 0) / connections.length;
+    }
     public sumBytesReceived(connections: IConnection[]): number {
         return connections.reduce((acc, conn) => acc + conn.bytesReceived, 0);
+    }
+    public sumSpeedBytesSent(connections: IConnection[]): number {
+        return connections.reduce((acc, conn) => acc + conn.speedBytesSent, 0) / connections.length;
     }
     public sumBytesSent(connections: IConnection[]): number {
         return connections.reduce((acc, conn) => acc + conn.bytesSent, 0);

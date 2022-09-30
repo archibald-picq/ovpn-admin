@@ -11,7 +11,18 @@ import (
 	"time"
 	log "github.com/sirupsen/logrus"
 )
-
+func (oAdmin *OvpnAdmin) getUserConnection(user string, clientId int64) *ClientStatus {
+	for _, u := range oAdmin.clients {
+		if u.Username == user {
+			for _, c := range u.Connections {
+				if c.ClientId == clientId {
+					return c
+				}
+			}
+		}
+	}
+	return nil
+}
 func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*ClientStatus {
 	var u = make([]*ClientStatus, 0)
 	//isClientList := false
@@ -24,15 +35,19 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*ClientStat
 			bytesSent, _ := strconv.ParseInt(user[6], 10, 64)
 			clientId, _ := strconv.ParseInt(user[10], 10, 64)
 			//log.Infof("parsed client %s id %d from", user[1], clientId, user[10])
-			clientStatus := new(ClientStatus)
+			var clientStatus *ClientStatus = oAdmin.getUserConnection(user[1], clientId)
+			if clientStatus == nil {
+				clientStatus = new(ClientStatus)
+			}
+			clientStatus.ClientId = clientId
 			clientStatus.commonName = user[1]
 			clientStatus.RealAddress = user[2]
-			clientStatus.VirtualAddress = user[3]
-			clientStatus.VirtualAddressIPv6 = user[4]
 			clientStatus.BytesReceived = bytesReceive
 			clientStatus.BytesSent = bytesSent
+			clientStatus.lastByteReceived = time.Now()
 			clientStatus.ConnectedSince = user[7]
-			clientStatus.ClientId = clientId
+			clientStatus.VirtualAddress = user[3]
+			clientStatus.VirtualAddressIPv6 = user[4]
 
 			u = append(u, clientStatus)
 		}
@@ -245,26 +260,34 @@ func (oAdmin *OvpnAdmin) processMgmtBuffer() int {
 var regByteCount = regexp.MustCompile(`^>BYTECOUNT_CLI:([0-9]+),([0-9]+),([0-9]+)$`)
 
 func (oAdmin *OvpnAdmin) handleBytecountUpdate(line string) {
-	if matches := regByteCount.FindStringSubmatch(line); len(matches) > 0 {
-		//log.Printf("parsed bytecount %v", matches)
-		clientId, _ := strconv.ParseInt(matches[1], 10, 64)
-		bytesReceive, _ := strconv.ParseInt(matches[2], 10, 64)
-		bytesSent, _ := strconv.ParseInt(matches[3], 10, 64)
-
-		for _, u := range oAdmin.clients {
-			for _, c := range u.Connections {
-				if c.ClientId == clientId {
-					c.BytesSent = bytesSent
-					c.BytesReceived = bytesReceive
-					oAdmin.addUpdatedUsers(u)
-					return
-				}
-			}
-		}
-		log.Warnf("Cant find client %d to update %d/%d", clientId, bytesSent, bytesReceive)
-	} else {
+	matches := regByteCount.FindStringSubmatch(line)
+	if len(matches) <= 0 {
 		log.Errorf("error parsing bytecount %v", line)
 	}
+	//log.Printf("parsed bytecount %v", matches)
+	clientId, _ := strconv.ParseInt(matches[1], 10, 64)
+	bytesReceive, _ := strconv.ParseInt(matches[2], 10, 64)
+	bytesSent, _ := strconv.ParseInt(matches[3], 10, 64)
+
+	for _, u := range oAdmin.clients {
+		for _, c := range u.Connections {
+			if c.ClientId == clientId {
+				duration := time.Now().UnixMilli() - c.lastByteReceived.UnixMilli()
+				if duration > 0 {
+					//log.Infof("duration between sample", duration)
+					c.SpeedBytesSent = (bytesSent - c.BytesSent) * 1000 / duration
+					c.SpeedBytesReceived = (bytesReceive - c.BytesReceived) * 1000 / duration
+					//log.Infof("duration [%s] between sample %d, => %d, %d", u.Username, duration, c.SpeedBytesSent, c.SpeedBytesReceived)
+				}
+				c.BytesSent = bytesSent
+				c.BytesReceived = bytesReceive
+				c.lastByteReceived = time.Now()
+				oAdmin.addUpdatedUsers(u)
+				return
+			}
+		}
+	}
+	log.Warnf("Cant find client %d to update %d/%d", clientId, bytesSent, bytesReceive)
 }
 
 func (oAdmin *OvpnAdmin) addUpdatedUsers(user *OpenvpnClient) {

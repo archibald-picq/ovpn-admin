@@ -24,6 +24,7 @@ import { UploadPageComponent } from './upload/upload.component';
 import { LogPageComponent } from './log/log.component';
 import { WebsocketService } from './services/websocket.service';
 import {OpenvpnComponent} from "./openvpn.component";
+import {ConfirmKillConnectionComponent} from "./modals/confirm-kill-connection.component";
 
 @NgModule({
     declarations: [
@@ -40,6 +41,7 @@ import {OpenvpnComponent} from "./openvpn.component";
         ConfirmDeleteAdminAccountComponent,
         UploadPageComponent,
         LogPageComponent,
+        ConfirmKillConnectionComponent,
     ],
     imports: [
         RouterModule.forChild(OPENVPN_ROUTES),

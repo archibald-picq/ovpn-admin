@@ -12,159 +12,6 @@ class WebsocketRequest {
     }
 }
 
-// export class LocalDevice {
-//     public address: string;
-//     public name?: string;
-//     public firstSeen?: Date;
-//     public lastSeen?: Date;
-//     public broadcastPackets?: number;
-//     public avgBroadcastPeriod?: number;
-//     public timeSinceLastSeen?: number;
-//     public rssi?: number;
-//
-//     private constructor(address: string) {
-//         this.address = address;
-//     }
-//
-//     public static parse(record: Record<string, any>): LocalDevice {
-//         const device = new LocalDevice(record.address);
-//         LocalDevice.importTo(device, record);
-//         return device;
-//     }
-//
-//     public static importTo(device: LocalDevice, record: Record<string, any>): void {
-//         // console.warn('assign', record);
-//         device.name = record.name;
-//         device.firstSeen = record.firstSeen? new Date(record.firstSeen): undefined;
-//         device.lastSeen = record.lastSeen? new Date(record.lastSeen): undefined;
-//         device.broadcastPackets = record.broadcastPackets;
-//         device.avgBroadcastPeriod = record.avgBroadcastPeriod;
-//         device.timeSinceLastSeen = record.timeSinceLastSeen;
-//         device.rssi = record.rssi;
-//     }
-//
-//     compare(other: LocalDevice, active: string) {
-//         if (active === 'address') {
-//             return this.address < other.address? 1: (this.address > other.address? -1: 0);
-//         }
-//         if (active === 'firstSeen') {
-//             const a = this.firstSeen?.getTime()?? 0;
-//             const b = other.firstSeen?.getTime()??0;
-//             return (a < b) ? -1: (a > b? 1: 0);
-//         }
-//         if (active === 'lastSeen') {
-//             const a = this.lastSeen?.getTime()?? 0;
-//             const b = other.lastSeen?.getTime()??0;
-//             return (a < b) ? -1: (a > b? 1: 0);
-//         }
-//         if (active === 'avgBroadcastPeriod') {
-//             const a = this.avgBroadcastPeriod?? Infinity;
-//             const b = other.avgBroadcastPeriod?? Infinity;
-//             return (a < b) ? -1: (a > b? 1: 0);
-//         }
-//         if (active === 'rssi') {
-//             const a = this.rssi?? -Infinity;
-//             const b = other.rssi?? -Infinity;
-//             return (a < b) ? -1: (a > b? 1: 0);
-//         }
-//         return 0;
-//     }
-// }
-//
-// export class StreamCallback {
-//     status = 'disconnected';
-//     objects: LocalDevice[] = [];
-//     sortConfig?: Sort;
-//
-//     init(payload: Record<string, any>[]): void {
-//         payload.forEach((record: Record<string, any>) => {
-//             this.rawAdd(record);
-//         });
-//         if (this.sortConfig) {
-//             this.sort(this.sortConfig);
-//         }
-//         this.trigger('update');
-//     }
-//
-//     add(payload: Record<string, any>): void {
-//         // TODO: handle full payload
-//         // TODO: handle partial object update
-//         // TODO: handle object delete
-//         console.warn('add to stream', this, 'with', payload);
-//         this.rawAdd(payload);
-//
-//         if (this.sortConfig) {
-//             this.sort(this.sortConfig);
-//         }
-//         this.trigger('update');
-//     }
-//
-//     private rawAdd(payload: Record<string, any>): void {
-//         let oldDevice: LocalDevice|undefined = this.findItem((item) => item.address === payload.address);
-//
-//         if (oldDevice) {
-//             console.warn('adding device', payload.address, 'that already exists');
-//             return;
-//         }
-//         oldDevice = LocalDevice.parse(payload);
-//         this.objects.push(oldDevice);
-//     }
-//
-//     remove(address: string) {
-//         const p = this.objects.findIndex((item) => item.address === address);
-//         if (p === -1) {
-//             console.warn('Cant find item to remove');
-//             return;
-//         }
-//         this.objects.splice(p, 1);
-//         this.trigger('update');
-//     }
-//
-//     update(payload: Record<string, any>): void {
-//         const oldDevice: LocalDevice|undefined = this.findItem((item) => item.address === payload.address);
-//         if (!oldDevice) {
-//             console.warn('update device that do not exists ', payload.address);
-//             return;
-//         }
-//         LocalDevice.importTo(oldDevice, payload);
-//         if (this.sortConfig) {
-//             this.sort(this.sortConfig);
-//         }
-//     }
-//
-//     private findItem(predicate: (item: LocalDevice) => boolean): LocalDevice|undefined {
-//         const p = this.objects.findIndex(predicate);
-//         return p === -1? undefined: this.objects[p];
-//     }
-//
-//     sort(sort: Sort) {
-//         this.sortConfig = sort;
-//         // console.warn('sort', sort);
-//         this.objects.sort((a, b) => a.compare(b, sort.active));
-//         if (sort.direction === 'desc') {
-//             this.objects.reverse();
-//         }
-//
-//     }
-//
-//     private onUpdateCallbacks: (() => void)[] = [];
-//     public on(eventName: string, callback: () => void) {
-//         if (eventName === 'update') {
-//             this.onUpdateCallbacks.push(callback);
-//         } else {
-//             console.warn('Unsupported eventName', eventName);
-//         }
-//     }
-//
-//     public trigger(eventName: string) {
-//         if (eventName === 'update') {
-//             this.onUpdateCallbacks.forEach((callback) => callback());
-//         } else {
-//             console.warn('Unsupported eventName', eventName);
-//         }
-//     }
-// }
-
 type Callback = (data: any) => void;
 
 @Injectable()
@@ -237,7 +84,7 @@ export class WebsocketService {
             return;
         }
         this.shouldConnect = true;
-        const url = (this.url || document.location.href.replace(/\/$/, '')).replace(/http:\/\//, 'ws://').replace(/https:\/\//, 'wss://')+'/api/ws';
+        const url = (this.url || this.getLocalUrl()).replace(/^http/, 'ws')+'/api/ws';
         // console.warn('WS url', url);
         this.server = new WebSocket(url, this.protocol);
 
@@ -350,11 +197,7 @@ export class WebsocketService {
         this.server?.send(JSON.stringify(obj));
     }
 
-    // private updateStream(stream: StreamCallback, obj: Record<string, any>) {
-    //     if (obj.init) {
-    //         stream.init(obj.init);
-    //     } else if (obj.update) {
-    //         stream.update(obj.update);
-    //     }
-    // }
+    private getLocalUrl(): string {
+        return document.location.protocol+'//'+document.location.hostname;
+    }
 }

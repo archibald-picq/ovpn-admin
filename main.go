@@ -53,7 +53,6 @@ var (
 	metricsPath              = kingpin.Flag("metrics.path", "URL path for exposing collected metrics").Default("/metrics").Envar("OVPN_METRICS_PATH").String()
 	easyrsaDirPath           = kingpin.Flag("easyrsa.path", "path to easyrsa dir").Default("/usr/share/easy-rsa/").Envar("EASYRSA_PATH").String()
 	indexTxtPath             = kingpin.Flag("easyrsa.index-path", "path to easyrsa index file").Default("").Envar("EASYRSA_INDEX_PATH").String()
-	ccdEnabled               = kingpin.Flag("ccd", "enable client-config-dir").Default("false").Envar("OVPN_CCD").Bool()
 	ccdDir                   = kingpin.Flag("ccd.path", "path to client-config-dir").Default("./ccd").Envar("OVPN_CCD_PATH").String()
 	clientConfigTemplatePath = kingpin.Flag("templates.clientconfig-path", "path to custom client.conf.tpl").Default("").Envar("OVPN_TEMPLATES_CC_PATH").String()
 	authByPassword           = kingpin.Flag("auth.password", "enable additional password authentication").Default("false").Envar("OVPN_AUTH").Bool()
@@ -67,7 +66,6 @@ var (
 	certsArchivePath = "/tmp/" + certsArchiveFileName
 	ccdArchivePath   = "/tmp/" + ccdArchiveFileName
 
-	version = "2.0.0"
 	upgrader = websocket.Upgrader{} // use default options
 	logLevels = map[string]log.Level{
 		"trace": log.TraceLevel,
@@ -82,6 +80,7 @@ var (
 	}
 
 )
+var version string
 
 //go:embed templates/*
 var templates embed.FS
@@ -174,6 +173,9 @@ type ClientStatus struct {
 	RealAddress             string `json:"realAddress"`
 	BytesReceived           int64 `json:"bytesReceived"`
 	BytesSent               int64 `json:"bytesSent"`
+	SpeedBytesReceived      int64 `json:"speedBytesReceived"`
+	SpeedBytesSent          int64 `json:"speedBytesSent"`
+	lastByteReceived        time.Time
 	ConnectedSince          string `json:"connectedSince"`
 	VirtualAddress          string `json:"virtualAddress"`
 	VirtualAddressIPv6      string `json:"virtualAddressIPv6"`

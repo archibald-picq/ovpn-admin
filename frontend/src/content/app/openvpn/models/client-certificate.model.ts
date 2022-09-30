@@ -33,7 +33,9 @@ export class Node implements INode {
 
 export class Connection implements IConnection {
     clientId: number;
+    speedBytesReceived: number;
     bytesReceived: number;
+    speedBytesSent: number;
     bytesSent: number;
     connectedSince: Date;
     lastSeen: Date;
@@ -44,7 +46,9 @@ export class Connection implements IConnection {
 
     constructor(fromServer: Record<string, any>) {
         this.clientId = fromServer.clientId;
+        this.speedBytesReceived = +fromServer.speedBytesReceived;
         this.bytesReceived = +fromServer.bytesReceived;
+        this.speedBytesSent = +fromServer.speedBytesSent;
         this.bytesSent = +fromServer.bytesSent;
         this.virtualAddress = fromServer.virtualAddress;
         this.realAddress = fromServer.realAddress;

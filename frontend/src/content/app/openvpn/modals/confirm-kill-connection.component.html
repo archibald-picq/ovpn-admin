@@ -1,0 +1,15 @@
+<div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">Confirm kill connection</h4>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+</div>
+<div class="modal-body">
+    <form>
+        <div class="mb-3">
+            <p>Kill connection <strong>{{options.connection.clientId}}</strong> account of <strong>{{options.user.username}}</strong> ?</p>
+        </div>
+    </form>
+</div>
+<div class="modal-footer">
+    <div class="error">{{error}}</div>
+    <button type="button" class="btn btn-outline-danger" [disabled]="loading" (click)="save()">Delete</button>
+</div>
