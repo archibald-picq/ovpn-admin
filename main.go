@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	usernameRegexp       = `^([a-zA-Z0-9_.-@])+$`
+	usernameRegexp       = `^([a-zA-Z0-9_.\-@])+$`
 	passwordMinLength    = 6
 	downloadCertsApiUrl  = "/api/data/certs/download"
 	downloadCcdApiUrl    = "/api/data/ccd/download"

@@ -1,6 +1,5 @@
 import {Component} from "@angular/core";
 import {NgbActiveModal} from "@ng-bootstrap/ng-bootstrap";
-import { User } from "../models/openvpn-config.model";
 import { OpenvpnService } from '../services/openvpn.service';
 import {IClientCertificate, IConnection} from "../models/client-certificate.interface";
 

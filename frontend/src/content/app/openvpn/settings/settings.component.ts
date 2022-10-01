@@ -100,6 +100,8 @@ export class OpenvpnSettingsPageComponent {
                 forceGatewayIpv6: this.model.forceGatewayIpv6,
             }: {},
             compLzo: this.model.compLzo,
+            enableMtu: this.model.enableMtu,
+            tunMtu: parseInt(`${this.model.tunMtu}`, 10),
             duplicateCn: this.model.duplicateCn,
             clientToClient: this.model.clientToClient,
             routes: this.model.routes.map((route) => ({

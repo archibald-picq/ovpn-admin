@@ -21,7 +21,7 @@ class ConfigResolve implements Resolve<OpenvpnConfig> {
 
     public resolve(): OpenvpnConfig|Observable<OpenvpnConfig> {
         const config = this.appConfigService.get();
-        if (config.openvpn?.settings && config.openvpn?.preferences) {
+        if ((config.openvpn?.settings && config.openvpn?.preferences) || config.openvpn?.unconfigured) {
             return config.openvpn;
         }
         return this.service.loadConfig();

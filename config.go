@@ -23,6 +23,8 @@ type ConfigPublicSettings struct {
 	DuplicateCn                 bool     `json:"duplicateCn"`
 	CompLzo                     bool     `json:"compLzo"`
 	Auth                        string   `json:"auth"`
+	EnableMtu                   bool     `json:"enableMtu"`
+	TunMtu                      int      `json:"tunMtu"`
 	Routes                      []Route  `json:"routes"`
 	Pushs                       []Push   `json:"pushs"`
 	PushRoutes                  []string `json:"pushRoutes"`
@@ -39,6 +41,8 @@ type ServerSavePayload struct {
 	DuplicateCn                 bool    `json:"duplicateCn"`
 	CompLzo                     bool    `json:"compLzo"`
 	Auth                        string  `json:"auth"`
+	EnableMtu                   bool    `json:"enableMtu"`
+	TunMtu                      int     `json:"tunMtu"`
 	Routes                      []Route `json:"routes"`
 }
 
@@ -52,6 +56,7 @@ type ConfigPublicOpenvn struct {
 	Url          string                   `json:"url"`
 	Settings     *ConfigPublicSettings    `json:"settings,omitempty"`
 	Preferences  *ConfigPublicPreferences `json:"preferences,omitempty"`
+	Unconfigured *bool                    `json:"unconfigured,omitempty"`
 }
 
 type ConfigPublic struct {
@@ -74,6 +79,7 @@ type OvpnConfig struct {
 	port                       int      // 1194
 	proto                      string   // udp udp6
 	dev                        string   // tun tap
+	enableMtu                  bool     // tru/false
 	tunMtu                     int      // 60000
 	fragment                   int      // 0
 	user                       string   // nobody
@@ -134,6 +140,8 @@ func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
 	settings.Routes = oAdmin.serverConf.routes
 	settings.Auth = oAdmin.serverConf.auth
 	settings.Pushs = oAdmin.serverConf.push
+	settings.EnableMtu = oAdmin.serverConf.enableMtu
+	settings.TunMtu = oAdmin.serverConf.tunMtu
 	//settings.Routes = make([]string, 0)
 	//for _, routes := range oAdmin.serverConf.routes {
 	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
@@ -157,6 +165,11 @@ func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 		configPublic.User = oAdmin.getUserProfile(jwtUsername)
 		configPublic.Openvpn.Settings = oAdmin.exportPublicSettings()
 		configPublic.Openvpn.Preferences = oAdmin.exportPublicPreferences()
+	}
+
+	if len(oAdmin.applicationPreferences.Users) == 0 {
+		b := true
+		configPublic.Openvpn.Unconfigured = &b
 	}
 
 	rawJson, _ := json.Marshal(configPublic)
@@ -220,6 +233,7 @@ func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
 		serverConf.dev = getValueWithoutComment(line)
 	case key == "tun-mtu":
 		if n, err := getIntValueWithoutComment(line); err == nil {
+			serverConf.enableMtu = true
 			serverConf.tunMtu = n
 		} else {
 			log.Error(err)
@@ -373,7 +387,7 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 	if len(config.dev) > 0 {
 		lines = append(lines, fmt.Sprintf("dev %s", config.dev))
 	}
-	if config.tunMtu >= 0 {
+	if config.enableMtu && config.tunMtu >= 0 {
 		lines = append(lines, fmt.Sprintf("tun-mtu %d", config.tunMtu))
 	}
 	if config.fragment >= 0 {
@@ -639,6 +653,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 		log.Errorln(err)
 	}
 
+	// check addresses in post payload
 	for _, route := range savePayload.Routes {
 		if net.ParseIP(route.Address) == nil {
 			jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Invalid route.address %s", route.Address)})
@@ -653,6 +668,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// store in temporary object
 	conf := oAdmin.serverConf
 	conf.server = convertCidrNetworkMask(savePayload.Server)
 	conf.forceGatewayIpv4 = savePayload.ForceGatewayIpv4
@@ -665,9 +681,12 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	conf.duplicateCn = savePayload.DuplicateCn
 	conf.routes = savePayload.Routes
 	conf.auth = savePayload.Auth
+	conf.enableMtu = savePayload.EnableMtu
+	conf.tunMtu = savePayload.TunMtu
 
 	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
 
+	// make a backup of the original OpenVPN config file
 	err = fCopy(*serverConfFile, backupFile)
 	if err != nil {
 		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Can't backup config file"})
@@ -675,6 +694,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// write a temporary config file over the original one
 	status, err := oAdmin.writeConfig(*serverConfFile, conf)
 	if err != nil {
 		fCopy(backupFile, *serverConfFile)
@@ -693,6 +713,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// store the working config in memory
 	oAdmin.serverConf.server = conf.server
 	oAdmin.serverConf.forceGatewayIpv4 = conf.forceGatewayIpv4
 	oAdmin.serverConf.forceGatewayIpv4ExceptDhcp = conf.forceGatewayIpv4ExceptDhcp
@@ -703,6 +724,8 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	oAdmin.serverConf.clientToClient = conf.clientToClient
 	oAdmin.serverConf.duplicateCn = conf.duplicateCn
 	oAdmin.serverConf.auth = conf.auth
+	oAdmin.serverConf.enableMtu = conf.enableMtu
+	oAdmin.serverConf.tunMtu = conf.tunMtu
 
 	w.WriteHeader(http.StatusNoContent)
 }

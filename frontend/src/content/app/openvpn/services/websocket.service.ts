@@ -23,23 +23,13 @@ export class WebsocketService {
     private status = 'closed';
     private url?: string;
     private protocol = 'ovpn';
-    private shouldConnect = false;
-    // private subject: AnonymousSubject<MessageEvent>;
-    // public messages: Subject<Message>;
+    private shouldReconnect = false;
 
     constructor(
         protected readonly appConfigService: AppConfigService,
     ) {
         this.url = appConfigService.get().openvpn?.url;
     }
-
-    // synchronize(streamName: string): StreamCallback {
-    //     this.connect();
-    //     if (!this.streams[streamName]) {
-    //         this.streams[streamName] = new StreamCallback();
-    //     }
-    //     return this.streams[streamName];
-    // }
 
     public bind(streamName: string, callback: Callback): void {
         if (!this.streams[streamName]) {
@@ -83,7 +73,8 @@ export class WebsocketService {
             console.warn('Already connected');
             return;
         }
-        this.shouldConnect = true;
+        this.shouldReconnect = true;
+
         const url = (this.url || this.getLocalUrl()).replace(/^http/, 'ws')+'/api/ws';
         // console.warn('WS url', url);
         this.server = new WebSocket(url, this.protocol);
@@ -99,7 +90,7 @@ export class WebsocketService {
     }
 
     public disconnect(): void {
-        this.shouldConnect = false;
+        this.shouldReconnect = false;
         if (!this.server) {
             console.warn('Not connected');
             return;
@@ -138,14 +129,14 @@ export class WebsocketService {
         }
     }
 
-    private onclose(e: any) {
-        console.warn('onclose', e);
+    private onclose(_: any) {
+        // console.warn('onclose', e);
         // Object.values(this.streams).forEach((stream) => {
         //     stream.status = 'closed';
         // });
         this.status = 'closed';
         this.server = undefined;
-        if (this.shouldConnect) {
+        if (this.shouldReconnect) {
             setTimeout(() => this.connect(), 1000);
         }
     }
@@ -155,7 +146,7 @@ export class WebsocketService {
     }
 
     private onopen() {
-        console.warn('opended');
+        // console.warn('opended');
         // Object.values(this.streams).forEach((stream) => {
         //     stream.status = 'opened';
         // });

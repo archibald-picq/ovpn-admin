@@ -71,7 +71,7 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 	if len(oAdmin.masterCn) > 0 && oAdmin.applicationPreferences.Preferences.VerifyX509Name {
 		conf.CertCommonName = oAdmin.masterCn
 	}
-	if oAdmin.serverConf.allowCompression {
+	if oAdmin.serverConf.compLzo {
 		conf.CompLzo = true
 	}
 	if len(oAdmin.serverConf.tlsCrypt) > 0 {
