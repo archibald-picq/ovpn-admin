@@ -28,22 +28,26 @@ type ConfigPublicSettings struct {
 	Routes                      []Route  `json:"routes"`
 	Pushs                       []Push   `json:"pushs"`
 	PushRoutes                  []string `json:"pushRoutes"`
+	DnsIpv4						string   `json:"dnsIpv4"`
+	DnsIpv6						string   `json:"dnsIpv6"`
 }
 
 type ServerSavePayload struct {
-	Server                      string  `json:"server"`
-	ForceGatewayIpv4            bool    `json:"forceGatewayIpv4"`
-	ForceGatewayIpv4ExceptDhcp  bool    `json:"forceGatewayIpv4ExceptDhcp"`
-	ForceGatewayIpv4ExceptDns   bool    `json:"forceGatewayIpv4ExceptDns"`
-	ServerIpv6                  string  `json:"serverIpv6"`
-	ForceGatewayIpv6            bool    `json:"forceGatewayIpv6"`
-	ClientToClient              bool    `json:"clientToClient"`
-	DuplicateCn                 bool    `json:"duplicateCn"`
-	CompLzo                     bool    `json:"compLzo"`
-	Auth                        string  `json:"auth"`
-	EnableMtu                   bool    `json:"enableMtu"`
-	TunMtu                      int     `json:"tunMtu"`
-	Routes                      []Route `json:"routes"`
+	Server                      string   `json:"server"`
+	ForceGatewayIpv4            bool     `json:"forceGatewayIpv4"`
+	ForceGatewayIpv4ExceptDhcp  bool     `json:"forceGatewayIpv4ExceptDhcp"`
+	ForceGatewayIpv4ExceptDns   bool     `json:"forceGatewayIpv4ExceptDns"`
+	ServerIpv6                  string   `json:"serverIpv6"`
+	ForceGatewayIpv6            bool     `json:"forceGatewayIpv6"`
+	ClientToClient              bool     `json:"clientToClient"`
+	DuplicateCn                 bool     `json:"duplicateCn"`
+	CompLzo                     bool     `json:"compLzo"`
+	Auth                        string   `json:"auth"`
+	EnableMtu                   bool     `json:"enableMtu"`
+	TunMtu                      int      `json:"tunMtu"`
+	Routes                      []Route  `json:"routes"`
+	DnsIpv4						string   `json:"dnsIpv4"`
+	DnsIpv6						string   `json:"dnsIpv6"`
 }
 
 
@@ -81,6 +85,8 @@ type OvpnConfig struct {
 	dev                        string   // tun tap
 	enableMtu                  bool     // tru/false
 	tunMtu                     int      // 60000
+	dnsIpv4                    string   // 10.8.0.1
+	dnsIpv6                    string   // fd42:42:42:42::1
 	fragment                   int      // 0
 	user                       string   // nobody
 	group                      string   // nogroup
@@ -142,6 +148,8 @@ func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
 	settings.Pushs = oAdmin.serverConf.push
 	settings.EnableMtu = oAdmin.serverConf.enableMtu
 	settings.TunMtu = oAdmin.serverConf.tunMtu
+	settings.DnsIpv4 = oAdmin.serverConf.dnsIpv4
+	settings.DnsIpv6 = oAdmin.serverConf.dnsIpv6
 	//settings.Routes = make([]string, 0)
 	//for _, routes := range oAdmin.serverConf.routes {
 	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
@@ -334,6 +342,9 @@ func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
 }
 
 func extractPushConfig(serverConf *OvpnConfig, enabled bool, line string, comment string) {
+	if !enabled {
+		return
+	}
 	parts := strings.Split(line, " ")
 
 	if parts[0] == "redirect-gateway" {
@@ -351,7 +362,15 @@ func extractPushConfig(serverConf *OvpnConfig, enabled bool, line string, commen
 				log.Printf("Unrecognized redirect-gateway option '%s'", part)
 			}
 		}
+	} else if parts[0] == "dhcp-option" && parts[1] == "DNS" {
+		if isIpv4(parts[2]) {
+			serverConf.dnsIpv4 = parts[2]
+		} else {
+			serverConf.dnsIpv6 = parts[2]
+		}
 	} else {
+		log.Printf("import push '%v'", parts)
+
 		// TODO: extract:
 		//   - #push "dhcp-option DNS 10.8.0.1"
 		//   - #push "tun-ipv6"
@@ -510,6 +529,12 @@ func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, er
 	if config.forceGatewayIpv6 {
 		lines = append(lines, "push \"redirect-gateway ipv6\"")
 	}
+	if len(config.dnsIpv4) > 0 {
+		lines = append(lines, fmt.Sprintf("push \"dhcp-option DNS %s\"", config.dnsIpv4))
+	}
+	if len(config.dnsIpv6) > 0 {
+		lines = append(lines, fmt.Sprintf("push \"dhcp-option DNS %s\"", config.dnsIpv6))
+	}
 	if len(config.push) > 0 {
 		lines = append(lines, "")
 		for _, s := range config.push {
@@ -582,11 +607,6 @@ func getQuotedValueAndComment(line string) (string, string) {
 		line = strings.TrimRight(line, " ")
 	}
 	return getQuotedValue(line), comment
-}
-
-func getQuotedValueWithoutComment(line string) string {
-	line = getValueWithoutComment(line)
-	return getQuotedValue(line)
 }
 
 func getRouteValueWithComment(line string) (Route, error) {
@@ -683,6 +703,8 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	conf.auth = savePayload.Auth
 	conf.enableMtu = savePayload.EnableMtu
 	conf.tunMtu = savePayload.TunMtu
+	conf.dnsIpv4 = savePayload.DnsIpv4
+	conf.dnsIpv6 = savePayload.DnsIpv6
 
 	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
 
@@ -726,6 +748,8 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	oAdmin.serverConf.auth = conf.auth
 	oAdmin.serverConf.enableMtu = conf.enableMtu
 	oAdmin.serverConf.tunMtu = conf.tunMtu
+	oAdmin.serverConf.dnsIpv4 = conf.dnsIpv4
+	oAdmin.serverConf.dnsIpv6 = conf.dnsIpv6
 
 	w.WriteHeader(http.StatusNoContent)
 }

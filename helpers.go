@@ -329,6 +329,13 @@ func convertNetworkMaskCidr(networkMask string) string {
 	return fmt.Sprintf("%s/%d", parts[0], pref.Len())
 }
 
+
+var regIp = regexp.MustCompile("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")
+
+func isIpv4(addr string) bool {
+	return regIp.MatchString(addr)
+}
+
 func convertCidrNetworkMask(cidr string) string {
 	ipv4Addr, ipv4Net, _ := net.ParseCIDR(cidr)
 	mask := fmt.Sprintf("%d.%d.%d.%d", ipv4Net.Mask[0], ipv4Net.Mask[1], ipv4Net.Mask[2], ipv4Net.Mask[3])

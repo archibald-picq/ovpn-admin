@@ -40,6 +40,12 @@ export class OpenvpnSettingsPageComponent {
         if (this.model.serverIpv6) {
             this.enableIpv6 = true;
         }
+        if (this.model.dnsIpv4) {
+            this.advertiseDnsIpv4 = true;
+        }
+        if (this.model.dnsIpv6) {
+            this.advertiseDnsIpv6 = true;
+        }
         this.serialized = JSON.stringify(this.toSave());
     }
 
@@ -78,6 +84,12 @@ export class OpenvpnSettingsPageComponent {
             const toSave = this.toSave();
             await this.openvpnService.saveServerConfig(toSave);
             Object.assign(this.original, toSave);
+            if (!toSave.dnsIpv4) {
+                this.original.dnsIpv4 = '';
+            }
+            if (!toSave.dnsIpv6) {
+                this.original.dnsIpv6 = '';
+            }
             this.serialized = JSON.stringify(toSave);
             this.loading = false;
         } catch (e: any) {
@@ -94,10 +106,16 @@ export class OpenvpnSettingsPageComponent {
                 forceGatewayIpv4: this.model.forceGatewayIpv4,
                 forceGatewayIpv4ExceptDhcp: this.model.forceGatewayIpv4ExceptDhcp,
                 forceGatewayIpv4ExceptDns: this.model.forceGatewayIpv4ExceptDns,
+                ...this.advertiseDnsIpv4? {
+                    dnsIpv4: this.model.dnsIpv4,
+                }: {},
             }: {},
             ...this.enableIpv6? {
                 serverIpv6: this.model.serverIpv6,
                 forceGatewayIpv6: this.model.forceGatewayIpv6,
+                ...this.advertiseDnsIpv6? {
+                    dnsIpv6: this.model.dnsIpv6,
+                }: {},
             }: {},
             compLzo: this.model.compLzo,
             enableMtu: this.model.enableMtu,
