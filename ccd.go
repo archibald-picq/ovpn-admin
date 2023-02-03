@@ -237,7 +237,7 @@ func (oAdmin *OvpnAdmin) modifyCcd(ccd Ccd) error {
 		if len(route.Description) > 0 {
 			desc = " # " + route.Description
 		}
-		lines = append(lines, fmt.Sprintf(`push "route %s %s"%s`, route.Address, route.Netmask, desc))
+		lines = append(lines, fmt.Sprintf(`iroute %s %s%s`, route.Address, route.Netmask, desc))
 	}
 
 	ccdContent := strings.Join(lines, "\n")+"\n"
