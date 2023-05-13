@@ -15,7 +15,7 @@ type AdminAccountUpdate struct {
 	 Password    string `json:"password"`
 }
 
-func (oAdmin *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
@@ -23,7 +23,7 @@ func (oAdmin *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request
 	}
 
 	auth := getAuthCookie(r)
-	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -33,7 +33,7 @@ func (oAdmin *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request
 	if r.Method == "DELETE" {
 		matches := re.FindStringSubmatch(r.URL.Path)
 		if len(matches) > 0 {
-			err := oAdmin.deleteUser(matches[1])
+			err := app.deleteUser(matches[1])
 			if err != nil {
 				jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Failed to delete user %s", err)})
 				http.Error(w, string(jsonRaw), http.StatusBadRequest)
@@ -57,7 +57,7 @@ func (oAdmin *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request
 	if r.Method == "PUT" {
 		matches := re.FindStringSubmatch(r.URL.Path)
 		if len(matches) > 0 {
-			err := oAdmin.updateUser(matches[1], adminAccountUpdate)
+			err := app.updateUser(matches[1], adminAccountUpdate)
 			if err != nil {
 				jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Failed to delete user %s", err)})
 				http.Error(w, string(jsonRaw), http.StatusBadRequest)
@@ -78,7 +78,7 @@ func (oAdmin *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err = oAdmin.createUser(adminAccountUpdate)
+	err = app.createUser(adminAccountUpdate)
 	if err != nil {
 		jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Failed to delete user %s", err)})
 		http.Error(w, string(jsonRaw), http.StatusBadRequest)
@@ -88,36 +88,36 @@ func (oAdmin *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (oAdmin *OvpnAdmin) deleteUser(username string) error {
-	for i, u := range oAdmin.applicationPreferences.Users {
+func (app *OvpnAdmin) deleteUser(username string) error {
+	for i, u := range app.applicationPreferences.Users {
 		if u.Username == username {
-			oAdmin.applicationPreferences.Users = RemoveIndex(oAdmin.applicationPreferences.Users, i)
-			return oAdmin.savePreferences()
+			app.applicationPreferences.Users = RemoveIndex(app.applicationPreferences.Users, i)
+			return app.savePreferences()
 		}
 	}
 	return errors.New(fmt.Sprintf("User %s not found", username))
 }
 
-func (oAdmin *OvpnAdmin) updateUser(username string, updates AdminAccountUpdate) error {
-	for i, u := range oAdmin.applicationPreferences.Users {
+func (app *OvpnAdmin) updateUser(username string, updates AdminAccountUpdate) error {
+	for i, u := range app.applicationPreferences.Users {
 		if u.Username == username {
-			oAdmin.applicationPreferences.Users[i].Username = updates.Username
-			oAdmin.applicationPreferences.Users[i].Name = updates.Name
+			app.applicationPreferences.Users[i].Username = updates.Username
+			app.applicationPreferences.Users[i].Name = updates.Name
 			if len(updates.Password) > 0 {
 				encoded, err := bcrypt.GenerateFromPassword([]byte(updates.Password), bcrypt.DefaultCost)
 				if err != nil {
 					return err
 				}
-				oAdmin.applicationPreferences.Users[i].Password = string(encoded)
+				app.applicationPreferences.Users[i].Password = string(encoded)
 			}
-			return oAdmin.savePreferences()
+			return app.savePreferences()
 		}
 	}
 	return errors.New(fmt.Sprintf("User %s not found", username))
 }
 
-func (oAdmin *OvpnAdmin) createUser(updates AdminAccountUpdate) error {
-	for _, u := range oAdmin.applicationPreferences.Users {
+func (app *OvpnAdmin) createUser(updates AdminAccountUpdate) error {
+	for _, u := range app.applicationPreferences.Users {
 		if u.Username == updates.Username {
 			return errors.New(fmt.Sprintf("User %s already exists", updates.Username))
 		}
@@ -126,12 +126,12 @@ func (oAdmin *OvpnAdmin) createUser(updates AdminAccountUpdate) error {
 	if err != nil {
 		return err
 	}
-	oAdmin.applicationPreferences.Users = append(oAdmin.applicationPreferences.Users, Account{
+	app.applicationPreferences.Users = append(app.applicationPreferences.Users, Account{
 		Username: updates.Username,
 		Name: updates.Name,
 		Password: string(encoded),
 	})
-	return oAdmin.savePreferences()
+	return app.savePreferences()
 }
 
 func RemoveIndex(s []Account, index int) []Account {

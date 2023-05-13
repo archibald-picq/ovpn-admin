@@ -11,8 +11,8 @@ import (
 	"time"
 	log "github.com/sirupsen/logrus"
 )
-func (oAdmin *OvpnAdmin) getUserConnection(user string, clientId int64) *ClientStatus {
-	for _, u := range oAdmin.clients {
+func (app *OvpnAdmin) getUserConnection(user string, clientId int64) *VpnClientConnection {
+	for _, u := range app.clients {
 		if u.Username == user {
 			for _, c := range u.Connections {
 				if c.ClientId == clientId {
@@ -23,8 +23,8 @@ func (oAdmin *OvpnAdmin) getUserConnection(user string, clientId int64) *ClientS
 	}
 	return nil
 }
-func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*ClientStatus {
-	var u = make([]*ClientStatus, 0)
+func (app *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*VpnClientConnection {
+	var u = make([]*VpnClientConnection, 0)
 	//isClientList := false
 	//isRouteTable := false
 	for _, txt := range lines {
@@ -35,9 +35,9 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*ClientStat
 			bytesSent, _ := strconv.ParseInt(user[6], 10, 64)
 			clientId, _ := strconv.ParseInt(user[10], 10, 64)
 			//log.Infof("parsed client %s id %d from", user[1], clientId, user[10])
-			var clientStatus *ClientStatus = oAdmin.getUserConnection(user[1], clientId)
+			var clientStatus = app.getUserConnection(user[1], clientId)
 			if clientStatus == nil {
-				clientStatus = new(ClientStatus)
+				clientStatus = new(VpnClientConnection)
 			}
 			clientStatus.ClientId = clientId
 			clientStatus.commonName = user[1]
@@ -45,9 +45,11 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*ClientStat
 			clientStatus.BytesReceived = bytesReceive
 			clientStatus.BytesSent = bytesSent
 			clientStatus.lastByteReceived = time.Now()
-			clientStatus.ConnectedSince = user[7]
-			clientStatus.VirtualAddress = user[3]
-			clientStatus.VirtualAddressIPv6 = user[4]
+			clientStatus.ConnectedSince = &user[7]
+			clientStatus.VirtualAddress = &user[3]
+			if user[4] != "" {
+				clientStatus.VirtualAddressIPv6 = &user[4]
+			}
 
 			u = append(u, clientStatus)
 		}
@@ -61,19 +63,14 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*ClientStat
 			for i := range u {
 				if u[i].commonName == userName && u[i].RealAddress == realAddress {
 					if strings.HasSuffix(peerAddress, "C") {
-						oAdmin.addOrUpdateNode(u[i], peerAddress[:len(peerAddress)-1], userConnectedSince)
-
+						app.addOrUpdateNode(u[i], peerAddress[:len(peerAddress)-1], userConnectedSince)
 					} else if strings.Contains(peerAddress, "/") {
-						u[i].Networks = append(u[i].Networks, Network{
-							Address: peerAddress,
-							LastSeen: userConnectedSince,
-						})
+						app.addOrUpdateNetwork(u[i], peerAddress, userConnectedSince)
 					} else {
-
 						//u[i].VirtualAddress = peerAddress
-						u[i].LastRef = userConnectedSince
+						u[i].LastRef = &userConnectedSince
 					}
-					//ovpnClientConnectionInfo.WithLabelValues(user[1], user[0]).Set(float64(parseDateToUnix(oAdmin.mgmtStatusTimeFormat, user[3])))
+					//ovpnClientConnectionInfo.WithLabelValues(user[1], user[0]).Set(float64(parseDateToUnix(app.mgmtStatusTimeFormat, user[3])))
 					break
 				}
 			}
@@ -82,7 +79,7 @@ func (oAdmin *OvpnAdmin) mgmtConnectedUsersParser3(lines []string) []*ClientStat
 	return u
 }
 
-func (oAdmin *OvpnAdmin) addOrUpdateNode(clientStatus *ClientStatus, peerAddress string, lastSeen string) {
+func (app *OvpnAdmin) addOrUpdateNode(clientStatus *VpnClientConnection, peerAddress string, lastSeen string) {
 	for i := range clientStatus.Nodes {
 		if clientStatus.Nodes[i].Address == peerAddress {
 			clientStatus.Nodes[i].LastSeen = lastSeen
@@ -90,70 +87,87 @@ func (oAdmin *OvpnAdmin) addOrUpdateNode(clientStatus *ClientStatus, peerAddress
 		}
 	}
 	clientStatus.Nodes = append(clientStatus.Nodes, NodeInfo{
-		Address: peerAddress[:len(peerAddress)-1],
+		Address: peerAddress,
 		LastSeen: lastSeen,
 	})
 }
 
-func (oAdmin *OvpnAdmin) killUserConnections(serverName *OpenvpnClient) {
-	oAdmin.sendManagementCommand(fmt.Sprintf("kill %s\n", serverName.Username))
+func (app *OvpnAdmin) addOrUpdateNetwork(clientStatus *VpnClientConnection, peerAddress string, lastSeen string) {
+	for i := range clientStatus.Networks {
+		if clientStatus.Networks[i].Address == peerAddress {
+			clientStatus.Networks[i].LastSeen = lastSeen
+			return
+		}
+	}
+	clientStatus.Networks = append(clientStatus.Networks, Network{
+		Address: peerAddress,
+		LastSeen: lastSeen,
+	})
 }
 
-func (oAdmin *OvpnAdmin) killConnection(serverName *ClientStatus) error {
-	resp := oAdmin.sendManagementCommandWaitResponse(fmt.Sprintf("kill %s\n", serverName.RealAddress))	// address:port
+func (app *OvpnAdmin) killUserConnections(serverName *ClientCertificate) {
+	app.sendManagementCommand(fmt.Sprintf("kill %s\n", serverName.Username))
+}
+
+func (app *OvpnAdmin) killConnection(serverName *VpnClientConnection) error {
+	resp := app.sendManagementCommandWaitResponse(fmt.Sprintf("kill %s\n", serverName.RealAddress)) // address:port
 	if resp.error {
 		return errors.New(resp.body)
 	}
 	return nil
 }
 
-func (oAdmin *OvpnAdmin) connectToManagementInterface() {
+func (app *OvpnAdmin) connectToManagementInterface() {
 	go func() {
 		for {
 			time.Sleep(time.Duration(28) * time.Second)
-			oAdmin.sendManagementCommand("status 3")
+			app.sendManagementCommand("status 3")
 		}
 	}()
 	go func() {
 		for {
 			time.Sleep(time.Duration(2) * time.Second)
-			if len(oAdmin.updatedUsers) > 0 {
-				oAdmin.broadcast(WebsocketPacket{Stream: "user.update", Data: oAdmin.updatedUsers})
-				oAdmin.updatedUsers = make([]*OpenvpnClient, 0)
+			if len(app.updatedUsers) > 0 {
+				app.broadcast(WebsocketPacket{Stream: "user.update", Data: app.updatedUsers})
+				for i := range app.updatedUsers {
+					//log.Warnf("updating single user %s", app.updatedUsers[i].Username)
+					app.broadcast(WebsocketPacket{Stream: "user.update." + app.updatedUsers[i].Username, Data: app.updatedUsers[i]})
+				}
+				app.updatedUsers = make([]*ClientCertificate, 0)
 			}
 		}
 	}()
 	for {
-		if len(oAdmin.mgmtInterface) == 0 {
+		if len(app.mgmtInterface) == 0 {
 			time.Sleep(time.Duration(30) * time.Second)
 			continue
 		}
-		conn, err := net.Dial("tcp", oAdmin.mgmtInterface)
+		conn, err := net.Dial("tcp", app.mgmtInterface)
 		if err != nil {
-			log.Warnf("openvpn mgmt interface is not reachable at %s", oAdmin.mgmtInterface)
+			log.Warnf("openvpn mgmt interface is not reachable at %s", app.mgmtInterface)
 			time.Sleep(time.Duration(30) * time.Second)
 			continue
 		}
-		oAdmin.conn = conn
+		app.conn = conn
 		go func() {
-			oAdmin.sendManagementCommand("version")
-			oAdmin.sendManagementCommand("status 3")
-			resp := oAdmin.sendManagementCommandWaitResponse("bytecount 5")
+			app.sendManagementCommand("version")
+			app.sendManagementCommand("status 3")
+			resp := app.sendManagementCommandWaitResponse("bytecount 5")
 			log.Infof("register bytecount 5 returns: %s", resp)
 		}()
 
-		//oAdmin.sendManagementCommand("client-auth")
+		//app.sendManagementCommand("client-auth")
 
-		scanner := bufio.NewScanner(oAdmin.conn)
+		scanner := bufio.NewScanner(app.conn)
 
 		for scanner.Scan() {
 			line := scanner.Text()
 
 			// append to buffer and handle lines if recognized
-			oAdmin.mgmtBuffer = append(oAdmin.mgmtBuffer, line)
+			app.mgmtBuffer = append(app.mgmtBuffer, line)
 			//log.Printf("live '%s'", line)
-			oAdmin.broadcast(WebsocketPacket{Stream: "read", Data: line})
-			for oAdmin.processMgmtBuffer() > 0 {
+			app.broadcast(WebsocketPacket{Stream: "read", Data: line})
+			for app.processMgmtBuffer() > 0 {
 
 			}
 			//ovpnClientBytesSent.Reset()
@@ -172,105 +186,105 @@ var regStatus3 = regexp.MustCompile("^TITLE\tOpenVPN\\s+[0-9]+\\.[0-9]+\\.[0-9]+
 var regError = regexp.MustCompile("^ERROR:\\s+(.*)")
 var regSuccess = regexp.MustCompile("^SUCCESS:\\s+(.*)")
 
-func (oAdmin *OvpnAdmin) processMgmtBuffer() int {
-	if len(oAdmin.mgmtBuffer) == 0 {
+func (app *OvpnAdmin) processMgmtBuffer() int {
+	if len(app.mgmtBuffer) == 0 {
 		return 0
 	}
-	firstWord := strings.TrimPrefix(strings.SplitN(oAdmin.mgmtBuffer[0], ":", 2)[0], ">")
-	lastLine := oAdmin.mgmtBuffer[len(oAdmin.mgmtBuffer)-1]
+	firstWord := strings.TrimPrefix(strings.SplitN(app.mgmtBuffer[0], ":", 2)[0], ">")
+	lastLine := app.mgmtBuffer[len(app.mgmtBuffer)-1]
 
 	if firstWord == "BYTECOUNT_CLI" {
-		oAdmin.handleBytecountUpdate(oAdmin.mgmtBuffer[0])
-		oAdmin.mgmtBuffer = oAdmin.mgmtBuffer[1:]
+		app.handleBytecountUpdate(app.mgmtBuffer[0])
+		app.mgmtBuffer = app.mgmtBuffer[1:]
 		return 1
 	}
 
 	if firstWord == "ERROR" || firstWord == "SUCCESS" {
-		if len(oAdmin.waitingCommands) > 0 {
-			command := oAdmin.waitingCommands[0]
+		if len(app.waitingCommands) > 0 {
+			command := app.waitingCommands[0]
 			//log.Printf("FOR CMD %s", command.description)
-			//log.Printf("   - ERROR: %v", regError.FindStringSubmatch(oAdmin.mgmtBuffer[0]))
-			//log.Printf("   - SUCCESS: %v", regSuccess.FindStringSubmatch(oAdmin.mgmtBuffer[0]))
+			//log.Printf("   - ERROR: %v", regError.FindStringSubmatch(app.mgmtBuffer[0]))
+			//log.Printf("   - SUCCESS: %v", regSuccess.FindStringSubmatch(app.mgmtBuffer[0]))
 
-			if matches := regError.FindStringSubmatch(oAdmin.mgmtBuffer[0]); len(matches) > 0 {
-				//log.Printf("ERROR %s", oAdmin.mgmtBuffer[0])
+			if matches := regError.FindStringSubmatch(app.mgmtBuffer[0]); len(matches) > 0 {
+				//log.Printf("ERROR %s", app.mgmtBuffer[0])
 				command.channel <- AwaitedResponse{
 					body:  matches[1],
 					error: true,
 				}
-				oAdmin.waitingCommands = oAdmin.waitingCommands[1:]
-				oAdmin.mgmtBuffer = oAdmin.mgmtBuffer[1:]
+				app.waitingCommands = app.waitingCommands[1:]
+				app.mgmtBuffer = app.mgmtBuffer[1:]
 				return 1
-			} else if matches = regSuccess.FindStringSubmatch(oAdmin.mgmtBuffer[0]); len(matches) > 0 {
-				//log.Printf("SUCCESS %s", oAdmin.mgmtBuffer[0])
+			} else if matches = regSuccess.FindStringSubmatch(app.mgmtBuffer[0]); len(matches) > 0 {
+				//log.Printf("SUCCESS %s", app.mgmtBuffer[0])
 				command.channel <- AwaitedResponse{
 					body:  matches[1],
 					error: false,
 				}
-				oAdmin.waitingCommands = oAdmin.waitingCommands[1:]
-				oAdmin.mgmtBuffer = oAdmin.mgmtBuffer[1:]
+				app.waitingCommands = app.waitingCommands[1:]
+				app.mgmtBuffer = app.mgmtBuffer[1:]
 				return 1
 			}
 		} else {
 			if firstWord == "ERROR" {
-				log.Printf("skipped ERROR %s", oAdmin.mgmtBuffer[0])
-				oAdmin.mgmtBuffer = oAdmin.mgmtBuffer[1:]
+				log.Printf("skipped ERROR %s", app.mgmtBuffer[0])
+				app.mgmtBuffer = app.mgmtBuffer[1:]
 				return 1
 			} else {
-				log.Printf("skipped SUCCESS %s", oAdmin.mgmtBuffer[0])
-				oAdmin.mgmtBuffer = oAdmin.mgmtBuffer[1:]
+				log.Printf("skipped SUCCESS %s", app.mgmtBuffer[0])
+				app.mgmtBuffer = app.mgmtBuffer[1:]
 				return 1
 			}
 		}
 	}
 
 	if !strings.HasPrefix(firstWord, "TITLE") {
-		log.Printf("buf[%d,%d,%s} (%s)", len(oAdmin.mgmtBuffer), len(oAdmin.waitingCommands), firstWord, oAdmin.mgmtBuffer[len(oAdmin.mgmtBuffer)-1])
+		log.Printf("buf[%d,%d,%s} (%s)", len(app.mgmtBuffer), len(app.waitingCommands), firstWord, app.mgmtBuffer[len(app.mgmtBuffer)-1])
 	}
 
-	if regStatus3.MatchString(oAdmin.mgmtBuffer[0]) {
-		//log.Printf("matched %s", oAdmin.mgmtBuffer[0])
+	if regStatus3.MatchString(app.mgmtBuffer[0]) {
+		//log.Printf("matched %s", app.mgmtBuffer[0])
 		if lastLine == "END" {
-			oAdmin.activeConnections = oAdmin.mgmtConnectedUsersParser3(oAdmin.mgmtBuffer)
-			oAdmin.mgmtBuffer = make([]string, 0)
-			oAdmin.updateConnections(oAdmin.activeConnections)
-			oAdmin.broadcast(WebsocketPacket{Stream: "users", Data: oAdmin.clients})
-			//log.Printf("currently active clients %d", len(oAdmin.activeClients))
+			activeConnections := app.mgmtConnectedUsersParser3(app.mgmtBuffer)
+			app.mgmtBuffer = make([]string, 0)
+			app.synchroConnections(activeConnections)
+			app.broadcast(WebsocketPacket{Stream: "users", Data: app.clients})
+			//log.Printf("currently active clients %d", len(app.activeClients))
 			return 1
 		//} else {
-		//	log.Printf("skipped to %d", len(oAdmin.mgmtBuffer))
+		//	log.Printf("skipped to %d", len(app.mgmtBuffer))
 		}
-	} else if startCommand := regCommand.FindStringSubmatch(oAdmin.mgmtBuffer[0]); len(startCommand) > 0 {
+	} else if startCommand := regCommand.FindStringSubmatch(app.mgmtBuffer[0]); len(startCommand) > 0 {
 		//log.Printf("matched command %v", startCommand)
 		if startCommand[1] == "INFO" {
 			if lastLine == "END" {
-				oAdmin.handleVersion(oAdmin.mgmtBuffer)
-				oAdmin.mgmtBuffer = make([]string, 0)
+				app.handleVersion(app.mgmtBuffer)
+				app.mgmtBuffer = make([]string, 0)
 				return 1
 			}
 		} else if startCommand[1] == "CLIENT" {
 			if lastLine == ">CLIENT:ENV,END" {
-				oAdmin.handleNewClientEvent(oAdmin.mgmtBuffer)
-				oAdmin.updateConnections(oAdmin.activeConnections)
-				oAdmin.mgmtBuffer = make([]string, 0)
+				app.handleNewClientEvent(app.mgmtBuffer)
+				//app.updateConnections(app.activeConnections)
+				app.mgmtBuffer = make([]string, 0)
 				return 1
 			}
 		} else {
 			log.Printf("unrecognized command %v", startCommand)
 		}
 	} else if lastLine == "END" {
-		log.Printf("END of unrecognized packet '%v'", oAdmin.mgmtBuffer)
-		oAdmin.mgmtBuffer = make([]string, 0)
+		log.Printf("END of unrecognized packet '%v'", app.mgmtBuffer)
+		app.mgmtBuffer = make([]string, 0)
 		return 1
 	} else {
-		log.Printf("remaining lines '%v'", oAdmin.mgmtBuffer)
+		log.Printf("remaining lines '%v'", app.mgmtBuffer)
 	}
 	return 0
 }
 
 var regByteCount = regexp.MustCompile(`^>BYTECOUNT_CLI:([0-9]+),([0-9]+),([0-9]+)$`)
 
-func (oAdmin *OvpnAdmin) handleBytecountUpdate(line string) {
+func (app *OvpnAdmin) handleBytecountUpdate(line string) {
 	matches := regByteCount.FindStringSubmatch(line)
 	if len(matches) <= 0 {
 		log.Errorf("error parsing bytecount %v", line)
@@ -280,7 +294,7 @@ func (oAdmin *OvpnAdmin) handleBytecountUpdate(line string) {
 	bytesReceive, _ := strconv.ParseInt(matches[2], 10, 64)
 	bytesSent, _ := strconv.ParseInt(matches[3], 10, 64)
 
-	for _, u := range oAdmin.clients {
+	for _, u := range app.clients {
 		for _, c := range u.Connections {
 			if c.ClientId == clientId {
 				duration := time.Now().UnixMilli() - c.lastByteReceived.UnixMilli()
@@ -293,7 +307,7 @@ func (oAdmin *OvpnAdmin) handleBytecountUpdate(line string) {
 				c.BytesSent = bytesSent
 				c.BytesReceived = bytesReceive
 				c.lastByteReceived = time.Now()
-				oAdmin.addUpdatedUsers(u)
+				app.triggerBroadcastUser(u)
 				return
 			}
 		}
@@ -301,19 +315,19 @@ func (oAdmin *OvpnAdmin) handleBytecountUpdate(line string) {
 	log.Warnf("Cant find client %d to update %d/%d", clientId, bytesSent, bytesReceive)
 }
 
-func (oAdmin *OvpnAdmin) addUpdatedUsers(user *OpenvpnClient) {
+func (app *OvpnAdmin) triggerBroadcastUser(user *ClientCertificate) {
 	if user == nil {
 		return
 	}
-	for _, u := range oAdmin.updatedUsers {
+	for _, u := range app.updatedUsers {
 		if u == user {
 			return
 		}
 	}
-	oAdmin.updatedUsers = append(oAdmin.updatedUsers, user)
+	app.updatedUsers = append(app.updatedUsers, user)
 }
 
-func (oAdmin *OvpnAdmin) handleVersion(lines []string) {
+func (app *OvpnAdmin) handleVersion(lines []string) {
 	re := regexp.MustCompile("OpenVPN Version: OpenVPN ([0-9]+\\.[0-9]+\\.[0-9]+) ")
 
 	for _, line := range lines {
@@ -328,9 +342,9 @@ func (oAdmin *OvpnAdmin) handleVersion(lines []string) {
 var regClientEnv = regexp.MustCompile("^>CLIENT:ENV,([^=]*)=(.*)")
 var regClientEstablished = regexp.MustCompile("^>CLIENT:ESTABLISHED,(.*)")
 
-func (oAdmin *OvpnAdmin) handleNewClientEvent(lines []string) {
+func (app *OvpnAdmin) handleNewClientEvent(lines []string) {
 	//log.Printf("CLIENT '%v'", lines)
-	var client = new(ClientStatus)
+	var client = new(VpnClientConnection)
 	var trustedAddress string
 	var trustedPort int64
 
@@ -355,10 +369,10 @@ func (oAdmin *OvpnAdmin) handleNewClientEvent(lines []string) {
 					trustedPort = n32
 				}
 			} else if key == "ifconfig_pool_remote_ip" {	// TODO: add ipv6
-				client.VirtualAddress = value
+				client.VirtualAddress = &value
 			} else if key == "time_ascii" {
-				client.ConnectedSince = value
-				client.LastRef = value
+				client.ConnectedSince = &value
+				client.LastRef = &value
 			}
 		}
 	}
@@ -370,29 +384,45 @@ func (oAdmin *OvpnAdmin) handleNewClientEvent(lines []string) {
 		//client.ConnectedSince =
 		client.Nodes = make([]NodeInfo, 0)
 		client.Networks = make([]Network, 0)
-		oAdmin.activeConnections = append(oAdmin.activeConnections, client)
+		app.addToClientConnections(client)
+
 		log.Printf("Push connection '%v'", client)
-		user := oAdmin.getUser(client.commonName)
+		user := app.getCertificate(client.commonName)
 		if user != nil {
-			updatedUsers := []*OpenvpnClient{user}
-			oAdmin.broadcast(WebsocketPacket{Stream: "user.update", Data: updatedUsers})
+			updatedUsers := []*ClientCertificate{user}
+			app.broadcast(WebsocketPacket{Stream: "user.update", Data: updatedUsers})
+			//log.Warnf("updating single user %s", user.Username)
+			app.broadcast(WebsocketPacket{Stream: "user.update." + user.Username, Data: updatedUsers[0]})
 		}
 	} else {
 		log.Printf("Skipped client '%v'", lines)
 	}
 }
 
-func (oAdmin *OvpnAdmin) killAndRemoveConnection(client *OpenvpnClient, conn *ClientStatus) error {
-	if err := oAdmin.killConnection(conn); err != nil {
+func (app *OvpnAdmin) addToClientConnections(client *VpnClientConnection) {
+	for _, certificate := range app.clients {
+		if certificate.Username == client.commonName {
+			certificate.Connections = append(certificate.Connections, client)
+			return
+		}
+	}
+	log.Printf("Can't find certificate for %s", client.commonName)
+	//oAdmin.activeConnections = append(oAdmin.activeConnections, client)
+}
+
+func (app *OvpnAdmin) killAndRemoveConnection(client *ClientCertificate, conn *VpnClientConnection) error {
+	if err := app.killConnection(conn); err != nil {
 		return err
 	}
-	for i, c := range oAdmin.activeConnections {
-		if c.ClientId == conn.ClientId {
-			log.Infof("removed active connection %d", c)
-			oAdmin.activeConnections = append(oAdmin.activeConnections[0:i], oAdmin.activeConnections[i+1:]...)
-			oAdmin.updateConnections(oAdmin.activeConnections)
-			oAdmin.addUpdatedUsers(client)
-			break
+	for _, c := range app.clients {
+		for j, co := range c.Connections {
+			if co == conn {
+				log.Infof("removed active connection %d", c)
+				c.Connections = append(c.Connections[0:j], c.Connections[j+1:]...)
+				//app.updateConnections(app.activeConnections)
+				app.triggerBroadcastUser(client)
+				break
+			}
 		}
 	}
 
@@ -409,30 +439,30 @@ type WaitingCommand struct {
 	channel chan AwaitedResponse
 }
 
-func (oAdmin *OvpnAdmin) sendManagementCommandWaitResponse(cmd string) AwaitedResponse {
+func (app *OvpnAdmin) sendManagementCommandWaitResponse(cmd string) AwaitedResponse {
 	waitingCommand := WaitingCommand{
 		description: cmd,
 		channel: make(chan AwaitedResponse),
 	}
-	oAdmin.waitingCommands = append(oAdmin.waitingCommands, waitingCommand)
+	app.waitingCommands = append(app.waitingCommands, waitingCommand)
 	//log.Infof("waiting for response of command %s", cmd)
-	oAdmin.sendManagementCommand(cmd)
+	app.sendManagementCommand(cmd)
 	resp := <- waitingCommand.channel
 	//log.Infof("got response: %s", resp.body)
 	return resp
 }
 
-func (oAdmin *OvpnAdmin) sendManagementCommand(cmd string) {
-	if oAdmin.conn == nil {
+func (app *OvpnAdmin) sendManagementCommand(cmd string) {
+	if app.conn == nil {
 		log.Errorf("Fail to send command %s, not connected", cmd)
 		return
 	}
-	_, err := oAdmin.conn.Write([]byte(cmd + "\n"))
+	_, err := app.conn.Write([]byte(cmd + "\n"))
 	if err != nil {
 		log.Errorf("Fail to send command %s", cmd)
-		oAdmin.conn.Close()
+		app.conn.Close()
 		return
 	}
-	oAdmin.broadcast(WebsocketPacket{Stream: "write", Data: cmd})
+	app.broadcast(WebsocketPacket{Stream: "write", Data: cmd})
 	//log.Printf("sendManagementCommand %s", cmd)
 }

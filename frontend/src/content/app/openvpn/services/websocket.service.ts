@@ -35,7 +35,7 @@ export class WebsocketService {
         if (!this.streams[streamName]) {
             this.streams[streamName] = [];
             if (this.server && this.status === 'opened') {
-                this.server.send(JSON.stringify({action: 'register', data: streamName}));
+                this.server.send(JSON.stringify({action: 'register', data: {stream: streamName}}));
             }
         }
         this.streams[streamName].push(callback);
@@ -52,7 +52,7 @@ export class WebsocketService {
         }
         this.streams[streamName].splice(p, 1);
         if (this.streams[streamName].length === 0) {
-            this.server?.send(JSON.stringify({action: 'unregister', data: streamName}));
+            this.server?.send(JSON.stringify({action: 'unregister', data: {stream: streamName}}));
             delete this.streams[streamName];
         }
     }
@@ -129,8 +129,8 @@ export class WebsocketService {
         }
     }
 
-    private onclose(_: any) {
-        // console.warn('onclose', e);
+    private onclose(e: any) {
+        console.warn('onclose', e);
         // Object.values(this.streams).forEach((stream) => {
         //     stream.status = 'closed';
         // });
@@ -152,7 +152,7 @@ export class WebsocketService {
         // });
         this.status = 'opened';
         Object.keys(this.streams).forEach((streamName) => {
-           this.server?.send(JSON.stringify({action: 'register', data: streamName}));
+           this.server?.send(JSON.stringify({action: 'register', data: {stream: streamName}}));
         });
         // this.send({
         //     register: 'peripherals',

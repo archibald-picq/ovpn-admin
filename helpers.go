@@ -312,9 +312,9 @@ func getAuthCookie(r *http.Request) string {
 	return ""
 }
 
-func (oAdmin *OvpnAdmin)getEncryptedPasswordForUser(username string) (string, error) {
+func (app *OvpnAdmin)getEncryptedPasswordForUser(username string) (string, error) {
 
-	for _, value := range oAdmin.applicationPreferences.Users {
+	for _, value := range app.applicationPreferences.Users {
 		if value.Username == username {
 			return value.Password, nil
 		}

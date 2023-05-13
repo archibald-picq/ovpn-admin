@@ -4,7 +4,7 @@ import {IClientCertificate, IConnection} from '../models/client-certificate.inte
 import { ClientCertificate } from '../models/client-certificate.model';
 import { filter, map } from 'rxjs/operators';
 import { Sort } from '@angular/material/sort';
-import { Observable, throwError } from 'rxjs';
+import {firstValueFrom, Observable, throwError} from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
 import { OpenvpnConfig, User } from '../models/openvpn-config.model';
@@ -33,26 +33,26 @@ export class OpenvpnService {
         return this.http.get<ClientCertificate[]>(this.OPENVPN_ADMIN_API+'/api/users/list', { observe: 'response'}).pipe(
             filter((response: HttpResponse<any>) => response.ok),
             map((res: any) => res.body as any[]),
-            map((items: any[]) => items.map((item: any) => ClientCertificate.parse(item)))
+            map((items: any[]) => items.map((item: any) => ClientCertificate.hydrate(item)))
         );
     }
 
-    public loadClientConfigDetails(client: IClientCertificate): Promise<ClientConfig> {
-        const params = (new HttpParams()).set('username', client.username);
-        return this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/ccd', {observe: 'response', params}).pipe(
+    public loadClientConfigDetails(clientUsername: string): Promise<ClientConfig> {
+        const params = (new HttpParams()).set('username', clientUsername);
+        return firstValueFrom(this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/ccd', {observe: 'response', params}).pipe(
             filter((response: HttpResponse<any>) => response.ok),
             map((res: any) => res.body as Record<string, any>),
             map((item: Record<string, any>) => ClientConfig.parse(item))
-        ).toPromise() as Promise<ClientConfig>;
+        ));
     }
 
     public createClientCertificat(definition: Record<string, string>): Promise<IClientCertificate> {
-        return this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/create', definition,{
+        return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/create', definition,{
             observe: 'response',
         }).pipe(
             filter((response: HttpResponse<any>) => response.ok),
-            map((response) => ClientCertificate.parse(response.body)),
-        ).toPromise() as Promise<IClientCertificate>;
+            map((response) => ClientCertificate.hydrate(response.body)),
+        ));
     }
 
     public loadClientConfig(client: IClientCertificate): Promise<Blob> {

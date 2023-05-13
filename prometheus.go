@@ -83,18 +83,18 @@ var (
 	)
 )
 
-func (oAdmin *OvpnAdmin) registerMetrics() {
-	oAdmin.promRegistry.MustRegister(ovpnServerCertExpire)
-	oAdmin.promRegistry.MustRegister(ovpnServerCaCertExpire)
-	oAdmin.promRegistry.MustRegister(ovpnClientsTotal)
-	oAdmin.promRegistry.MustRegister(ovpnClientsRevoked)
-	oAdmin.promRegistry.MustRegister(ovpnClientsConnected)
-	oAdmin.promRegistry.MustRegister(ovpnUniqClientsConnected)
-	oAdmin.promRegistry.MustRegister(ovpnClientsExpired)
-	oAdmin.promRegistry.MustRegister(ovpnClientCertificateExpire)
-	oAdmin.promRegistry.MustRegister(ovpnClientConnectionInfo)
-	oAdmin.promRegistry.MustRegister(ovpnClientConnectionFrom)
-	oAdmin.promRegistry.MustRegister(ovpnClientBytesReceived)
-	oAdmin.promRegistry.MustRegister(ovpnClientBytesSent)
+func (app *OvpnAdmin) registerMetrics() {
+	app.promRegistry.MustRegister(ovpnServerCertExpire)
+	app.promRegistry.MustRegister(ovpnServerCaCertExpire)
+	app.promRegistry.MustRegister(ovpnClientsTotal)
+	app.promRegistry.MustRegister(ovpnClientsRevoked)
+	app.promRegistry.MustRegister(ovpnClientsConnected)
+	app.promRegistry.MustRegister(ovpnUniqClientsConnected)
+	app.promRegistry.MustRegister(ovpnClientsExpired)
+	app.promRegistry.MustRegister(ovpnClientCertificateExpire)
+	app.promRegistry.MustRegister(ovpnClientConnectionInfo)
+	app.promRegistry.MustRegister(ovpnClientConnectionFrom)
+	app.promRegistry.MustRegister(ovpnClientBytesReceived)
+	app.promRegistry.MustRegister(ovpnClientBytesSent)
 }
 

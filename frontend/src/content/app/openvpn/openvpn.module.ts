@@ -15,6 +15,7 @@ import { ConfirmDeleteClientCertificateComponent } from './modals/confirm-delete
 import { ConfirmRotateClientCertificateComponent } from './modals/confirm-rotate-client-certificate.component';
 import { SharedModule } from '../shared/shared.module';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
@@ -25,6 +26,7 @@ import { LogPageComponent } from './log/log.component';
 import { WebsocketService } from './services/websocket.service';
 import {OpenvpnComponent} from "./openvpn.component";
 import {ConfirmKillConnectionComponent} from "./modals/confirm-kill-connection.component";
+import {ConfigPageComponent} from './config/config-page.component';
 
 @NgModule({
     declarations: [
@@ -42,6 +44,7 @@ import {ConfirmKillConnectionComponent} from "./modals/confirm-kill-connection.c
         UploadPageComponent,
         LogPageComponent,
         ConfirmKillConnectionComponent,
+        ConfigPageComponent,
     ],
     imports: [
         RouterModule.forChild(OPENVPN_ROUTES),
@@ -53,6 +56,7 @@ import {ConfirmKillConnectionComponent} from "./modals/confirm-kill-connection.c
         SharedModule,
         MatIconModule,
         NgbTooltipModule,
+        MatMenuModule,
     ],
     providers: [
         OpenvpnService,

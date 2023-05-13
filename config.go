@@ -132,32 +132,32 @@ type OvpnConfig struct {
 	                                    // "redirect-gateway ipv6"
 }
 
-func (oAdmin *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
+func (app *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
 	var settings = new(ConfigPublicSettings)
-	settings.Server = convertNetworkMaskCidr(oAdmin.serverConf.server)
-	settings.ForceGatewayIpv4 = oAdmin.serverConf.forceGatewayIpv4
-	settings.ForceGatewayIpv4ExceptDhcp = oAdmin.serverConf.forceGatewayIpv4ExceptDhcp
-	settings.ForceGatewayIpv4ExceptDns = oAdmin.serverConf.forceGatewayIpv4ExceptDns
-	settings.ServerIpv6 = oAdmin.serverConf.serverIpv6
-	settings.ForceGatewayIpv6 = oAdmin.serverConf.forceGatewayIpv6
-	settings.DuplicateCn = oAdmin.serverConf.duplicateCn
-	settings.ClientToClient = oAdmin.serverConf.clientToClient
-	settings.CompLzo = oAdmin.serverConf.compLzo
-	settings.Routes = oAdmin.serverConf.routes
-	settings.Auth = oAdmin.serverConf.auth
-	settings.Pushs = oAdmin.serverConf.push
-	settings.EnableMtu = oAdmin.serverConf.enableMtu
-	settings.TunMtu = oAdmin.serverConf.tunMtu
-	settings.DnsIpv4 = oAdmin.serverConf.dnsIpv4
-	settings.DnsIpv6 = oAdmin.serverConf.dnsIpv6
+	settings.Server = convertNetworkMaskCidr(app.serverConf.server)
+	settings.ForceGatewayIpv4 = app.serverConf.forceGatewayIpv4
+	settings.ForceGatewayIpv4ExceptDhcp = app.serverConf.forceGatewayIpv4ExceptDhcp
+	settings.ForceGatewayIpv4ExceptDns = app.serverConf.forceGatewayIpv4ExceptDns
+	settings.ServerIpv6 = app.serverConf.serverIpv6
+	settings.ForceGatewayIpv6 = app.serverConf.forceGatewayIpv6
+	settings.DuplicateCn = app.serverConf.duplicateCn
+	settings.ClientToClient = app.serverConf.clientToClient
+	settings.CompLzo = app.serverConf.compLzo
+	settings.Routes = app.serverConf.routes
+	settings.Auth = app.serverConf.auth
+	settings.Pushs = app.serverConf.push
+	settings.EnableMtu = app.serverConf.enableMtu
+	settings.TunMtu = app.serverConf.tunMtu
+	settings.DnsIpv4 = app.serverConf.dnsIpv4
+	settings.DnsIpv6 = app.serverConf.dnsIpv6
 	//settings.Routes = make([]string, 0)
-	//for _, routes := range oAdmin.serverConf.routes {
+	//for _, routes := range app.serverConf.routes {
 	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
 	//}
 	return settings
 }
 
-func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
@@ -168,14 +168,14 @@ func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 	configPublic.Openvpn.Url = ""
 
 	auth := getAuthCookie(r)
-	ok, jwtUsername := oAdmin.jwtUsername(auth)
+	ok, jwtUsername := app.jwtUsername(auth)
 	if ok {
-		configPublic.User = oAdmin.getUserProfile(jwtUsername)
-		configPublic.Openvpn.Settings = oAdmin.exportPublicSettings()
-		configPublic.Openvpn.Preferences = oAdmin.exportPublicPreferences()
+		configPublic.User = app.getUserProfile(jwtUsername)
+		configPublic.Openvpn.Settings = app.exportPublicSettings()
+		configPublic.Openvpn.Preferences = app.exportPublicPreferences()
 	}
 
-	if len(oAdmin.applicationPreferences.Users) == 0 {
+	if len(app.applicationPreferences.Users) == 0 {
 		b := true
 		configPublic.Openvpn.Unconfigured = &b
 	}
@@ -189,8 +189,8 @@ func (oAdmin *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 	//fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
 }
 
-func (oAdmin *OvpnAdmin) getUserProfile(username string) *ConfigPublicUser {
-	for _, u := range oAdmin.applicationPreferences.Users {
+func (app *OvpnAdmin) getUserProfile(username string) *ConfigPublicUser {
+	for _, u := range app.applicationPreferences.Users {
 		if u.Username == username {
 			configPublicUser := new(ConfigPublicUser)
 			configPublicUser.Username = username
@@ -201,12 +201,12 @@ func (oAdmin *OvpnAdmin) getUserProfile(username string) *ConfigPublicUser {
 	return nil
 }
 
-func (oAdmin *OvpnAdmin) parseServerConf(file string) {
+func (app *OvpnAdmin) parseServerConf(file string) {
 	lines := strings.Split(fRead(file), "\n")
 
-	oAdmin.serverConf.tunMtu = -1
-	oAdmin.serverConf.fragment = -1
-	oAdmin.serverConf.mssfix = -1
+	app.serverConf.tunMtu = -1
+	app.serverConf.fragment = -1
+	app.serverConf.mssfix = -1
 	for _, line := range lines {
 		line = strings.TrimLeft(line, " ")
 		if len(line) == 0 {
@@ -214,13 +214,13 @@ func (oAdmin *OvpnAdmin) parseServerConf(file string) {
 		}
 		if line[0:1] == "#" {
 			line = strings.TrimLeft(line, "# ")
-			parseServerConfLine(&oAdmin.serverConf, line, true)
+			parseServerConfLine(&app.serverConf, line, true)
 		} else {
-			parseServerConfLine(&oAdmin.serverConf, line, false)
+			parseServerConfLine(&app.serverConf, line, false)
 		}
 	}
 
-	log.Printf("config %v", oAdmin.serverConf)
+	log.Printf("config %v", app.serverConf)
 }
 
 func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
@@ -391,7 +391,7 @@ func extractPushConfig(serverConf *OvpnConfig, enabled bool, line string, commen
 	}
 }
 
-func (oAdmin *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, error) {
+func (app *OvpnAdmin) writeConfig(file string, config OvpnConfig) (string, error) {
 	var lines = make([]string, 0)
 
 	if len(config.server) > 0 {
@@ -648,7 +648,7 @@ func getIntValueWithoutComment(line string) (int, error) {
 		return -1, err
 	}
 }
-func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
@@ -656,7 +656,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	}
 
 	auth := getAuthCookie(r)
-	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -689,7 +689,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	}
 
 	// store in temporary object
-	conf := oAdmin.serverConf
+	conf := app.serverConf
 	conf.server = convertCidrNetworkMask(savePayload.Server)
 	conf.forceGatewayIpv4 = savePayload.ForceGatewayIpv4
 	conf.forceGatewayIpv4ExceptDhcp = savePayload.ForceGatewayIpv4ExceptDhcp
@@ -717,7 +717,7 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 	}
 
 	// write a temporary config file over the original one
-	status, err := oAdmin.writeConfig(*serverConfFile, conf)
+	status, err := app.writeConfig(*serverConfFile, conf)
 	if err != nil {
 		fCopy(backupFile, *serverConfFile)
 		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
@@ -725,31 +725,31 @@ func (oAdmin *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err = oAdmin.restartServer()
+	err = app.restartServer()
 	if err != nil {
 		// rollback config and restart server on error
 		fCopy(backupFile, *serverConfFile)
-		err = oAdmin.restartServer()
+		err = app.restartServer()
 		jsonRaw, _ := json.Marshal(MessagePayload{Message: status})
 		http.Error(w, string(jsonRaw), http.StatusBadRequest)
 		return
 	}
 
 	// store the working config in memory
-	oAdmin.serverConf.server = conf.server
-	oAdmin.serverConf.forceGatewayIpv4 = conf.forceGatewayIpv4
-	oAdmin.serverConf.forceGatewayIpv4ExceptDhcp = conf.forceGatewayIpv4ExceptDhcp
-	oAdmin.serverConf.forceGatewayIpv4ExceptDns = conf.forceGatewayIpv4ExceptDns
-	oAdmin.serverConf.serverIpv6 = conf.serverIpv6
-	oAdmin.serverConf.forceGatewayIpv6 = conf.forceGatewayIpv6
-	oAdmin.serverConf.compLzo = conf.compLzo
-	oAdmin.serverConf.clientToClient = conf.clientToClient
-	oAdmin.serverConf.duplicateCn = conf.duplicateCn
-	oAdmin.serverConf.auth = conf.auth
-	oAdmin.serverConf.enableMtu = conf.enableMtu
-	oAdmin.serverConf.tunMtu = conf.tunMtu
-	oAdmin.serverConf.dnsIpv4 = conf.dnsIpv4
-	oAdmin.serverConf.dnsIpv6 = conf.dnsIpv6
+	app.serverConf.server = conf.server
+	app.serverConf.forceGatewayIpv4 = conf.forceGatewayIpv4
+	app.serverConf.forceGatewayIpv4ExceptDhcp = conf.forceGatewayIpv4ExceptDhcp
+	app.serverConf.forceGatewayIpv4ExceptDns = conf.forceGatewayIpv4ExceptDns
+	app.serverConf.serverIpv6 = conf.serverIpv6
+	app.serverConf.forceGatewayIpv6 = conf.forceGatewayIpv6
+	app.serverConf.compLzo = conf.compLzo
+	app.serverConf.clientToClient = conf.clientToClient
+	app.serverConf.duplicateCn = conf.duplicateCn
+	app.serverConf.auth = conf.auth
+	app.serverConf.enableMtu = conf.enableMtu
+	app.serverConf.tunMtu = conf.tunMtu
+	app.serverConf.dnsIpv4 = conf.dnsIpv4
+	app.serverConf.dnsIpv6 = conf.dnsIpv6
 
 	w.WriteHeader(http.StatusNoContent)
 }

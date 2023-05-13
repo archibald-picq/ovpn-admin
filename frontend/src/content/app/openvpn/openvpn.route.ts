@@ -1,9 +1,9 @@
 import { Injectable } from '@angular/core';
-import { Resolve, Route } from '@angular/router';
+import {ActivatedRouteSnapshot, Resolve, Route} from '@angular/router';
 import { OpenvpnClientsComponent } from "./clients/clients.component";
 import { OpenvpnService } from './services/openvpn.service';
 import { IClientCertificate } from './models/client-certificate.interface';
-import { Observable } from 'rxjs';
+import {firstValueFrom, Observable} from 'rxjs';
 import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 import { OpenvpnConfig } from './models/openvpn-config.model';
 import { AppConfigService } from '../shared/services/app-config.service';
@@ -11,6 +11,7 @@ import { OpenvpnPreferencesPageComponent } from './preferences/preferences.compo
 import { UploadPageComponent } from './upload/upload.component';
 import { LogPageComponent } from './log/log.component';
 import { OpenvpnComponent } from './openvpn.component';
+import {ConfigPageComponent} from './config/config-page.component';
 
 @Injectable({ providedIn: 'root' })
 class ConfigResolve implements Resolve<OpenvpnConfig> {
@@ -34,6 +35,15 @@ class ClientsResolve implements Resolve<IClientCertificate[]> {
 
     public resolve(): Observable<IClientCertificate[]> {
         return this.service.listClientCertificates();
+    }
+}
+
+@Injectable({providedIn: 'root'})
+class ClientResolve implements Resolve<IClientCertificate|undefined> {
+    constructor(private readonly service: OpenvpnService) {}
+
+    public resolve(route: ActivatedRouteSnapshot): Promise<IClientCertificate|undefined> {
+        return firstValueFrom(this.service.listClientCertificates()).then(list => list.find(l => l.username === route.params.username));
     }
 }
 
@@ -67,5 +77,12 @@ export const OPENVPN_ROUTES: Route[] = [{
             path: 'logs',
             component: LogPageComponent,
         },
+        {
+            path: 'config/:username',
+            component: ConfigPageComponent,
+            resolve: {
+                client: ClientResolve,
+            }
+        }
     ],
 }];

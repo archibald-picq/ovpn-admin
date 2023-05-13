@@ -92,12 +92,37 @@
     <ng-container matColumnDef="actions">
         <th mat-header-cell *matHeaderCellDef mat-sort-header="actions">Actions</th>
         <td mat-cell *matCellDef="let element">
-            <button class="btn btn-warning btn-sm" *ngIf="!element.revocationDate" (click)="revokeClientCertificate(element)">revoke</button>
-            <button class="btn btn-danger btn-sm" *ngIf="element.revocationDate" (click)="deleteClientCertificate(element)">delete</button>
-            <button class="btn btn-warning btn-sm" *ngIf="element.revocationDate" (click)="rotateClientCertificate(element)">rotate</button>
-            <button class="btn btn-info btn-sm" *ngIf="!element.revocationDate" (click)="downloadOpenvpnConfig(element)">download</button>
-            <button class="btn btn-primary btn-sm" *ngIf="!element.revocationDate" (click)="editClient(element)">edit routes</button>
-            <button class="btn btn-primary btn-sm" *ngIf="element.revocationDate" (click)="unrevokeClientCertificate(element)">unrevoke</button>
+<!--            <button class="btn btn-warning btn-sm" *ngIf="!element.revocationDate" (click)="revokeClientCertificate(element)">revoke</button>-->
+<!--            <button class="btn btn-danger btn-sm" *ngIf="element.revocationDate" (click)="deleteClientCertificate(element)">delete</button>-->
+<!--            <button class="btn btn-warning btn-sm" *ngIf="element.revocationDate" (click)="rotateClientCertificate(element)">rotate</button>-->
+<!--            <button class="btn btn-info btn-sm" *ngIf="!element.revocationDate" (click)="downloadOpenvpnConfig(element)">download</button>-->
+            <button class="btn btn-outline-primary btn-sm" *ngIf="!element.revocationDate" [routerLink]="['/openvpn', 'config', element.username]">config client</button>
+            <button class="btn btn-outline-secondary btn-sm" *ngIf="!element.revocationDate" (click)="editClient(element)">edit routes</button>
+<!--            <button class="btn btn-primary btn-sm" *ngIf="element.revocationDate" (click)="unrevokeClientCertificate(element)">unrevoke</button>-->
+            <button class="btn btn-outline-info btn-sm" [matMenuTriggerFor]="menu">Menu</button>
+
+            <mat-menu #menu="matMenu">
+                <button mat-menu-item [disabled]="element.revocationDate" (click)="downloadOpenvpnConfig(element)">
+                    <mat-icon>download</mat-icon>
+                    <span>download</span>
+                </button>
+                <button mat-menu-item [disabled]="element.revocationDate" (click)="revokeClientCertificate(element)">
+                    <mat-icon>revoke</mat-icon>
+                    <span>revoke</span>
+                </button>
+                <button mat-menu-item *ngIf="element.revocationDate" (click)="unrevokeClientCertificate(element)">
+                    <mat-icon>unrevoke</mat-icon>
+                    <span>unrevoke</span>
+                </button>
+                <button mat-menu-item *ngIf="element.revocationDate" (click)="deleteClientCertificate(element)">
+                    <mat-icon>delete</mat-icon>
+                    <span>delete</span>
+                </button>
+                <button mat-menu-item *ngIf="element.revocationDate" (click)="rotateClientCertificate(element)">
+                    <mat-icon>rotate</mat-icon>
+                    <span>rotate</span>
+                </button>
+            </mat-menu>
         </td>
     </ng-container>
 

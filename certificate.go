@@ -15,10 +15,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (oAdmin *OvpnAdmin) getCommonNameFromCertificate(path string) *x509.Certificate {
+type RevokedCert struct {
+	RevokedTime time.Time         `json:"revokedTime"`
+	CommonName  string            `json:"commonName"`
+	Cert        *x509.Certificate `json:"cert"`
+}
+
+func (app *OvpnAdmin) getCommonNameFromCertificate(path string) *x509.Certificate {
 	caCert, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Errorf("error read file %s: %s", oAdmin.serverConf.ca, err.Error())
+		log.Errorf("error read file %s: %s", app.serverConf.ca, err.Error())
 	}
 
 	certPem, _ := pem.Decode(caCert)
@@ -213,4 +219,21 @@ func genCRL(certs []*RevokedCert, ca *x509.Certificate, caKey *rsa.PrivateKey) (
 	}
 
 	return
+}
+
+func (app *OvpnAdmin) downloadCerts() bool {
+	if fExist(certsArchivePath) {
+		err := fDelete(certsArchivePath)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
+	err := fDownload(certsArchivePath, *masterHost+downloadCertsApiUrl+"?token="+app.masterSyncToken, app.masterHostBasicAuth)
+	if err != nil {
+		log.Error(err)
+		return false
+	}
+
+	return true
 }

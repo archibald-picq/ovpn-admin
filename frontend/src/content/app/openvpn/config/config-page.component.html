@@ -1,0 +1,56 @@
+
+<div class="summary">
+  <div class="bloc bloc-client">
+    <div class="bloc-content">
+      <div>username: {{client.username}}</div>
+      <div>email: {{client.email}}</div>
+      <div>city: {{client.city}}</div>
+      <div>province: {{client.province}}</div>
+      <div>country: {{client.country}}</div>
+      <div>organisation: {{client.organisation}}</div>
+      <div>organisationUnit: {{client.organisationUnit}}</div>
+      <div>accountStatus: {{client.accountStatus}}</div>
+      <div>connectionStatus: {{client.connectionStatus}}</div>
+      <div class="expiration-date">expirationDate: {{client.expirationDate}}</div>
+    </div>
+  </div>
+  <div class="bloc bloc-config">
+    <div class="bloc-content">
+      VPN tunnels: {{client.connections.length}}
+      <ng-container *ngIf="client.connections.length === 0; else listConnections">
+        Not connected
+      </ng-container>
+      <ng-template #listConnections>
+        <div *ngFor="let connection of client.connections">
+          <div>- external ip: {{connection.realAddress.split(':')[0]}}</div>
+          <div>- internal ip: {{connection.virtualAddress}}</div>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+  <div class="bloc bloc-ble">
+    <div class="bloc-content">
+      <ng-container *ngIf="client.rpic.length > 0; else connectByBluetooth">
+        <div>Rpi clients: {{client.rpic.length}}</div>
+        <div *ngFor="let rpic of client.rpic">
+          - {{rpic.realAddress}}
+        </div>
+        <div>Link to nearby device :</div>
+        <div class="buttons">
+          - <button class="btn btn-sm btn-outline-primary">connect</button>
+        </div>
+      </ng-container>
+      <ng-template #connectByBluetooth>
+        <div class="buttons">
+          <button class="btn btn-sm btn-outline-primary">connect</button>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</div>
+<div class="log">
+  <h1>Connections</h1>
+  <pre>{{client.connections | json}}</pre>
+  <h1>Rpi Config</h1>
+  <pre>{{client.rpic | json}}</pre>
+</div>

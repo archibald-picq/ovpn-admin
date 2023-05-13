@@ -19,3 +19,5 @@
 *.ntvs*
 *.njsproj
 *.sln
+/pki
+/push.sh

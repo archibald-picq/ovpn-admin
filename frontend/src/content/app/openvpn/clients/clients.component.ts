@@ -31,7 +31,7 @@ import {ConfirmKillConnectionComponent, KillConnectionOptions} from "../modals/c
 })
 export class OpenvpnClientsComponent implements OnInit, OnDestroy {
     public clients: IClientCertificate[] = [];
-    public displayedColumns: string[] = ['username', /*'accountStatus',*/ 'connections', 'speed-upload-download', 'upload-download', 'expirationDate', 'actions'];
+    public displayedColumns: string[] = ['username', /* 'accountStatus', */ 'connections', 'speed-upload-download', 'upload-download', 'expirationDate', 'actions'];
     public dataSource = new MatTableDataSource<IClientCertificate>();
     public hideRevoked = !!localStorage.getItem('hideRevoked');
     private sort?: Sort;
@@ -167,7 +167,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         console.warn('edit client', client);
         try {
             if (!client.ccd) {
-                client.ccd = await this.openvpnService.loadClientConfigDetails(client);
+                client.ccd = await this.openvpnService.loadClientConfigDetails(client.username);
             }
             await this.modalService.open(EditClientComponent, {
                 size: 'lg',
@@ -266,7 +266,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         if (!data.map) {
             console.warn('newClients', data);
         }
-        const newClients = data.map((client: any) => ClientCertificate.parse(client));
+        const newClients = data.map(ClientCertificate.hydrate);
         const obsoletes = [...clients];
         newClients.forEach((newClient: IClientCertificate) => {
             const old = clients.find((c) => c.username === newClient.username);
@@ -299,7 +299,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         if (!data.map) {
             console.warn('newClients', data);
         }
-        const newClients = data.map((client: any) => ClientCertificate.parse(client));
+        const newClients = data.map(ClientCertificate.hydrate);
         newClients.forEach((newClient: IClientCertificate) => {
             const old = clients.find((c) => c.username === newClient.username);
             if (old) {

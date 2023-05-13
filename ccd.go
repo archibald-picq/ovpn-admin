@@ -14,18 +14,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
 		return
 	}
 	auth := getAuthCookie(r)
-	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	//if oAdmin.role == "slave" {
+	//if app.role == "slave" {
 	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
 	//	return
 	//}
@@ -50,7 +50,7 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 		log.Debugln("description [%v]", ccd.CustomIRoutes[i].Description)
 	}
 
-	err = oAdmin.modifyCcd(ccd)
+	err = app.modifyCcd(ccd)
 
 	if err == nil {
 		w.WriteHeader(http.StatusNoContent)
@@ -62,30 +62,26 @@ func (oAdmin *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (oAdmin *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
 		return
 	}
-	//if oAdmin.role == "slave" {
+	//if app.role == "slave" {
 	//	http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
 	//	return
 	//}
 	auth := getAuthCookie(r)
-	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
-	if *storageBackend == "kubernetes.secrets" {
-		http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
-		return
-	}
 	_ = r.ParseForm()
 	token := r.Form.Get("token")
 
-	if token != oAdmin.masterSyncToken {
+	if token != app.masterSyncToken {
 		http.Error(w, `{"status":"error"}`, http.StatusForbidden)
 		return
 	}
@@ -95,9 +91,9 @@ func (oAdmin *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Reque
 	http.ServeFile(w, r, ccdArchivePath)
 }
 
-func indexTxtParser(txt string) []*OpenvpnClient {
-	var indexTxt = make([]*OpenvpnClient, 0)
-	apochNow := time.Now().Unix()
+func indexTxtParser(txt string) []*ClientCertificate {
+	var indexTxt = make([]*ClientCertificate, 0)
+	//apochNow := time.Now().Unix()
 
 	txtLinesArray := strings.Split(txt, "\n")
 
@@ -109,55 +105,11 @@ func indexTxtParser(txt string) []*OpenvpnClient {
 
 			case strings.HasPrefix(str[0], "V"):
 				identity := strings.Join(str[4:], " ")
-				//log.Printf("read line for '%s' with flag: %v\n", extractUsername(identity), str[0])
-				line := new(OpenvpnClient)
-				line.Username = extractUsername(identity)
-				line.flag = str[0]
-				line.ExpirationDate = parseDateToString(indexTxtDateLayout, str[1], stringDateFormat)
-				line.SerialNumber = str[2]
-				line.Filename = str[3]
-				line.Identity = identity
-				line.AccountStatus = "Active"
-
-				line.Country = extractCountry(line.Identity)
-				line.Province = extractProvince(line.Identity)
-				line.City = extractCity(line.Identity)
-				line.Organisation = extractOrganisation(line.Identity)
-				line.OrganisationUnit = extractOrganisationUnit(line.Identity)
-				line.Email = extractEmail(line.Identity)
-				if (parseDateToUnix(stringDateFormat, line.ExpirationDate) - apochNow) < 0 {
-					line.AccountStatus = "Expired"
-				}
+				line := createClientCertificate(identity, str[0], str[1], nil, str[2], str[3])
 				indexTxt = append(indexTxt, line)
 			case strings.HasPrefix(str[0], "R"):
 				identity := strings.Join(str[5:], " ")
-				//log.Printf("read line for '%s' with flag: %v\n", extractUsername(identity), str[0])
-				line := new(OpenvpnClient)
-				line.Username = extractUsername(identity)
-				line.flag = str[0]
-				line.ExpirationDate = parseDateToString(indexTxtDateLayout, str[1], stringDateFormat)
-				line.RevocationDate = parseDateToString(indexTxtDateLayout, str[2], stringDateFormat)
-				line.SerialNumber = str[3]
-				line.Filename = str[4]
-				line.Identity = identity
-				line.AccountStatus = "Revoked"
-
-				line.Country = extractCountry(line.Identity)
-				line.Province = extractProvince(line.Identity)
-				line.City = extractCity(line.Identity)
-				line.Organisation = extractOrganisation(line.Identity)
-				line.OrganisationUnit = extractOrganisationUnit(line.Identity)
-				line.Email = extractEmail(line.Identity)
-				if (parseDateToUnix(stringDateFormat, line.ExpirationDate) - apochNow) < 0 {
-					line.AccountStatus = "Expired"
-				}
-
-				line.DeletionDate = extractDeletionDate(identity)
-				if len(line.DeletionDate) > 0 {
-
-					//log.Printf("mark '%s' as DELETED at: %s\n", line.Username, line.DeletionDate)
-					line.flag = "D"
-				}
+				line := createClientCertificate(identity, str[0], str[1], &str[2], str[3], str[4])
 				indexTxt = append(indexTxt, line)
 			}
 		}
@@ -166,7 +118,65 @@ func indexTxtParser(txt string) []*OpenvpnClient {
 	return indexTxt
 }
 
-func renderIndexTxt(data []*OpenvpnClient) string {
+func createClientCertificate(identity string, flag string, expirationDate string, revocationDate *string, serialNumber string, filename string) *ClientCertificate {
+	apochNow := time.Now().Unix()
+	line := new(ClientCertificate)
+	line.Username = extractUsername(identity)
+	line.flag = flag
+	line.ExpirationDate = parseDateToString(indexTxtDateLayout, expirationDate, stringDateFormat)
+	if revocationDate != nil && *revocationDate != "" {
+		line.RevocationDate = parseDateToString(indexTxtDateLayout, *revocationDate, stringDateFormat)
+	}
+	line.SerialNumber = serialNumber
+	line.Filename = filename
+	line.Identity = identity
+	line.AccountStatus = "Active"
+	//line.Rpic = make([]*WsSafeConn, 0)
+	line.Connections = make([]*VpnClientConnection, 0)
+	line.Rpic = make([]*WsRpiConnection, 0)
+
+	line.Country = extractCountry(line.Identity)
+	line.Province = extractProvince(line.Identity)
+	line.City = extractCity(line.Identity)
+	line.Organisation = extractOrganisation(line.Identity)
+	line.OrganisationUnit = extractOrganisationUnit(line.Identity)
+	line.Email = extractEmail(line.Identity)
+	if (parseDateToUnix(stringDateFormat, line.ExpirationDate) - apochNow) < 0 {
+		line.AccountStatus = "Expired"
+	}
+	line.DeletionDate = extractDeletionDate(identity)
+	if len(line.DeletionDate) > 0 {
+
+		//log.Printf("mark '%s' as DELETED at: %s\n", line.Username, line.DeletionDate)
+		line.flag = "D"
+	}
+	return line
+}
+
+func (app *OvpnAdmin) updateCertificate(certificate *ClientCertificate) {
+	for _, existing := range app.clients {
+		if existing.Username == certificate.Username {
+			existing.flag = certificate.flag
+			existing.ExpirationDate = certificate.ExpirationDate
+			existing.RevocationDate = certificate.RevocationDate
+			existing.SerialNumber = certificate.SerialNumber
+			existing.Filename = certificate.Filename
+			existing.Identity = certificate.Identity
+			existing.AccountStatus = certificate.AccountStatus
+			existing.Country = certificate.Country
+			existing.Province = certificate.Province
+			existing.City = certificate.City
+			existing.Organisation = certificate.Organisation
+			existing.OrganisationUnit = certificate.OrganisationUnit
+			existing.Email = certificate.Email
+			existing.DeletionDate = certificate.DeletionDate
+			return
+		}
+	}
+	app.clients = append(app.clients, certificate)
+}
+
+func renderIndexTxt(data []*ClientCertificate) string {
 	indexTxt := ""
 	for _, line := range data {
 		///C=FR/ST=Meurthe-et-Moselle/L=Nancy/O=Architech/OU=ROOT-CA/CN=paris/emailAddress=archibald.picq@gmail.com
@@ -212,8 +222,8 @@ func renderIndexTxt(data []*OpenvpnClient) string {
 	return indexTxt
 }
 
-func (oAdmin *OvpnAdmin) modifyCcd(ccd Ccd) error {
-	err := oAdmin.validateCcd(ccd)
+func (app *OvpnAdmin) modifyCcd(ccd Ccd) error {
+	err := app.validateCcd(ccd)
 	if err != nil {
 		return err
 	}
@@ -250,7 +260,7 @@ func (oAdmin *OvpnAdmin) modifyCcd(ccd Ccd) error {
 	return nil
 }
 
-func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
+func (app *OvpnAdmin) parseCcd(username string) Ccd {
 	ccd := Ccd{}
 	ccd.User = username
 	ccd.ClientAddress = "dynamic"
@@ -258,13 +268,10 @@ func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
 	ccd.CustomIRoutes = []Route{}
 
 	var txtLinesArray []string
-	if *storageBackend == "kubernetes.secrets" {
-		txtLinesArray = strings.Split(app.secretGetCcd(ccd.User), "\n")
-	} else {
-		//log.Warnf("reading ccd \"%s\"", *ccdDir + "/" + username)
-		if fExist(*ccdDir + "/" + username) {
-			txtLinesArray = strings.Split(fRead(*ccdDir+"/"+username), "\n")
-		}
+
+	//log.Warnf("reading ccd \"%s\"", *ccdDir + "/" + username)
+	if fExist(*ccdDir + "/" + username) {
+		txtLinesArray = strings.Split(fRead(*ccdDir+"/"+username), "\n")
 	}
 
 	for _, v := range txtLinesArray {
@@ -301,14 +308,14 @@ func (oAdmin *OvpnAdmin) parseCcd(username string) Ccd {
 	return ccd
 }
 
-func (oAdmin *OvpnAdmin) validateCcd(ccd Ccd) error {
+func (app *OvpnAdmin) validateCcd(ccd Ccd) error {
 	if ccd.ClientAddress != "dynamic" && len(ccd.ClientAddress) > 0 {
 		_, ovpnNet, err := net.ParseCIDR(*openvpnNetwork)
 		if err != nil {
 			log.Error(err)
 		}
 
-		if !oAdmin.checkStaticAddressIsFree(ccd.ClientAddress, ccd.User) {
+		if !app.checkStaticAddressIsFree(ccd.ClientAddress, ccd.User) {
 			ccdErr := fmt.Sprintf("ClientAddress \"%s\" already assigned to another user", ccd.ClientAddress)
 			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
 			return errors.New(ccdErr)
@@ -353,7 +360,7 @@ func checkUserActiveExist(username string) bool {
 	return false
 }
 
-func checkUserExist(username string) (*OpenvpnClient, []*OpenvpnClient, error) {
+func checkUserExist(username string) (*ClientCertificate, []*ClientCertificate, error) {
 	all := indexTxtParser(fRead(*indexTxtPath))
 	for _, u := range all {
 		log.Debugf("search username %s match %s", username, u.Username)
@@ -364,21 +371,21 @@ func checkUserExist(username string) (*OpenvpnClient, []*OpenvpnClient, error) {
 	return nil, all, errors.New(fmt.Sprint("User %s not found", username))
 }
 
-func (oAdmin *OvpnAdmin) getCcd(username string) Ccd {
+func (app *OvpnAdmin) getCcd(username string) Ccd {
 	ccd := Ccd{
 		User: username,
 		ClientAddress: "dynamic",
 		CustomRoutes: []Route{},
 	}
-	ccd = oAdmin.parseCcd(username)
+	ccd = app.parseCcd(username)
 	return ccd
 }
 
-func (oAdmin *OvpnAdmin) checkStaticAddressIsFree(staticAddress string, username string) bool {
-	oAdmin.usersList()
-	for _, client := range oAdmin.clients {
+func (app *OvpnAdmin) checkStaticAddressIsFree(staticAddress string, username string) bool {
+	app.usersList()
+	for _, client := range app.clients {
 		if client.Username != username {
-			ccd := oAdmin.getCcd(client.Username)
+			ccd := app.getCcd(client.Username)
 			if ccd.ClientAddress == staticAddress {
 				return false
 			}

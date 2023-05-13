@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.0.2
+VERSION=1.0.3
 PACKAGE=ovpn-admin
 
 PATH=$PATH:~/go/bin

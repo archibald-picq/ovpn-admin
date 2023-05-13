@@ -60,13 +60,13 @@ func randomJwtSecret(n int) []byte {
 	return b
 }
 
-func (oAdmin *OvpnAdmin) loadPreferences() {
-	oAdmin.applicationPreferences.Users = make([]Account, 0)
-	oAdmin.applicationPreferences.Preferences.ExplicitExitNotify = true // default config value, will be overwritten by Unmarshal
+func (app *OvpnAdmin) loadPreferences() {
+	app.applicationPreferences.Users = make([]Account, 0)
+	app.applicationPreferences.Preferences.ExplicitExitNotify = true // default config value, will be overwritten by Unmarshal
 
 	if _, err := os.Stat(*ovpnConfigFile); err == nil {
 		rawJson := fRead(*ovpnConfigFile)
-		err = json.Unmarshal([]byte(rawJson), &oAdmin.applicationPreferences)
+		err = json.Unmarshal([]byte(rawJson), &app.applicationPreferences)
 		if err != nil {
 			log.Fatal("Can't decode config")
 			return
@@ -77,25 +77,25 @@ func (oAdmin *OvpnAdmin) loadPreferences() {
 
 	if len(*jwtSecretFile) > 0 {
 		if _, err := os.Stat(*jwtSecretFile); err == nil {
-			oAdmin.applicationPreferences.jwtData = []byte(fRead(*jwtSecretFile))
-			oAdmin.savePreferences()
+			app.applicationPreferences.jwtData = []byte(fRead(*jwtSecretFile))
+			app.savePreferences()
 		}
 	} else {
-		if len(oAdmin.applicationPreferences.JwtSecretData) == 0 {
-			oAdmin.applicationPreferences.jwtData = randomJwtSecret(64)
-			oAdmin.savePreferences()
+		if len(app.applicationPreferences.JwtSecretData) == 0 {
+			app.applicationPreferences.jwtData = randomJwtSecret(64)
+			app.savePreferences()
 		} else {
-			jwtData, err := b64.StdEncoding.DecodeString(oAdmin.applicationPreferences.JwtSecretData)
+			jwtData, err := b64.StdEncoding.DecodeString(app.applicationPreferences.JwtSecretData)
 			if err != nil {
 				log.Warnf("Cant decode jwtSecret %s", err)
 				return
 			}
-			oAdmin.applicationPreferences.jwtData = jwtData
+			app.applicationPreferences.jwtData = jwtData
 		}
 	}
 }
 
-func (oAdmin *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
 	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
@@ -103,7 +103,7 @@ func (oAdmin *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request)
 	}
 
 	auth := getAuthCookie(r)
-	if hasReadRole := oAdmin.jwtHasReadRole(auth); !hasReadRole {
+	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -118,39 +118,39 @@ func (oAdmin *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	log.Printf("saving preferences %v", post)
-	oAdmin.applicationPreferences.Preferences.Address = post.Address
-	oAdmin.applicationPreferences.Preferences.ExplicitExitNotify = post.ExplicitExitNotify
-	oAdmin.applicationPreferences.Preferences.CertificateDuration = post.CertificateDuration
-	oAdmin.applicationPreferences.Preferences.AuthNocache = post.AuthNoCache
-	oAdmin.applicationPreferences.Preferences.VerifyX509Name = post.VerifyX509Name
-	oAdmin.savePreferences()
+	app.applicationPreferences.Preferences.Address = post.Address
+	app.applicationPreferences.Preferences.ExplicitExitNotify = post.ExplicitExitNotify
+	app.applicationPreferences.Preferences.CertificateDuration = post.CertificateDuration
+	app.applicationPreferences.Preferences.AuthNocache = post.AuthNoCache
+	app.applicationPreferences.Preferences.VerifyX509Name = post.VerifyX509Name
+	app.savePreferences()
 	w.WriteHeader(http.StatusNoContent)
 }
 
 
-func (oAdmin *OvpnAdmin) savePreferences() error {
-	oAdmin.applicationPreferences.JwtSecretData = b64.StdEncoding.EncodeToString(oAdmin.applicationPreferences.jwtData)
-	rawJson, err := json.MarshalIndent(oAdmin.applicationPreferences, "", "  ")
+func (app *OvpnAdmin) savePreferences() error {
+	app.applicationPreferences.JwtSecretData = b64.StdEncoding.EncodeToString(app.applicationPreferences.jwtData)
+	rawJson, err := json.MarshalIndent(app.applicationPreferences, "", "  ")
 	if err != nil {
 		return err
 	}
 	return fWriteBytes(*ovpnConfigFile, rawJson)
 }
 
-func (oAdmin *OvpnAdmin) exportPublicPreferences() *ConfigPublicPreferences {
+func (app *OvpnAdmin) exportPublicPreferences() *ConfigPublicPreferences {
 	var preferences = new(ConfigPublicPreferences)
-	preferences.Address = oAdmin.applicationPreferences.Preferences.Address
-	preferences.DefaultAddress = fmt.Sprintf("%s:%d", oAdmin.outboundIp, oAdmin.serverConf.port)
+	preferences.Address = app.applicationPreferences.Preferences.Address
+	preferences.DefaultAddress = fmt.Sprintf("%s:%d", app.outboundIp, app.serverConf.port)
 	preferences.CertificateDuration = 3600 * 24 * 365 * 10 // 10 years
-	preferences.ExplicitExitNotify = oAdmin.applicationPreferences.Preferences.ExplicitExitNotify
-	preferences.AuthNoCache = oAdmin.applicationPreferences.Preferences.AuthNocache
-	preferences.VerifyX509Name = oAdmin.applicationPreferences.Preferences.VerifyX509Name
+	preferences.ExplicitExitNotify = app.applicationPreferences.Preferences.ExplicitExitNotify
+	preferences.AuthNoCache = app.applicationPreferences.Preferences.AuthNocache
+	preferences.VerifyX509Name = app.applicationPreferences.Preferences.VerifyX509Name
 
-	if oAdmin.applicationPreferences.Preferences.CertificateDuration > 0 {
-		preferences.CertificateDuration = oAdmin.applicationPreferences.Preferences.CertificateDuration
+	if app.applicationPreferences.Preferences.CertificateDuration > 0 {
+		preferences.CertificateDuration = app.applicationPreferences.Preferences.CertificateDuration
 	}
 
-	for _, u := range oAdmin.applicationPreferences.Users {
+	for _, u := range app.applicationPreferences.Users {
 		preferences.Users = append(preferences.Users, ConfigPublicAccount{Username: u.Username, Name: u.Name})
 	}
 

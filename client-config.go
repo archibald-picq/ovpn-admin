@@ -26,7 +26,7 @@ type OpenvpnClientConfig struct {
 	TlsVersionMin      string
 	TlsCipher          string
 }
-func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
+func (app *OvpnAdmin) renderClientConfig(username string) string {
 	_, _, err := checkUserExist(username)
 	if err != nil {
 		log.Warnf("user \"%s\" not found", username)
@@ -48,15 +48,15 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 
 
 	if len(hosts) == 0 {
-		if len(oAdmin.applicationPreferences.Preferences.Address) > 0 {
-			parts := strings.SplitN(oAdmin.applicationPreferences.Preferences.Address, ":", 2)
+		if len(app.applicationPreferences.Preferences.Address) > 0 {
+			parts := strings.SplitN(app.applicationPreferences.Preferences.Address, ":", 2)
 			if len(parts) == 1 {
-				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: fmt.Sprintf("%d", oAdmin.serverConf.port)})
+				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: fmt.Sprintf("%d", app.serverConf.port)})
 			} else {
 				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1]})
 			}
 		} else {
-			hosts = append(hosts, OpenvpnServer{Host: oAdmin.outboundIp.String(), Port: fmt.Sprintf("%d", oAdmin.serverConf.port)})
+			hosts = append(hosts, OpenvpnServer{Host: app.outboundIp.String(), Port: fmt.Sprintf("%d", app.serverConf.port)})
 		}
 	}
 
@@ -68,34 +68,30 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 	if _, err := os.Stat(*easyrsaDirPath + "pki/ta.key"); err == nil {
 		conf.TLS = fRead(*easyrsaDirPath + "pki/ta.key")
 	}
-	if len(oAdmin.masterCn) > 0 && oAdmin.applicationPreferences.Preferences.VerifyX509Name {
-		conf.CertCommonName = oAdmin.masterCn
+	if len(app.masterCn) > 0 && app.applicationPreferences.Preferences.VerifyX509Name {
+		conf.CertCommonName = app.masterCn
 	}
-	if oAdmin.serverConf.compLzo {
+	if app.serverConf.compLzo {
 		conf.CompLzo = true
 	}
-	if len(oAdmin.serverConf.tlsCrypt) > 0 {
-		conf.TlsCrypt = fRead(absolutizePath(*serverConfFile, oAdmin.serverConf.tlsCrypt))
+	if len(app.serverConf.tlsCrypt) > 0 {
+		conf.TlsCrypt = fRead(absolutizePath(*serverConfFile, app.serverConf.tlsCrypt))
 	}
 
-	conf.Auth = oAdmin.serverConf.auth
-	conf.ExplicitExitNotify = oAdmin.applicationPreferences.Preferences.ExplicitExitNotify
-	conf.AuthNocache = oAdmin.applicationPreferences.Preferences.AuthNocache
-	conf.Cipher = oAdmin.serverConf.cipher
-	conf.TlsClient = oAdmin.serverConf.tlsServer
-	conf.TlsVersionMin = oAdmin.serverConf.tlsVersionMin
-	conf.TlsCipher = oAdmin.serverConf.tlsCipher
+	conf.Auth = app.serverConf.auth
+	conf.ExplicitExitNotify = app.applicationPreferences.Preferences.ExplicitExitNotify
+	conf.AuthNocache = app.applicationPreferences.Preferences.AuthNocache
+	conf.Cipher = app.serverConf.cipher
+	conf.TlsClient = app.serverConf.tlsServer
+	conf.TlsVersionMin = app.serverConf.tlsVersionMin
+	conf.TlsCipher = app.serverConf.tlsCipher
 
-	if *storageBackend == "kubernetes.secrets" {
-		conf.Cert, conf.Key = app.easyrsaGetClientCert(username)
-	} else {
-		conf.Cert = removeCertificatText(fRead(*easyrsaDirPath + "/pki/issued/" + username + ".crt"))
-		conf.Key = fRead(*easyrsaDirPath + "/pki/private/" + username + ".key")
-	}
+	conf.Cert = removeCertificatText(fRead(*easyrsaDirPath + "/pki/issued/" + username + ".crt"))
+	conf.Key = fRead(*easyrsaDirPath + "/pki/private/" + username + ".key")
 
 	conf.PasswdAuth = *authByPassword
 
-	t := oAdmin.getClientConfigTemplate()
+	t := app.getClientConfigTemplate()
 
 	var tmp bytes.Buffer
 	err = t.Execute(&tmp, conf)
@@ -111,3 +107,19 @@ func (oAdmin *OvpnAdmin) renderClientConfig(username string) string {
 	return fmt.Sprintf("%+v", tmp.String())
 }
 
+func (app *OvpnAdmin) downloadCcd() bool {
+	if fExist(ccdArchivePath) {
+		err := fDelete(ccdArchivePath)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
+	err := fDownload(ccdArchivePath, *masterHost+downloadCcdApiUrl+"?token="+app.masterSyncToken, app.masterHostBasicAuth)
+	if err != nil {
+		log.Error(err)
+		return false
+	}
+
+	return true
+}

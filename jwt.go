@@ -15,7 +15,7 @@ type AuthenticatePayload struct {
 	Password         string `json:"password"`
 }
 
-func (oAdmin *OvpnAdmin) jwtUsername(auth string) (bool, string) {
+func (app *OvpnAdmin) jwtUsername(auth string) (bool, string) {
 	if len(auth) <= 0 {
 		return false, ""
 	}
@@ -26,7 +26,7 @@ func (oAdmin *OvpnAdmin) jwtUsername(auth string) (bool, string) {
 		}
 
 		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
-		return oAdmin.applicationPreferences.jwtData, nil
+		return app.applicationPreferences.jwtData, nil
 	})
 
 	if err != nil {
@@ -52,7 +52,7 @@ func (oAdmin *OvpnAdmin) jwtUsername(auth string) (bool, string) {
 	return true, subject
 }
 
-func (oAdmin *OvpnAdmin) jwtHasReadRole(auth string) bool {
+func (app *OvpnAdmin) jwtHasReadRole(auth string) bool {
 	if len(auth) <= 0 {
 		return false
 	}
@@ -63,7 +63,7 @@ func (oAdmin *OvpnAdmin) jwtHasReadRole(auth string) bool {
 		}
 
 		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
-		return oAdmin.applicationPreferences.jwtData, nil
+		return app.applicationPreferences.jwtData, nil
 	})
 
 	if err != nil {
@@ -104,9 +104,9 @@ func (oAdmin *OvpnAdmin) jwtHasReadRole(auth string) bool {
 }
 
 
-func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 	auth := getAuthCookie(r)
-	ok, _ := oAdmin.jwtUsername(auth)
+	ok, _ := app.jwtUsername(auth)
 	if ok {
 		fmt.Fprintf(w, `{"message":"Already authenticated" }`)
 		w.WriteHeader(http.StatusForbidden)
@@ -121,7 +121,7 @@ func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expectedPassword, err := oAdmin.getEncryptedPasswordForUser(authPayload.Username)
+	expectedPassword, err := app.getEncryptedPasswordForUser(authPayload.Username)
 	if err != nil {
 		log.Errorln(err)
 		w.WriteHeader(http.StatusForbidden)
@@ -150,7 +150,7 @@ func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 	// Declare the token with the algorithm used for signing, and the claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	// Create the JWT string
-	tokenString, err := token.SignedString(oAdmin.applicationPreferences.jwtData)
+	tokenString, err := token.SignedString(app.applicationPreferences.jwtData)
 	if err != nil {
 		log.Errorf("Can't sign payload: %s", err)
 		// If there is an error in creating the JWT return an internal server error
@@ -164,7 +164,7 @@ func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 		Expires:  expirationTime,
 		HttpOnly: true,
 	})
-	rawJson, _ := json.Marshal(oAdmin.getUserProfile(authPayload.Username))
+	rawJson, _ := json.Marshal(app.getUserProfile(authPayload.Username))
 	_, err = w.Write(rawJson)
 	if err != nil {
 		log.Errorln("Fail to write response")
@@ -172,7 +172,7 @@ func (oAdmin *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (oAdmin *OvpnAdmin) logout(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth",
 		Value:    "",
