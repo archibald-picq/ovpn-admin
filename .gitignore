@@ -12,6 +12,7 @@
 /frontend/.angular
 /frontend/static
 /frontend/target
+/config
 
 # Editor directories and files
 .idea
