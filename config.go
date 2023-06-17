@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
-	log "github.com/sirupsen/logrus"
 	"unicode"
 )
 
@@ -158,7 +158,6 @@ func (app *OvpnAdmin) exportPublicSettings() *ConfigPublicSettings {
 }
 
 func (app *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
-	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
 		return
@@ -183,7 +182,7 @@ func (app *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 	rawJson, _ := json.Marshal(configPublic)
 	_, err := w.Write(rawJson)
 	if err != nil {
-		log.Errorln("Fail to write response")
+		log.Println("Fail to write response")
 		return
 	}
 	//fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
@@ -233,7 +232,7 @@ func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
 		if n, err := getIntValueWithoutComment(line); err == nil {
 			serverConf.port = n
 		} else {
-			log.Error(err)
+			log.Printf("failed to parse int %s\n", line)
 		}
 	case key == "proto":
 		serverConf.proto = getValueWithoutComment(line)
@@ -244,13 +243,13 @@ func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
 			serverConf.enableMtu = true
 			serverConf.tunMtu = n
 		} else {
-			log.Error(err)
+			log.Printf("failed to parse int %s\n", line)
 		}
 	case key == "fragment":
 		if n, err := getIntValueWithoutComment(line); err == nil {
 			serverConf.fragment = n
 		} else {
-			log.Error(err)
+			log.Printf("failed to parse int %s\n", line)
 		}
 	case key == "user":
 		serverConf.user = getValueWithoutComment(line)
@@ -260,7 +259,7 @@ func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
 		if n, err := getIntValueWithoutComment(line); err == nil {
 			serverConf.mssfix = n
 		} else {
-			log.Error(err)
+			log.Printf("failed to parse int %s\n", line)
 		}
 	case key == "management":
 		serverConf.management = getValueWithoutComment(line)
@@ -290,7 +289,7 @@ func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
 		if n, err := getIntValueWithoutComment(line); err == nil {
 			serverConf.verb = n
 		} else {
-			log.Error(err)
+			log.Printf("failed to parse int %s\n", line)
 		}
 	case key == "client-config-dir":
 		serverConf.clientConfigDir = getValueWithoutComment(line)
@@ -328,11 +327,11 @@ func parseServerConfLine(serverConf *OvpnConfig, line string, commented bool) {
 		if route, err := getRouteValueWithComment(line); err == nil {
 			serverConf.routes = append(serverConf.routes, route)
 		} else {
-			log.Error(err)
+			log.Printf("failed to line %v\n", err)
 		}
 	case key == "push":
 		value, comment := getQuotedValueAndComment(value)
-		log.Infof("parsed [%d] [%s] [%s]", commented, value, comment)
+		log.Printf("parsed [%d] [%s] [%s]", commented, value, comment)
 		//getQuotedValueWithoutComment(line)
 		extractPushConfig(serverConf, !commented, value, comment)
 
@@ -649,7 +648,6 @@ func getIntValueWithoutComment(line string) (int, error) {
 	}
 }
 func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
-	log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
 		return
@@ -670,7 +668,7 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&savePayload)
 	if err != nil {
-		log.Errorln(err)
+		log.Printf("failed to decode body %v", err)
 	}
 
 	// check addresses in post payload

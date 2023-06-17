@@ -1,15 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
+	"golang.org/x/exp/slices"
 	"log"
 	"net/http"
-	"github.com/gorilla/websocket"
 	"time"
-	"golang.org/x/exp/slices"
 )
 
 type WebsocketPacket struct {
@@ -18,12 +17,39 @@ type WebsocketPacket struct {
 }
 
 type WebsocketAction struct {
+	Id     *int64       `json:"id,omitempty"`
 	Action string      `json:"action"`
 	Data   interface{} `json:"-"`
 	RawData json.RawMessage `json:"data"`
 }
 
+type WebsocketResponse struct {
+	Id     *int64       `json:"id,omitempty"`
+	Data   interface{} `json:"-"`
+	RawData json.RawMessage `json:"data"`
+}
+
 type DecodedData struct {
+}
+
+type WebsocketResponseData struct {
+	DecodedData
+}
+
+type ForwardActionData struct {
+	Target string `json:"target"`
+	Action string `json:"action"`
+	Data   interface{} `json:"data"`
+}
+
+
+type Hello struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Uptime  int64  `json:"uptime"`
+	Boot    time.Time `json:"boot"`
+	Remote  string `json:"remote"`
+	DecodedData
 }
 
 type WebsocketPingActionData struct {
@@ -41,54 +67,16 @@ type WebsocketUnregisterActionData struct {
 	DecodedData
 }
 
-type WebsocketAuthActionData struct {
-	Username  string `json:"username"`
-	DecodedData
-}
-
 type WebsocketAuthResponse struct {
 	Status string `json:"status"`
 	DecodedData
 }
 
-func (action WebsocketAction) MarshalJSON() ([]byte, error) {
-	//log.Printf("marshal %s\n", action)
-	type fleet WebsocketAction
-	if action.Data != nil {
-		b, err := json.Marshal(action.Data)
-		if err != nil {
-			return nil, err
-		}
-		action.RawData = b
-	}
-	return json.Marshal((fleet)(action))
+type WsErrorResponse struct {
+	Id      *int64 `json:"id"`
+	Message string `json:"message"`
 }
 
-func (action *WebsocketAction) UnmarshalJSON(data []byte) error {
-	type packet WebsocketAction
-	if err := json.Unmarshal(data, (*packet)(action)); err != nil {
-		return err
-	}
-	var i interface{}
-	switch action.Action {
-	case "ping":
-		i = &WebsocketPingActionData{}
-	case "auth":
-		i = &WebsocketAuthActionData{}
-	case "register":
-		i = &WebsocketRegisterActionData{}
-	case "unregister":
-		i = &WebsocketUnregisterActionData{}
-	default:
-		return errors.New("Unknown action type")
-	}
-
-	if err := json.Unmarshal(action.RawData, i); err != nil {
-		return err
-	}
-	action.Data = i
-	return nil
-}
 func (app *OvpnAdmin) checkWebsocketOrigin(r *http.Request) bool {
 	return true
 }
@@ -106,18 +94,21 @@ func (app *OvpnAdmin) removeConnection(conn *websocket.Conn) {
 		log.Printf("Websocket client NOT found, can't remove from Rpic")
 		return
 	}
-	log.Printf("Websocket client found with role %s", found.role)
+	log.Printf("Websocket client found for removal with role %s", found.role)
 	if found.role == "rpic" {
 		for _, client := range app.clients {
 			for j, rpic := range client.Rpic {
-				if rpic.ws == found {
+				if rpic.ws.ws == found.ws {
+					app.onRemoveRpi(client, client.Rpic[j])
 					client.Rpic = removeRpi(client.Rpic, j)
 					log.Printf("rpic disconnected, pool size: %r", len(client.Rpic))
 					app.broadcast(WebsocketPacket{Stream: "user.update." + client.Username, Data: client})
-					return
+					app.broadcast(WebsocketPacket{Stream: "user.update." + client.Username+".rpic", Data: client.Rpic})
+					break
 				}
 			}
 		}
+		log.Printf("rpic disconnected")
 	}
 }
 
@@ -157,45 +148,152 @@ func (app *OvpnAdmin) websocket(w http.ResponseWriter, r *http.Request) {
 	log.Printf("connected, pool size: %d", len(app.wsConnections))
 
 	for {
-		messageType, message, err := c.ReadMessage()
+		_, message, err := c.ReadMessage()
 		if err != nil {
 			log.Println("read:", err)
 			break
 		}
 		wsSafe.last = time.Now()
-		switch messageType {
-		case websocket.TextMessage:
-			log.Printf("recv (text): %s", bytes.TrimRight(message, "\n"))
-		case websocket.BinaryMessage:
-			log.Printf("recv (binary): %s", message)
-		}
+		//switch messageType {
+		//case websocket.TextMessage:
+		//	log.Printf("recv (text): %s", bytes.TrimRight(message, "\n"))
+		//case websocket.BinaryMessage:
+		//	log.Printf("recv (binary): %s", message)
+		//}
 		app.handleWebsocketMessage(wsSafe, message)
 	}
 }
 
+func (action WebsocketAction) MarshalJSON() ([]byte, error) {
+	//log.Printf("marshal %v\n", action)
+	type packet WebsocketAction
+	if action.Data != nil {
+		b, err := json.Marshal(action.Data)
+		if err != nil {
+			return nil, err
+		}
+		action.RawData = b
+	}
+	str, err := json.Marshal((packet)(action))
+	//log.Printf("marshaled %v\n", str)
+
+	return str, err
+}
+
+func (action *WebsocketAction) UnmarshalJSON(data []byte) error {
+	type packet WebsocketAction
+	if err := json.Unmarshal(data, (*packet)(action)); err != nil {
+		return err
+	}
+	//log.Printf("parsing '%s'", action.Action)
+	var i interface{}
+	if len(action.Action) == 0 {
+		i = &WebsocketResponseData{}
+	} else {
+		switch action.Action {
+		case "ping":
+			i = &WebsocketPingActionData{}
+		case "auth":
+			i = &Hello{}
+		case "register":
+			i = &WebsocketRegisterActionData{}
+		case "unregister":
+			i = &WebsocketUnregisterActionData{}
+		case "forward":
+			i = &ForwardActionData{}
+		//case "hello":
+		//	i = &Hello{}
+		default:
+			return errors.New("unknown action type")
+		}
+	}
+
+	if err := json.Unmarshal(action.RawData, i); err != nil {
+		return err
+	}
+	action.Data = i
+	return nil
+}
 func (app *OvpnAdmin) handleWebsocketMessage(conn *WsSafeConn, message []byte) {
 	var packet WebsocketAction
 
 	err := json.Unmarshal(message, &packet)
 	if err != nil {
-		log.Print(err)
+		log.Printf("Unmarshal: %v", err)
 		return
 	}
+
+	//log.Printf(" => using %v", packet.Data)
 	switch a := packet.Data.(type) {
+	case *WebsocketResponseData:
+		app.handleWebsocketResponse(conn, packet, packet.RawData)
 	case *WebsocketRegisterActionData:
 		app.handleWebsocketRegister(conn, *a)
 	case *WebsocketPingActionData:
 		app.handleWebsocketPing(conn, *a)
 	case *WebsocketUnregisterActionData:
 		app.handleWebsocketUnregister(conn, *a)
-	case *WebsocketAuthActionData:
-		app.handleWebsocketAuth(conn, *a)
+	case *Hello:
+		app.handleWebsocketAuth(conn, packet, *a)
+	case *ForwardActionData:
+		app.handleForwardAction(conn, packet, *a)
+	//case *Hello:
+	//	app.handleHelloAction(conn, packet, *a)
+
 	default:
-		log.Printf("Unrecognized websocket action %s", packet.Action)
+		log.Printf("Unrecognized websocket action '%s'", packet.Action)
 	}
 }
 
+func (app *OvpnAdmin) handleWebsocketResponse(conn *WsSafeConn, packet WebsocketAction, data json.RawMessage) {
+	_, wsConn := app.findConnection(conn)
+	if wsConn == nil {
+		log.Printf("Can't find connection")
+		return
+	}
+
+	for i, req := range wsConn.requestQueue {
+		if req.id == *packet.Id {
+			wsConn.requestQueue = append(wsConn.requestQueue[0:i], wsConn.requestQueue[i+1:]...)
+			req.cb(data)
+
+			return
+		}
+	}
+	log.Printf("Can't find pending request %d on %s (pending: %d)", *packet.Id, wsConn.RealAddress, len(wsConn.requestQueue))
+}
+
+func (app *OvpnAdmin) findConnection(conn *WsSafeConn) (*ClientCertificate, *WsRpiConnection) {
+	for _, certificate := range app.clients {
+		for _, rpic := range certificate.Rpic {
+			if rpic.ws.ws == conn.ws {
+				return certificate, rpic
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (app *OvpnAdmin) handleForwardAction(conn *WsSafeConn, packet WebsocketAction, data ForwardActionData) {
+	client := app.getCertificate(data.Target)
+	if client == nil {
+		app.send(conn, WsErrorResponse{packet.Id, "Can't find certificate"})
+		return
+	}
+	if len(client.Rpic) == 0 {
+		app.send(conn, WsErrorResponse{packet.Id, "RPiC not connected"})
+		return
+	}
+	rpic := client.Rpic[0]
+	rpic.request(data.Action, data.Data, func(response json.RawMessage) {
+		log.Printf("got response from device: %d bytes", len(response))
+		app.send(conn, WebsocketResponse{Id: packet.Id, RawData: response})
+	})
+	//app.send(conn, WebsocketAction{Action: "pong", Data: data})
+}
+
 func (app *OvpnAdmin) handleWebsocketPing(conn *WsSafeConn, data WebsocketPingActionData) {
+	log.Printf("respond to ping with %d", data.Time)
 	app.send(conn, WebsocketAction{Action: "pong", Data: data})
 }
 
@@ -208,21 +306,38 @@ func (app *OvpnAdmin) handleWebsocketUnregister(conn *WsSafeConn, data Websocket
 	streamName := fmt.Sprintf("%v", data.Stream)
 	conn.streams = removeString(conn.streams, streamName)
 }
-func (app *OvpnAdmin) handleWebsocketAuth(conn *WsSafeConn, data WebsocketAuthActionData) {
+
+func (app *OvpnAdmin) handleWebsocketAuth(conn *WsSafeConn, packet WebsocketAction, data Hello) {
+	if conn.ws == nil {
+		return
+	}
 	//log.Errorf("Try to log as %s", data.Username)
-	certificate := app.getCertificate(data.Username)
+	certificate := app.getCertificate(data.Name)
 	if certificate == nil {
-		log.Printf("Can't find certificate %s\n", data.Username)
+		log.Printf("Can't find certificate %s\n", data.Name)
 		app.send(conn, WebsocketAction{Action: "auth", Data: WebsocketAuthResponse{Status: "ko"}})
 		return
 	}
-	log.Printf("Successfully logged for certificate %s\n", data.Username)
-	app.send(conn, WebsocketAction{Action: "auth", Data: WebsocketAuthResponse{Status: "ok"}})
-	conn.role = "rpic"
-	conn.username = data.Username
+	log.Printf("Successfully logged for certificate %s\n", data.Name)
+	//app.send(conn, WebsocketAction{Action: "auth", Data: WebsocketAuthResponse{Status: "ok"}})
 
-	app.addOrUpdateRpic(certificate, conn)
+	log.Printf("current time %d", time.Now().UnixMilli())
+	log.Printf("rpic uptime %d", data.Uptime)
+	data.Boot = time.Now().Add(time.Duration(-data.Uptime))
+
+	conn.role = "rpic"
+	//conn.hello = data
+
+	log.Printf("add rpic to connections %v", certificate)
+	app.addOrUpdateRpic(certificate, conn, &data)
+	log.Printf("send response to request %d", packet.Id)
+	app.send(conn, WebsocketAction{
+		Id: packet.Id,
+		Data: WebsocketAuthResponse{Status: "ok"},
+	})
+	log.Printf("broadcast %s", "user.update." + certificate.Username+".rpic")
 	app.broadcast(WebsocketPacket{Stream: "user.update." + certificate.Username, Data: certificate})
+	app.broadcast(WebsocketPacket{Stream: "user.update." + certificate.Username+".rpic", Data: certificate.Rpic})
 }
 
 func removeString(s []string, search string) []string {
@@ -274,4 +389,36 @@ func (app *OvpnAdmin) send(conn *WsSafeConn, v interface{}) {
 	conn.next = time.AfterFunc(time.Duration(30) * time.Second, func() {
 		next(conn)
 	})
+}
+
+type Request struct {
+	id int64
+	cb func(response json.RawMessage)
+}
+
+type WsRpiConnection struct {
+	RealAddress    string    `json:"realAddress"`
+	Ssl            bool      `json:"ssl"`
+	ConnectedSince time.Time `json:"connectedSince"`
+	LastRef        time.Time `json:"lastRef"`
+
+	Hello          *Hello    `json:"hello,omitempty"`
+	UserAgent      *string   `json:"userAgent"`
+	reqIndex       int64
+	requestQueue   []Request
+	ws             *WsSafeConn
+}
+
+func (conn *WsRpiConnection) request(action string, data interface{}, f func(response json.RawMessage)) {
+	index := conn.reqIndex + 1
+	conn.reqIndex++
+	conn.requestQueue = append(conn.requestQueue, Request{index, f})
+	log.Printf("queing request %d on %s (pending %d)", index, conn.RealAddress, len(conn.requestQueue))
+	conn.ws.mu.Lock()
+	defer conn.ws.mu.Unlock()
+	err := conn.ws.ws.WriteJSON(WebsocketAction{&index, action, data, nil})
+	if err != nil {
+		log.Printf("Cant send packet %v", err)
+		return
+	}
 }

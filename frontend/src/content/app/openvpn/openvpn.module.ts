@@ -27,6 +27,9 @@ import { WebsocketService } from './services/websocket.service';
 import {OpenvpnComponent} from "./openvpn.component";
 import {ConfirmKillConnectionComponent} from "./modals/confirm-kill-connection.component";
 import {ConfigPageComponent} from './config/config-page.component';
+import {AddPackageComponent} from './config/modals/add-package.component';
+import {ConfigureMasterServerComponent} from './config/modals/configure-master-server.component';
+import {NetInterfaceComponent} from './config/components/net-interface.component';
 
 @NgModule({
     declarations: [
@@ -45,6 +48,9 @@ import {ConfigPageComponent} from './config/config-page.component';
         LogPageComponent,
         ConfirmKillConnectionComponent,
         ConfigPageComponent,
+        AddPackageComponent,
+        ConfigureMasterServerComponent,
+        NetInterfaceComponent,
     ],
     imports: [
         RouterModule.forChild(OPENVPN_ROUTES),

@@ -1,12 +1,12 @@
 package main
 
 import (
+	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"log"
 	"math/rand"
 	"net/http"
-	b64 "encoding/base64"
 	"os"
 )
 
@@ -68,11 +68,11 @@ func (app *OvpnAdmin) loadPreferences() {
 		rawJson := fRead(*ovpnConfigFile)
 		err = json.Unmarshal([]byte(rawJson), &app.applicationPreferences)
 		if err != nil {
-			log.Fatal("Can't decode config")
+			log.Printf("Can't decode config")
 			return
 		}
 	} else {
-		log.Infof("No config file found, using defaults")
+		log.Printf("No config file found, using defaults")
 	}
 
 	if len(*jwtSecretFile) > 0 {
@@ -87,7 +87,7 @@ func (app *OvpnAdmin) loadPreferences() {
 		} else {
 			jwtData, err := b64.StdEncoding.DecodeString(app.applicationPreferences.JwtSecretData)
 			if err != nil {
-				log.Warnf("Cant decode jwtSecret %s", err)
+				log.Printf("Cant decode jwtSecret %s", err)
 				return
 			}
 			app.applicationPreferences.jwtData = jwtData
@@ -96,7 +96,7 @@ func (app *OvpnAdmin) loadPreferences() {
 }
 
 func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
-	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	//log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
 		return
@@ -112,7 +112,7 @@ func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&post)
 	if err != nil {
-		log.Errorln(err)
+		log.Printf("JSON.unmarshal error %v", err)
 		jsonError, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Cant decode body: %s", err)})
 		http.Error(w, string(jsonError), http.StatusUnprocessableEntity)
 		return

@@ -25,10 +25,10 @@ export class ConfirmRotateClientCertificateComponent {
     public async save(): Promise<void> {
         try {
             const newClient = await this.openvpnService.rotateCertificate(this.options.client);
-            newClient.accountStatus = 'Active';
-            newClient.revocationDate = undefined;
-            this.options.client.accountStatus = 'Revoked';
-            this.options.client.revocationDate = new Date();
+            newClient.certificate!.accountStatus = 'Active';
+            newClient.certificate!.revocationDate = undefined;
+            this.options.client.certificate!.accountStatus = 'Revoked';
+            this.options.client.certificate!.revocationDate = new Date();
             this.modal.close(newClient);
         } catch (e) {
             console.warn('service call failed');

@@ -6,7 +6,7 @@
     <form>
         <div class="mb-3">
             <p>Revoke certificate of <strong>{{options.client.username}}</strong> ?</p>
-            <p>Certificate valid until {{options.client.expirationDate | date:'yyyy/MM/dd'}}</p>
+            <p>Certificate valid until {{options.client.certificate!.expirationDate | date:'yyyy/MM/dd'}}</p>
         </div>
     </form>
 </div>

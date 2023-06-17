@@ -29,6 +29,7 @@ done
 
 if [ $SKIP_FRONT = 0 ]; then
   rsync --progress --times --recursive --delete-after ~/bus-ui/src/content/app/openvpn/ ./frontend/src/content/app/openvpn/
+  rsync --progress --times --recursive --delete-after ~/bus-ui/src/content/app/shared/services/ble/ ./frontend/src/content/app/shared/services/ble/
   cd frontend && npm install && npm run build && cd ..
 fi
 

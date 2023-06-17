@@ -1,56 +1,191 @@
-
+<div class="bloc-nav">
+  <a [routerLink]="['../../']">&laquo; Client list</a>
+  <h1>Node: <span [ngbTooltip]="identityTooltip" [ngClass]="{different: bleHello && client.username !== bleHello.name}">{{client.username}} <span *ngIf="bleHello && client.username !== bleHello.name">!= {{bleHello.name}}</span></span></h1>
+  <div class="subtitle">Hostname: {{config.hostname}}</div>
+</div>
 <div class="summary">
-  <div class="bloc bloc-client">
-    <div class="bloc-content">
-      <div>username: {{client.username}}</div>
-      <div>email: {{client.email}}</div>
-      <div>city: {{client.city}}</div>
-      <div>province: {{client.province}}</div>
-      <div>country: {{client.country}}</div>
-      <div>organisation: {{client.organisation}}</div>
-      <div>organisationUnit: {{client.organisationUnit}}</div>
-      <div>accountStatus: {{client.accountStatus}}</div>
-      <div>connectionStatus: {{client.connectionStatus}}</div>
-      <div class="expiration-date">expirationDate: {{client.expirationDate}}</div>
+  <div class="bloc-description">
+<!--      <ng-container *ngIf="client.rpic.length > 0; else connectByBluetooth">-->
+    <div>
+      <span>- Agent Version:</span>
+      <span>
+        {{bleHello?.version ?? wsHello?.version}}
+        <span *ngIf="bleHello?.uptime ?? wsHello?.uptime">, uptime: {{renderUptime(bleHello?.boot ?? wsHello?.boot)}}</span>
+      </span>
     </div>
+    <div>
+      <span>- OS Version:</span>
+      <span *ngIf="dpkg">{{dpkg.lsb.prettyName}}</span>
+    </div>
+    <div>
+      - from: {{rpic?.realAddress}}
+      <button *ngIf="!rpic" class="btn btn-sm btn-outline-primary" (click)="configure()">configure</button>
+      <button *ngIf="rpic" class="btn btn-sm btn-outline-primary" (click)="configure()">reconfigure</button>
+<!--      <button *ngIf="rpic" class="btn btn-sm btn-outline-primary" (click)="closeWs()">close</button>-->
+      <button *ngIf="rpic" class="btn btn-sm btn-outline-primary" (click)="leave()" [disabled]="!bleHello">leave</button>
+    </div>
+    <div>Link to nearby device :</div>
+    <div *ngIf="bleConnection.status === 'disconnected' || bleConnection.status === 'failed'; else interacting">
+      <div class="buttons">
+        - <button class="btn btn-sm btn-outline-primary" (click)="connect()">connect</button>
+      </div>
+    </div>
+    <ng-template #interacting>
+      - status: {{bleConnection.status}} <button *ngIf="bleConnection.status === 'connected'" class="btn btn-sm btn-outline-primary" (click)="disconnectBluetooth()">disconnect</button>
+    </ng-template>
+<!--      </ng-container>-->
+<!--      <ng-template #connectByBluetooth>-->
+<!--        <div class="buttons">-->
+<!--          <button class="btn btn-sm btn-outline-primary">connect</button>-->
+<!--        </div>-->
+<!--      </ng-template>-->
   </div>
-  <div class="bloc bloc-config">
-    <div class="bloc-content">
-      VPN tunnels: {{client.connections.length}}
-      <ng-container *ngIf="client.connections.length === 0; else listConnections">
-        Not connected
-      </ng-container>
-      <ng-template #listConnections>
-        <div *ngFor="let connection of client.connections">
-          <div>- external ip: {{connection.realAddress.split(':')[0]}}</div>
-          <div>- internal ip: {{connection.virtualAddress}}</div>
-        </div>
-      </ng-template>
-    </div>
-  </div>
-  <div class="bloc bloc-ble">
-    <div class="bloc-content">
-      <ng-container *ngIf="client.rpic.length > 0; else connectByBluetooth">
-        <div>Rpi clients: {{client.rpic.length}}</div>
-        <div *ngFor="let rpic of client.rpic">
-          - {{rpic.realAddress}}
-        </div>
-        <div>Link to nearby device :</div>
-        <div class="buttons">
-          - <button class="btn btn-sm btn-outline-primary">connect</button>
-        </div>
-      </ng-container>
-      <ng-template #connectByBluetooth>
-        <div class="buttons">
-          <button class="btn btn-sm btn-outline-primary">connect</button>
-        </div>
-      </ng-template>
-    </div>
+  <div class="bloc-graph">
+    <div>cpu %</div>
+    <div>disks space</div>
   </div>
 </div>
-<div class="log">
-  <h1>Connections</h1>
+<hr/>
+<div class="duplicate-rpic-connection" *ngIf="client.rpic.length > 1">
+  /!\ Multiple WsConnection
+</div>
+
+<div class="bloc-interfaces">
+  <h2>Network interfaces:</h2>
+  <div class="content">
+    <ng-container *ngFor="let interface of interfacesRunning">
+      <bus-net-interface [interface]="interface"></bus-net-interface>
+    </ng-container>
+<!--    <ng-container [ngTemplateOutlet]="networkInterface"></ng-container>-->
+<!--    <ng-container [ngTemplateOutlet]="wirelessInterface"></ng-container>-->
+<!--    <ng-container [ngTemplateOutlet]="vpnConfig"></ng-container>-->
+<!--    <ng-container [ngTemplateOutlet]="soracomInterface"></ng-container>-->
+  </div>
+</div>
+
+<div class="bloc-targets">
+  <div class="bloc-header">
+    <h2>Expected packages:</h2>
+    <div class="bloc-buttons">
+      <button class="btn btn-sm btn-outline-primary" (click)="addPackage()">add</button>
+      <button class="btn btn-sm btn-outline-primary" (click)="manageRepositories()">repos</button>
+    </div>
+  </div>
+  <div class="bloc-content">
+    <ng-container
+       *ngFor="let pkg of config.packages"
+       [ngTemplateOutlet]="packageBloc"
+       [ngTemplateOutletContext]="{expected: pkg, installed: getInstalledPackage(pkg.name)}">
+    </ng-container>
+  </div>
+</div>
+
+<ng-template #packageBloc let-expected="expected" let-installed="installed">
+  <div class="package">
+    <div class="details">
+      <div><span class="bloc-name">{{expected.name}}</span>: {{installed?.description}}</div>
+      <div> - installed: 42 days ago</div>
+      <div> - last updated: 2 days ago</div>
+      <div> - state: 2 days ago</div>
+      <div> - state: {{installed?.state}} / wanted: {{installed?.desiredState}}</div>
+    </div>
+    <div class="version">
+      <div>expected: {{expected.version}}</div>
+      <div>actual: {{installed?.version}}</div>
+    </div>
+  </div>
+</ng-template>
+
+<div class="terminal">
+  <h2 title="TODO: allow any request on agent side, manage permissions">Shell</h2>
+  <div class="inputs">
+    <form (ngSubmit)="submit()" matInput>
+      <input [(ngModel)]="cmdLine" name="cmdLine">
+    </form>
+    <div>
+      <button class="btn btn-outline-info btn-sm" [matMenuTriggerFor]="menu">Menu</button>
+
+      <mat-menu #menu="matMenu">
+        <button mat-menu-item [disabled]="client.rpic.length === 0" (click)="preferWebsocket()">
+          <span>prefer websocket</span>
+        </button>
+        <button mat-menu-item [disabled]="bleConnection.status !== 'connected'" (click)="preferBluetooth()">
+          <span>prefer bluetooth</span>
+        </button>
+      </mat-menu>
+      <button class="btn btn-outline-info btn-sm" (click)="clearHistory()">clear</button>
+    </div>
+  </div>
+  <div class="logs"><div class="log" *ngFor="let line of logs" [ngClass]="{up: line.dir === 'up', down: line.dir === 'down'}"><div class="request">{{line.time | date:'HH:mm:ss'}} | {{line.message}}</div><div class="response">{{line.body}}</div></div></div>
+<!--  <div class="history">-->
+<!--    <pre *ngFor="let line of lines" [class]="{up: line.dir === 'up', down: line.dir === 'down'}">{{line}}</pre>-->
+<!--  </div>-->
+</div>
+<div class="status">
+  <h2>VPN Connections</h2>
   <pre>{{client.connections | json}}</pre>
-  <h1>Rpi Config</h1>
+  <h2>RPiC Connections</h2>
   <pre>{{client.rpic | json}}</pre>
 </div>
+
+<ng-template #vpnConfig>
+  <div class="item">
+    VPN tunnels: {{client.connections.length}}
+    <ng-container *ngIf="client.connections.length === 0; else listConnections">
+      Not connected
+    </ng-container>
+    <ng-template #listConnections>
+      <div>- certificate: {{client.username     }}</div>
+      <div *ngFor="let connection of client.connections">
+        <div>- external ip: {{connection.realAddress.split(':')[0]}}</div>
+        <div>- internal ip: {{connection.virtualAddress}}</div>
+      </div>
+    </ng-template>
+  </div>
+</ng-template>
+
+<!--<ng-template #networkInterface>-->
+<!--  <div class="item">-->
+<!--    eth0:-->
+<!--    <div>-->
+<!--      <div>- mode: dhcp-server</div>-->
+<!--      <div>- ip: 10.42.23.1/24</div>-->
+<!--    </div>-->
+<!--  </div>-->
+<!--</ng-template>-->
+
+<!--<ng-template #wirelessInterface>-->
+<!--  <div class="item">-->
+<!--    wlan0:-->
+<!--    <div>-->
+<!--      <div>- mode: dhcp-client</div>-->
+<!--      <div>- ap: ArchiAP</div>-->
+<!--      <div>- ip: 192.168.0.64/24</div>-->
+<!--    </div>-->
+<!--  </div>-->
+<!--</ng-template>-->
+
+<!--<ng-template #soracomInterface>-->
+<!--  <div class="item">-->
+<!--    soracom1:-->
+<!--    <div>-->
+<!--      <div>- mode: dhcp-client</div>-->
+<!--      <div>- ip: 172.217.42.1/30</div>-->
+<!--    </div>-->
+<!--  </div>-->
+<!--</ng-template>-->
+
+<ng-template #identityTooltip>
+  <ng-container *ngIf="!client.certificate.email && !client.certificate.country && !client.certificate.province && !client.certificate.city && !client.certificate.organisation && !client.certificate.organisationUnit">
+    No info
+  </ng-container>
+  <table>
+    <tr *ngIf="client.certificate.email"><td class="text-start pe-1" colspan="2">{{client.certificate.email}}</td></tr>
+    <tr *ngIf="client.certificate.email && (client.certificate.country || client.certificate.province || client.certificate.city || client.certificate.organisation || client.certificate.organisationUnit)"><td colspan="2"><hr class="my-1"></td></tr>
+    <tr *ngIf="client.certificate.country"><td class="pe-1">C</td><td class="text-start pe-1">{{client.certificate.country}}</td></tr>
+    <tr *ngIf="client.certificate.province"><td class="pe-1">ST</td><td class="text-start pe-1">{{client.certificate.province}}</td></tr>
+    <tr *ngIf="client.certificate.city"><td class="pe-1">L</td><td class="text-start pe-1">{{client.certificate.city}}</td></tr>
+    <tr *ngIf="client.certificate.organisation"><td class="pe-1">O</td><td class="text-start pe-1">{{client.certificate.organisation}}</td></tr>
+    <tr *ngIf="client.certificate.organisationUnit"><td class="pe-1">OU</td><td class="text-start pe-1">{{client.certificate.organisationUnit}}</td></tr>
+  </table>
+</ng-template>

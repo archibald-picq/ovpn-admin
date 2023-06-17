@@ -1,0 +1,27 @@
+<div class="modal-header">
+  <h4 class="modal-title" id="modal-basic-title">Configure Master Server</h4>
+  <button [disabled]="loading" type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+</div>
+<div class="modal-body">
+  <form>
+    <div class="mb-3">
+      <label for="name">device name</label>
+      <input [disabled]="loading" id="name" name="name" class="form-control" [(ngModel)]="name" [placeholder]="defaultName" autocomplete="off">
+    </div>
+    <div class="mb-3">
+      <label for="name">server url</label>
+      <input [disabled]="loading" id="url" name="url" class="form-control" [(ngModel)]="url" [placeholder]="defaultServer" autocomplete="off">
+    </div>
+<!--    <div class="mb-3">-->
+<!--      <label for="version">node name</label>-->
+<!--      <input [disabled]="loading" id="version" name="version" class="form-control" [(ngModel)]="version" placeholder="^5.6.1" autocomplete="off">-->
+<!--    </div>-->
+  </form>
+</div>
+<div class="modal-footer flex-nowrap">
+  <div class="error">{{error}}</div>
+  <button [disabled]="loading" type="button" class="btn btn-outline-dark" (click)="save()">
+    <span *ngIf="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+    <span class="sr-only">Save</span>
+  </button>
+</div>

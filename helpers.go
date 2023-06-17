@@ -61,7 +61,7 @@ func fExist(path string) bool {
 }
 
 func fRead(path string) string {
-	content, err := ioutil.ReadFile(path)
+	content, err := os.ReadFile(path)
 	if err != nil {
 		log.Warning(err)
 		return ""
@@ -84,7 +84,7 @@ func fCreate(path string) error {
 }
 
 func fWrite(path string, content string) error {
-	err := ioutil.WriteFile(path, []byte(content), 0644)
+	err := os.WriteFile(path, []byte(content), 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func fWrite(path string, content string) error {
 }
 
 func fWriteBytes(path string, content []byte) error {
-	err := ioutil.WriteFile(path, content, 0644)
+	err := os.WriteFile(path, content, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}

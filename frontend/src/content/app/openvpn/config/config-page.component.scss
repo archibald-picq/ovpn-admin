@@ -1,26 +1,131 @@
 
+.bloc-nav {
+  margin: 10px;
+}
+
 .summary {
+
   margin: 10px;
   display: flex;
-  gap: 10px;
 
-  .bloc {
+  .bloc-description {
+    padding: 10px;
     flex-grow: 1;
-    background: #d2d2d2;
-    max-width: 33%;
   }
 
-  .bloc-content {
-    margin: 10px;
-  }
-
-  .expiration-date {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+  .bloc-graph {
+    min-width: 100px;
+    width: 30%;
+    display: flex;
+    align-content: center;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px dashed #b9b9b9;
   }
 }
 
-.log {
+.bloc-targets {
+  margin: 10px;
+
+  .bloc-header {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 5px;
+
+    h2 {
+      flex-grow: 1;
+      margin: 0;
+    }
+
+    .bloc-buttons {
+      display: flex;
+      align-content: flex-end;
+      align-items: flex-end;
+      gap: 5px;
+    }
+  }
+
+  .bloc-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .package {
+    background: #cccccc;
+    display: flex;
+    flex-direction: row;
+
+    .details {
+      flex-grow: 1;
+      padding: 10px;
+    }
+
+    .bloc-name {
+      font-weight: bold;
+    }
+    .version {
+      min-width: 100px;
+      width: 20%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      flex-direction: column;
+    }
+  }
+}
+
+.bloc-interfaces {
+  margin: 10px;
+  .content {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+
+    bus-net-interface {
+      width: 300px;
+
+    }
+  }
+}
+
+.terminal {
+  margin: 10px;
+
+  .inputs {
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+
+    form {
+      flex-grow: 1;
+      input {
+        width: 100%;
+      }
+    }
+  }
+
+  .logs {
+    border: 1px solid gray;
+    white-space: pre-wrap;
+
+    .log {
+      white-space: pre-wrap;
+      font-family: monospace;
+
+      .request {
+        color: #c0c0c0;
+      }
+      .response {
+        color: #424242;
+      }
+    }
+  }
+
+}
+
+.status {
   margin: 10px;
 }

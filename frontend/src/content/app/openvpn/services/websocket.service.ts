@@ -2,11 +2,9 @@ import { Injectable } from "@angular/core";
 import { AppConfigService } from '../../shared/services/app-config.service';
 
 class WebsocketRequest {
-    id: number;
     resolve: (resp: any) => void;
     reject: (err: any) => void;
-    constructor(id: number, resolve: (resp: any) => void, reject: (err: any) => void) {
-        this.id = id;
+    constructor(public readonly id: number, public readonly payload: any, resolve: (resp: any) => void, reject: (err: any) => void) {
         this.resolve = resolve;
         this.reject = reject;
     }
@@ -151,9 +149,14 @@ export class WebsocketService {
         //     stream.status = 'opened';
         // });
         this.status = 'opened';
+
         Object.keys(this.streams).forEach((streamName) => {
            this.server?.send(JSON.stringify({action: 'register', data: {stream: streamName}}));
         });
+        if (this.pending.length) {
+            // console.warn('finally connected to send', this.pending[0]);
+            this.server?.send(JSON.stringify(this.pending[0].payload));
+        }
         // this.send({
         //     register: 'peripherals',
         // });
@@ -164,23 +167,30 @@ export class WebsocketService {
         if (p === -1) {
             console.warn('reply from not pending request', obj.id);
         } else {
-            if (typeof obj.response !== 'undefined') {
-                this.pending[p].resolve(obj.response);
+            if (typeof obj.data !== 'undefined') {
+                this.pending[p].resolve(obj.data);
             } else if (typeof obj.error !== 'undefined') {
                 this.pending[p].reject(obj.error);
             } else {
-                console.warn('Invalid message with pending request', obj.id);
+                console.warn('Invalid message with pending request', obj.id, obj);
             }
             this.pending.splice(p, 1);
         }
     }
 
-    async request(obj: any) {
+    async request(action: string, data: any) {
         return new Promise((resolve, reject) => {
-            const id = this.reqId++;
-            this.pending.push(new WebsocketRequest(id, resolve, reject));
-            obj.id = id;
-            this.server!.send(JSON.stringify(obj));
+            const payload = {
+                id: ++this.reqId,
+                action,
+                data,
+            };
+            this.pending.push(new WebsocketRequest(payload.id, payload, resolve, reject));
+            if (this.server) {
+                this.server.send(JSON.stringify(payload));
+            // } else {
+            //     console.warn('websocket not yet connected?', this);
+            }
         });
     }
 

@@ -12,6 +12,7 @@ import { UploadPageComponent } from './upload/upload.component';
 import { LogPageComponent } from './log/log.component';
 import { OpenvpnComponent } from './openvpn.component';
 import {ConfigPageComponent} from './config/config-page.component';
+import {NodeConfig} from './models/node-config.model';
 
 @Injectable({ providedIn: 'root' })
 class ConfigResolve implements Resolve<OpenvpnConfig> {
@@ -44,6 +45,16 @@ class ClientResolve implements Resolve<IClientCertificate|undefined> {
 
     public resolve(route: ActivatedRouteSnapshot): Promise<IClientCertificate|undefined> {
         return firstValueFrom(this.service.listClientCertificates()).then(list => list.find(l => l.username === route.params.username));
+    }
+}
+
+// /api/node/{nodeName}
+@Injectable({providedIn: 'root'})
+class NodeConfigResolve implements Resolve<NodeConfig> {
+    constructor(private readonly service: OpenvpnService) {}
+
+    public resolve(route: ActivatedRouteSnapshot): Promise<NodeConfig> {
+        return this.service.getNodeConfig(route.params.username);
     }
 }
 
@@ -82,6 +93,7 @@ export const OPENVPN_ROUTES: Route[] = [{
             component: ConfigPageComponent,
             resolve: {
                 client: ClientResolve,
+                config: NodeConfigResolve,
             }
         }
     ],

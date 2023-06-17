@@ -3,9 +3,10 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"strings"
-	log "github.com/sirupsen/logrus"
 )
 
 type OpenvpnClientConfig struct {
@@ -26,10 +27,32 @@ type OpenvpnClientConfig struct {
 	TlsVersionMin      string
 	TlsCipher          string
 }
+
+type OpenvpnServer struct {
+	Host     string
+	Port     string
+	Protocol string
+}
+
+func (app *OvpnAdmin) userShowConfigHandler(w http.ResponseWriter, r *http.Request) {
+	//log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+	auth := getAuthCookie(r)
+	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	_ = r.ParseForm()
+	fmt.Fprintf(w, "%s", app.renderClientConfig(r.FormValue("username")))
+}
+
 func (app *OvpnAdmin) renderClientConfig(username string) string {
 	_, _, err := checkUserExist(username)
 	if err != nil {
-		log.Warnf("user \"%s\" not found", username)
+		//log.Printf("user \"%s\" not found", username)
 		return fmt.Sprintf("user \"%s\" not found", username)
 	}
 	var hosts []OpenvpnServer
@@ -60,7 +83,7 @@ func (app *OvpnAdmin) renderClientConfig(username string) string {
 		}
 	}
 
-	log.Infof("hosts for %s\n %v", username, hosts)
+	//log.Infof("hosts for %s\n %v", username, hosts)
 
 	conf := OpenvpnClientConfig{}
 	conf.Hosts = hosts
@@ -96,13 +119,13 @@ func (app *OvpnAdmin) renderClientConfig(username string) string {
 	var tmp bytes.Buffer
 	err = t.Execute(&tmp, conf)
 	if err != nil {
-		log.Errorf("something goes wrong during rendering config for %s", username)
-		log.Debugf("rendering config for %s failed with error %v", username, err)
+		//log.Errorf("something goes wrong during rendering config for %s", username)
+		//log.Debugf("rendering config for %s failed with error %v", username, err)
 	}
 
 	hosts = nil
 
-	log.Tracef("Rendered config for user %s: %+v", username, tmp.String())
+	//log.Printf("Rendered config for user %s: %+v", username, tmp.String())
 
 	return fmt.Sprintf("%+v", tmp.String())
 }
@@ -111,13 +134,14 @@ func (app *OvpnAdmin) downloadCcd() bool {
 	if fExist(ccdArchivePath) {
 		err := fDelete(ccdArchivePath)
 		if err != nil {
-			log.Error(err)
+			log.Printf("failed to delete ccdFile %s", err)
+			return false
 		}
 	}
 
 	err := fDownload(ccdArchivePath, *masterHost+downloadCcdApiUrl+"?token="+app.masterSyncToken, app.masterHostBasicAuth)
 	if err != nil {
-		log.Error(err)
+		log.Printf("failed to download ccd %s", err)
 		return false
 	}
 

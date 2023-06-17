@@ -1,5 +1,6 @@
-import { IClientCertificate, IConnection, INetwork, INode } from './client-certificate.interface';
+import {ICertificate, IClientCertificate, IConnection, INetwork, INode} from './client-certificate.interface';
 import { ClientConfig } from './client-config.model';
+import { Hello } from './hello.model';
 
 export class Network implements INetwork {
 	address: string;
@@ -38,6 +39,7 @@ export class WsRpicConnection {
 		public readonly connectedSince: Date|undefined,
 		public readonly lastRef: Date|undefined,
 		public readonly userAgent: string,
+		public readonly hello: Hello|undefined,
 	) {
 	}
 
@@ -48,6 +50,7 @@ export class WsRpicConnection {
 			obj.connectedSince ? new Date(obj.connectedSince) : undefined,
 			obj.lastRef ? new Date(obj.lastRef) : undefined,
 			obj.userAgent,
+			obj.hello ? Hello.hydrate(obj.hello) : undefined,
 		);
 	}
 }
@@ -90,44 +93,57 @@ export class Connection implements IConnection {
 	}
 }
 
-export class ClientCertificate implements IClientCertificate {
-
+export class Certificate implements ICertificate {
 	constructor(
-		public readonly username: string,
-		public readonly email: string,
+		public readonly identity: string,
 		public readonly country: string,
 		public readonly province: string,
 		public readonly city: string,
 		public readonly organisation: string,
 		public readonly organisationUnit: string,
-		public readonly identity: string,
+		public readonly email: string,
+		public readonly expirationDate: Date|undefined,
+		public readonly revocationDate: Date|undefined,
 		public accountStatus: string,
+	) {
+
+	}
+	public static hydrate(obj: ICertificate) : ICertificate {
+		return new Certificate(
+			obj.identity,
+			obj.country,
+			obj.province,
+			obj.city,
+			obj.organisation,
+			obj.organisationUnit,
+			obj.email,
+			ClientCertificate.parseDate(obj.expirationDate),
+			obj.revocationDate ? ClientCertificate.parseDate(obj.revocationDate): undefined,
+			obj.accountStatus,
+		);
+	}
+}
+
+export class ClientCertificate implements IClientCertificate {
+
+	constructor(
+		public readonly username: string,
+		public certificate: ICertificate|undefined,
 		public connectionStatus: string,
 		public readonly connections: IConnection[],
 		public readonly rpic: WsRpicConnection[],
-		public readonly expirationDate?: Date,
-		public readonly revocationDate?: Date,
 		public readonly ccd?: ClientConfig,
 	) {
 
 	}
 
-	public static hydrate(obj: Record<string, any>): IClientCertificate {
+	public static hydrate(obj: IClientCertificate): IClientCertificate {
 		return new ClientCertificate(
 			obj.username,
-			obj.email,
-			obj.country,
-			obj.city,
-			obj.province,
-			obj.organisation,
-			obj.organisationUnit,
-			obj.identity,
-			obj.accountStatus,
+			obj.certificate ? Certificate.hydrate(obj.certificate) : undefined,
 			obj.connectionStatus,
 			obj.connections?.map(Connection.hydrate) ?? [],
 			obj.rpic?.map(WsRpicConnection.hydrate) ?? [],
-			ClientCertificate.parseDate(obj.expirationDate),
-			obj.revocationDate ? ClientCertificate.parseDate(obj.revocationDate): undefined,
 			obj.ccd,
 		);
 	}
@@ -139,26 +155,20 @@ export class ClientCertificate implements IClientCertificate {
 	public clone(): IClientCertificate {
 		return new ClientCertificate(
 			this.username,
-			this.email,
-			this.country,
-			this.province,
-			this.city,
-			this.organisation,
-			this.organisationUnit,
-			this.identity,
-			this.accountStatus,
+			this.certificate,
 			this.connectionStatus,
 			[],
 			[],
-			this.expirationDate? new Date(this.expirationDate): undefined,
-			undefined,
 			undefined,
 		);
 	}
 	public merge(newClient: IClientCertificate): void {
-		console.warn('merge', newClient);
+		// console.warn('merge', newClient);
 		this.connectionStatus = newClient.connectionStatus;
-		this.accountStatus = newClient.accountStatus;
+		if (this.certificate && newClient.certificate?.accountStatus) {
+			this.certificate.accountStatus = newClient.certificate?.accountStatus;
+		}
+
 		this.connections.splice(0, this.connections.length);
 		for (const connection of newClient.connections) {
 			this.connections.push(connection);

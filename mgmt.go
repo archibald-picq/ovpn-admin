@@ -2,15 +2,22 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 	log "github.com/sirupsen/logrus"
 )
+
+type ConnectionId struct {
+	ClientId   int64 `json:"clientId"`
+}
+
 func (app *OvpnAdmin) getUserConnection(user string, clientId int64) *VpnClientConnection {
 	for _, u := range app.clients {
 		if u.Username == user {
@@ -132,6 +139,7 @@ func (app *OvpnAdmin) connectToManagementInterface() {
 				for i := range app.updatedUsers {
 					//log.Warnf("updating single user %s", app.updatedUsers[i].Username)
 					app.broadcast(WebsocketPacket{Stream: "user.update." + app.updatedUsers[i].Username, Data: app.updatedUsers[i]})
+					app.broadcast(WebsocketPacket{Stream: "user.update." + app.updatedUsers[i].Username+".connections", Data: app.updatedUsers[i].Connections})
 				}
 				app.updatedUsers = make([]*ClientCertificate, 0)
 			}
@@ -393,6 +401,7 @@ func (app *OvpnAdmin) handleNewClientEvent(lines []string) {
 			app.broadcast(WebsocketPacket{Stream: "user.update", Data: updatedUsers})
 			//log.Warnf("updating single user %s", user.Username)
 			app.broadcast(WebsocketPacket{Stream: "user.update." + user.Username, Data: updatedUsers[0]})
+			app.broadcast(WebsocketPacket{Stream: "user.update." + user.Username+".connections", Data: updatedUsers[0].Connections})
 		}
 	} else {
 		log.Printf("Skipped client '%v'", lines)
@@ -427,6 +436,40 @@ func (app *OvpnAdmin) killAndRemoveConnection(client *ClientCertificate, conn *V
 	}
 
 	return nil
+}
+
+func (app *OvpnAdmin) apiConnectionKill(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.RemoteAddr, " ", r.RequestURI)
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+	auth := getAuthCookie(r)
+	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	var req ConnectionId
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		jsonErr, _ := json.Marshal(MessagePayload{Message: "Cant parse JSON"})
+		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
+		return
+	}
+
+	for _, c := range app.clients {
+		for _, conn := range c.Connections {
+			if conn.ClientId == req.ClientId {
+				if err := app.killAndRemoveConnection(c, conn); err != nil {
+					jsonErr, _ := json.Marshal(MessagePayload{Message: err.Error()})
+					http.Error(w, string(jsonErr), http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type AwaitedResponse struct {

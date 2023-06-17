@@ -12,6 +12,19 @@ export interface INetwork {
     lastSeen: Date;
 }
 
+export interface ICertificate {
+    identity: string;
+    country: string;
+    province: string;
+    city: string;
+    organisation: string;
+    organisationUnit: string;
+    email: string;
+    expirationDate: Date|undefined;
+    revocationDate: Date|undefined;
+    accountStatus: string;
+}
+
 export interface IConnection {
     clientId: number;
     realAddress: string;
@@ -29,19 +42,10 @@ export interface IConnection {
 
 export interface IClientCertificate {
     username: string;
-    email: string;
-    country: string;
-    province: string;
-    city: string;
-    organisation: string;
-    organisationUnit: string;
-    identity: string;
-    accountStatus: string;
+    certificate: ICertificate|undefined;
     connectionStatus: string;
     connections: IConnection[];
     rpic: WsRpicConnection[];
-    expirationDate?: Date;
-    revocationDate?: Date;
     ccd?: ClientConfig;
 
     clone(): IClientCertificate;

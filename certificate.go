@@ -7,13 +7,53 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"io/ioutil"
-	"math/big"
-	"time"
 	"errors"
-
-	log "github.com/sirupsen/logrus"
+	"log"
+	"math/big"
+	"net/http"
+	"os"
+	"time"
 )
+
+type Route struct {
+	Address       string `json:"address"`
+	Netmask       string `json:"netmask"`
+	Description   string `json:"description"`
+}
+
+type Ccd struct {
+	User          string     `json:"user"`
+	ClientAddress string     `json:"clientAddress"`
+	CustomRoutes  []Route    `json:"customRoutes"`
+	CustomIRoutes []Route    `json:"customIRoutes"`
+}
+
+type Certificate struct {
+	Identity          string              `json:"identity"`
+	Country           string              `json:"country"`
+	Province          string              `json:"province"`
+	City              string              `json:"city"`
+	Organisation      string              `json:"organisation"`
+	OrganisationUnit  string              `json:"organisationUnit"`
+	Email             string              `json:"email"`
+	ExpirationDate    string              `json:"expirationDate"`
+	RevocationDate    string              `json:"revocationDate"`
+	DeletionDate      string              `json:"deletionDate"`
+	flag              string
+	SerialNumber      string              `json:"serialNumber"`
+	Filename          string              `json:"filename"`
+	AccountStatus     string              `json:"accountStatus"`
+}
+
+type ClientCertificate struct {
+	Certificate       *Certificate        `json:"certificate"`
+	Username          string              `json:"username"`
+
+	ConnectionStatus  string              `json:"connectionStatus"`
+	Connections       []*VpnClientConnection `json:"connections"`
+	Rpic              []*WsRpiConnection  `json:"rpic"`
+	RpiState          *RpiState           `json:"rpiState,omitempty"`
+}
 
 type RevokedCert struct {
 	RevokedTime time.Time         `json:"revokedTime"`
@@ -21,10 +61,35 @@ type RevokedCert struct {
 	Cert        *x509.Certificate `json:"cert"`
 }
 
+func (app *OvpnAdmin) downloadCertsHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
+	auth := getAuthCookie(r)
+	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	_ = r.ParseForm()
+	token := r.Form.Get("token")
+
+	if token != app.masterSyncToken {
+		http.Error(w, `{"status":"error"}`, http.StatusForbidden)
+		return
+	}
+
+	archiveCerts()
+	w.Header().Set("Content-Disposition", "attachment; filename="+certsArchiveFileName)
+	http.ServeFile(w, r, certsArchivePath)
+}
+
 func (app *OvpnAdmin) getCommonNameFromCertificate(path string) *x509.Certificate {
-	caCert, err := ioutil.ReadFile(path)
+	caCert, err := os.ReadFile(path)
 	if err != nil {
-		log.Errorf("error read file %s: %s", app.serverConf.ca, err.Error())
+		log.Printf("error read file %s: %s", app.serverConf.ca, err.Error())
+		return nil
 	}
 
 	certPem, _ := pem.Decode(caCert)
@@ -32,7 +97,7 @@ func (app *OvpnAdmin) getCommonNameFromCertificate(path string) *x509.Certificat
 
 	cert, err := x509.ParseCertificate(certPemBytes)
 	if err != nil {
-		log.Errorf("error parse certificate ca.crt: %s", err.Error())
+		log.Printf("error parse certificate ca.crt: %s\n", err.Error())
 		return nil
 	}
 
@@ -225,13 +290,13 @@ func (app *OvpnAdmin) downloadCerts() bool {
 	if fExist(certsArchivePath) {
 		err := fDelete(certsArchivePath)
 		if err != nil {
-			log.Error(err)
+			log.Printf("failed to delete cert archive %v", err)
 		}
 	}
 
 	err := fDownload(certsArchivePath, *masterHost+downloadCertsApiUrl+"?token="+app.masterSyncToken, app.masterHostBasicAuth)
 	if err != nil {
-		log.Error(err)
+		log.Printf("failed to download files %v", err)
 		return false
 	}
 

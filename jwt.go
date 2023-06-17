@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"net/http"
 	"time"
-	log "github.com/sirupsen/logrus"
 )
 
 type AuthenticatePayload struct {
@@ -116,14 +116,14 @@ func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 	var authPayload AuthenticatePayload
 	err := json.NewDecoder(r.Body).Decode(&authPayload)
 	if err != nil {
-		log.Errorf("Can't decode auth payload %s", err)
+		log.Printf("Can't decode auth payload %s", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	expectedPassword, err := app.getEncryptedPasswordForUser(authPayload.Username)
 	if err != nil {
-		log.Errorln(err)
+		log.Printf("Password error %v", err)
 		w.WriteHeader(http.StatusForbidden)
 	}
 
@@ -152,7 +152,7 @@ func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 	// Create the JWT string
 	tokenString, err := token.SignedString(app.applicationPreferences.jwtData)
 	if err != nil {
-		log.Errorf("Can't sign payload: %s", err)
+		log.Printf("Can't sign payload: %s", err)
 		// If there is an error in creating the JWT return an internal server error
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -167,7 +167,7 @@ func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 	rawJson, _ := json.Marshal(app.getUserProfile(authPayload.Username))
 	_, err = w.Write(rawJson)
 	if err != nil {
-		log.Errorln("Fail to write response")
+		log.Printf("Fail to write response")
 		return
 	}
 }

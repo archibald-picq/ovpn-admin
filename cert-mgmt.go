@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/google/uuid"
 	"gopkg.in/alessio/shellescape.v1"
+	"time"
 )
 
 type UserDefinition struct {
@@ -21,6 +22,34 @@ type UserDefinition struct {
 	City             string `json:"city"`
 	Organisation     string `json:"organisation"`
 	OrganisationUnit string `json:"organisationUnit"`
+}
+
+type VpnClientConnection struct {
+	ClientId                int64      `json:"clientId"`
+	commonName              string
+	RealAddress             string     `json:"realAddress"`
+	BytesReceived           int64      `json:"bytesReceived"`
+	BytesSent               int64      `json:"bytesSent"`
+	SpeedBytesReceived      int64      `json:"speedBytesReceived"`
+	SpeedBytesSent          int64      `json:"speedBytesSent"`
+	lastByteReceived        time.Time
+	ConnectedSince          *string    `json:"connectedSince"`
+	VirtualAddress          *string    `json:"virtualAddress"`
+	VirtualAddressIPv6      *string    `json:"virtualAddressIPv6"`
+	LastRef                 *string    `json:"lastRef"`
+	Nodes                   []NodeInfo `json:"nodes"`
+	Networks                []Network  `json:"networks"`
+}
+
+type Network struct {
+	Address  string `json:"address"`
+	Netmask  string `json:"netmask"`
+	LastSeen string `json:"lastSeen"`
+}
+
+type NodeInfo struct {
+	Address  string `json:"address"`
+	LastSeen string `json:"lastSeen"`
 }
 
 func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) {
@@ -132,11 +161,6 @@ func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	//if app.role == "slave" {
-	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
-	//	return
-	//}
-
 	_ = r.ParseForm()
 	fmt.Fprintf(w, "%s", app.userUnrevoke(r.FormValue("username")))
 }
@@ -291,21 +315,21 @@ func (app *OvpnAdmin) userUnrevoke(username string) string {
 		return fmt.Sprintf("{\"msg\":\"User \"%s\" not found\"}", username)
 	}
 
-	if (*userFromIndexTxt).flag == "R" {
+	if (*userFromIndexTxt).Certificate.flag == "R" {
 
-		err := fCopy(fmt.Sprintf("%s/pki/revoked/certs_by_serial/%s.crt", *easyrsaDirPath, (*userFromIndexTxt).SerialNumber), fmt.Sprintf("%s/pki/issued/%s.crt", *easyrsaDirPath, username))
+		err := fCopy(fmt.Sprintf("%s/pki/revoked/certs_by_serial/%s.crt", *easyrsaDirPath, (*userFromIndexTxt).Certificate.SerialNumber), fmt.Sprintf("%s/pki/issued/%s.crt", *easyrsaDirPath, username))
 		if err != nil {
 			log.Error(err)
 		}
-		err = fCopy(fmt.Sprintf("%s/pki/revoked/certs_by_serial/%s.crt", *easyrsaDirPath, (*userFromIndexTxt).SerialNumber), fmt.Sprintf("%s/pki/certs_by_serial/%s.pem", *easyrsaDirPath, (*userFromIndexTxt).SerialNumber))
+		err = fCopy(fmt.Sprintf("%s/pki/revoked/certs_by_serial/%s.crt", *easyrsaDirPath, (*userFromIndexTxt).Certificate.SerialNumber), fmt.Sprintf("%s/pki/certs_by_serial/%s.pem", *easyrsaDirPath, (*userFromIndexTxt).Certificate.SerialNumber))
 		if err != nil {
 			log.Error(err)
 		}
-		err = fCopy(fmt.Sprintf("%s/pki/revoked/private_by_serial/%s.key", *easyrsaDirPath, (*userFromIndexTxt).SerialNumber), fmt.Sprintf("%s/pki/private/%s.key", *easyrsaDirPath, username))
+		err = fCopy(fmt.Sprintf("%s/pki/revoked/private_by_serial/%s.key", *easyrsaDirPath, (*userFromIndexTxt).Certificate.SerialNumber), fmt.Sprintf("%s/pki/private/%s.key", *easyrsaDirPath, username))
 		if err != nil {
 			log.Error(err)
 		}
-		err = fCopy(fmt.Sprintf("%s/pki/revoked/reqs_by_serial/%s.req", *easyrsaDirPath, (*userFromIndexTxt).SerialNumber), fmt.Sprintf("%s/pki/reqs/%s.req", *easyrsaDirPath, username))
+		err = fCopy(fmt.Sprintf("%s/pki/revoked/reqs_by_serial/%s.req", *easyrsaDirPath, (*userFromIndexTxt).Certificate.SerialNumber), fmt.Sprintf("%s/pki/reqs/%s.req", *easyrsaDirPath, username))
 		if err != nil {
 			log.Error(err)
 		}
@@ -342,7 +366,7 @@ func (app *OvpnAdmin) userRotate(username, newPassword string) (bool, string) {
 	}
 
 	//uniqHash := strings.Replace(uuid.New().String(), "-", "", -1)
-	if userFromIndexTxt.flag == "V" {
+	if userFromIndexTxt.Certificate.flag == "V" {
 		_, err := runBash(fmt.Sprintf("cd %s && echo yes | ./easyrsa revoke %s && ./easyrsa gen-crl", *easyrsaDirPath, userFromIndexTxt.Username))
 		if err != nil {
 			return false, fmt.Sprintf("Error revoking certificate \"%s\"", err)
@@ -354,12 +378,12 @@ func (app *OvpnAdmin) userRotate(username, newPassword string) (bool, string) {
 	definition := UserDefinition{
 		Username: userFromIndexTxt.Username,
 		Password: newPassword,
-		City: userFromIndexTxt.City,
-		Province: userFromIndexTxt.Province,
-		Country: userFromIndexTxt.Country,
-		Organisation: userFromIndexTxt.Organisation,
-		OrganisationUnit: userFromIndexTxt.OrganisationUnit,
-		Email: userFromIndexTxt.Email,
+		City: userFromIndexTxt.Certificate.City,
+		Province: userFromIndexTxt.Certificate.Province,
+		Country: userFromIndexTxt.Certificate.Country,
+		Organisation: userFromIndexTxt.Certificate.Organisation,
+		OrganisationUnit: userFromIndexTxt.Certificate.OrganisationUnit,
+		Email: userFromIndexTxt.Certificate.Email,
 	}
 	_, errMsg := app.userCreate(definition)
 	if len(errMsg) > 0 {

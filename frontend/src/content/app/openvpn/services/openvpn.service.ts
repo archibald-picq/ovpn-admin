@@ -8,6 +8,7 @@ import {firstValueFrom, Observable, throwError} from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
 import { OpenvpnConfig, User } from '../models/openvpn-config.model';
+import { NodeConfig } from '../models/node-config.model';
 
 @Injectable()
 export class OpenvpnService {
@@ -31,10 +32,18 @@ export class OpenvpnService {
 
     public listClientCertificates(): Observable<IClientCertificate[]> {
         return this.http.get<ClientCertificate[]>(this.OPENVPN_ADMIN_API+'/api/users/list', { observe: 'response'}).pipe(
-            filter((response: HttpResponse<any>) => response.ok),
-            map((res: any) => res.body as any[]),
-            map((items: any[]) => items.map((item: any) => ClientCertificate.hydrate(item)))
+          filter((response: HttpResponse<any>) => response.ok),
+          map((res: any) => res.body as any[]),
+          map((items: any[]) => items.map(ClientCertificate.hydrate))
         );
+    }
+
+    public getNodeConfig(clientUsername: string): Promise<NodeConfig> {
+        return firstValueFrom(this.http.get<NodeConfig>(this.OPENVPN_ADMIN_API+'/api/node/' + clientUsername, { observe: 'response'}).pipe(
+          filter((response: HttpResponse<any>) => response.ok),
+          map(res => res.body),
+          map(NodeConfig.hydrate)
+        ));
     }
 
     public loadClientConfigDetails(clientUsername: string): Promise<ClientConfig> {
@@ -42,7 +51,7 @@ export class OpenvpnService {
         return firstValueFrom(this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/ccd', {observe: 'response', params}).pipe(
             filter((response: HttpResponse<any>) => response.ok),
             map((res: any) => res.body as Record<string, any>),
-            map((item: Record<string, any>) => ClientConfig.parse(item))
+            map(ClientConfig.parse)
         ));
     }
 
@@ -228,14 +237,14 @@ export class OpenvpnService {
         const rev2 = sort.direction === 'asc'? -1: 1;
         if (sort.active === 'expirationDate') {
             return (p1: IClientCertificate, p2: IClientCertificate) => {
-                const a = p1.expirationDate ?? Infinity;
-                const b = p2.expirationDate ?? Infinity;
+                const a = p1.certificate!.expirationDate ?? Infinity;
+                const b = p2.certificate!.expirationDate ?? Infinity;
                 return a < b? rev1: (a > b? rev2: 0);
             };
         } else if (sort.active === 'revocationDate') {
             return (p1: IClientCertificate, p2: IClientCertificate) => {
-                const a = p1.revocationDate ?? Infinity;
-                const b = p2.revocationDate ?? Infinity;
+                const a = p1.certificate!.revocationDate ?? Infinity;
+                const b = p2.certificate!.revocationDate ?? Infinity;
                 return a < b? rev1: (a > b? rev2: 0);
             };
         } else if (sort.active === 'username') {
@@ -246,14 +255,14 @@ export class OpenvpnService {
             };
         } else if (sort.active === 'identity') {
             return (p1: IClientCertificate, p2: IClientCertificate) => {
-                const a = p1.identity;
-                const b = p2.identity;
+                const a = p1.certificate!.identity;
+                const b = p2.certificate!.identity;
                 return a < b? rev1: (a > b? rev2: 0);
             };
         } else if (sort.active === 'accountStatus') {
             return (p1: IClientCertificate, p2: IClientCertificate) => {
-                const a = p1.accountStatus;
-                const b = p2.accountStatus;
+                const a = p1.certificate!.accountStatus;
+                const b = p2.certificate!.accountStatus;
                 return a < b? rev1: (a > b? rev2: 0);
             };
         } else if (sort.active === 'connectionStatus') {

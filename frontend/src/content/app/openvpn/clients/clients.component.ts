@@ -130,8 +130,8 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         try {
             console.warn('unrevoke client certificate', client);
             await this.openvpnService.unrevokeCertificate(client);
-            client.accountStatus = 'Active';
-            client.revocationDate = undefined;
+            client.certificate!.accountStatus = 'Active';
+            client.certificate!.revocationDate = undefined;
             this.applySorting();
         } catch (e) {
             console.warn('Cancel revoke client', e);
@@ -201,7 +201,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
             this.clients.sort(this.openvpnService.sorter(this.sort));
         }
         if (this.hideRevoked) {
-            this.dataSource.data = [...this.clients.filter((client) => !client.revocationDate)];
+            this.dataSource.data = [...this.clients.filter((client) => !client.certificate!.revocationDate)];
             const p = this.displayedColumns.indexOf('revocationDate');
             if (p !== -1) {
                 this.displayedColumns.splice(p, 1);
