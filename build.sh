@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=1.0.3
+VERSION=1.1.0
 PACKAGE=ovpn-admin
 
 PATH=$PATH:~/go/bin
@@ -8,6 +8,8 @@ PATH=$PATH:~/go/bin
 SKIP_FRONT=0
 SKIP_BACK=0
 SKIP_DEB=0
+
+PACKAGE_DEPENDENCIES="libc6, openvpn, easy-rsa"
 
 while [ $# -ge 1 ]; do
   case $1 in
@@ -60,7 +62,7 @@ if [ $SKIP_DEB = 0 ]; then
 echo "Package: ${PACKAGE}
 Version: ${VERSION}-${BUILD}
 Maintainer: Archibald Picq <archibald.picq@gmail.com>
-Depends: libc6, openvpn, easy-rsa
+Depends: ${PACKAGE_DEPENDENCIES}
 Architecture: amd64
 Homepage: https://picq.fr
 Description: A GUI to manage OpenVPN" \
