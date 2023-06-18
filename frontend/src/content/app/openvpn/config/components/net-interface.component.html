@@ -1,4 +1,5 @@
 <div class="title">{{interface?.name}}</div>
 <div class="content">
+  <div *ngIf="interface?.mac">- mac: {{interface?.mac}}</div>
   <div *ngFor="let ip of interface?.ips">- ip: {{ip}}</div>
 </div>

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
-	"golang.org/x/exp/slices"
 	"log"
 	"net/http"
 	"time"
@@ -340,10 +339,14 @@ func (app *OvpnAdmin) handleWebsocketAuth(conn *WsSafeConn, packet WebsocketActi
 	app.broadcast(WebsocketPacket{Stream: "user.update." + certificate.Username+".rpic", Data: certificate.Rpic})
 }
 
-func removeString(s []string, search string) []string {
-	i := slices.IndexFunc(s, func(c string) bool {return c == search})
-	s[i] = s[len(s)-1]
-	return s[:len(s)-1]
+func removeString(arr []string, search string) []string {
+	newArr := make([]string, 0)
+	for _, s := range arr {
+		if s != search {
+			newArr = append(newArr, s)
+		}
+	}
+	return newArr
 }
 
 func next(conn *WsSafeConn) {

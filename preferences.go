@@ -64,8 +64,8 @@ func (app *OvpnAdmin) loadPreferences() {
 	app.applicationPreferences.Users = make([]Account, 0)
 	app.applicationPreferences.Preferences.ExplicitExitNotify = true // default config value, will be overwritten by Unmarshal
 
-	if _, err := os.Stat(*ovpnConfigFile); err == nil {
-		rawJson := fRead(*ovpnConfigFile)
+	if _, err := os.Stat(*ovpnConfigDir+"/config.json"); err == nil {
+		rawJson := fRead(*ovpnConfigDir+"/config.json")
 		err = json.Unmarshal([]byte(rawJson), &app.applicationPreferences)
 		if err != nil {
 			log.Printf("Can't decode config")
@@ -134,7 +134,7 @@ func (app *OvpnAdmin) savePreferences() error {
 	if err != nil {
 		return err
 	}
-	return fWriteBytes(*ovpnConfigFile, rawJson)
+	return fWriteBytes(*ovpnConfigDir+"/config.json", rawJson)
 }
 
 func (app *OvpnAdmin) exportPublicPreferences() *ConfigPublicPreferences {

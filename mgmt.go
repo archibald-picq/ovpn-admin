@@ -246,9 +246,9 @@ func (app *OvpnAdmin) processMgmtBuffer() int {
 		}
 	}
 
-	if !strings.HasPrefix(firstWord, "TITLE") {
-		log.Printf("buf[%d,%d,%s} (%s)", len(app.mgmtBuffer), len(app.waitingCommands), firstWord, app.mgmtBuffer[len(app.mgmtBuffer)-1])
-	}
+	//if !strings.HasPrefix(firstWord, "TITLE") {
+	//	log.Printf("buf[%d,%d,%s} (%s)", len(app.mgmtBuffer), len(app.waitingCommands), firstWord, app.mgmtBuffer[len(app.mgmtBuffer)-1])
+	//}
 
 	if regStatus3.MatchString(app.mgmtBuffer[0]) {
 		//log.Printf("matched %s", app.mgmtBuffer[0])

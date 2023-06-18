@@ -323,8 +323,8 @@ func (app *OvpnAdmin)getEncryptedPasswordForUser(username string) (string, error
 	return "", errors.New("User not found")
 }
 
-func convertNetworkMaskCidr(networkMask string) string {
-	parts := strings.Fields(networkMask)
+func convertNetworkMaskCidr(addrMask string) string {
+	parts := strings.Fields(addrMask)
 	pref := ipaddr.NewIPAddressString(parts[1]).GetAddress().GetBlockMaskPrefixLen(true)
 	return fmt.Sprintf("%s/%d", parts[0], pref.Len())
 }
@@ -334,6 +334,12 @@ var regIp = regexp.MustCompile("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")
 
 func isIpv4(addr string) bool {
 	return regIp.MatchString(addr)
+}
+
+func extractNetmask(cidr string) string {
+	// cidr = "10.8.0.0 255.255.0.0"
+	parts := strings.Split(cidr, " ")
+	return parts[1]
 }
 
 func convertCidrNetworkMask(cidr string) string {

@@ -12,11 +12,14 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"log"
 )
 
+func (app *OvpnAdmin) writeIndexTxt(usersFromIndexTxt []*ClientCertificate) error {
+	return fWrite(*indexTxtPath, renderIndexTxt(usersFromIndexTxt))
+}
+
 func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request) {
-	//log.Info(r.RemoteAddr, " ", r.RequestURI)
 	enableCors(&w, r)
 	if (*r).Method == "OPTIONS" {
 		return
@@ -26,10 +29,7 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	//if app.role == "slave" {
-	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
-	//	return
-	//}
+
 	var ccd Ccd
 	if r.Body == nil {
 		json, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
@@ -39,29 +39,26 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 
 	err := json.NewDecoder(r.Body).Decode(&ccd)
 	if err != nil {
-		log.Errorln(err)
+		rawJson, _ := json.Marshal(MessagePayload{Message: "Can't parse JSON body"})
+		http.Error(w, string(rawJson), http.StatusInternalServerError)
 		return
 	}
 
 	for i, _ := range ccd.CustomRoutes {
 		ccd.CustomRoutes[i].Description = strings.Trim(ccd.CustomRoutes[i].Description, " ")
-		//log.Debugln("description [%v]", ccd.CustomRoutes[i].Description)
 	}
 	for i, _ := range ccd.CustomIRoutes {
 		ccd.CustomIRoutes[i].Description = strings.Trim(ccd.CustomIRoutes[i].Description, " ")
-		//log.Debugln("description [%v]", ccd.CustomIRoutes[i].Description)
 	}
 
-	err = app.modifyCcd(ccd)
+	err = app.modifyCcd(extractNetmask(app.serverConf.server), ccd)
 
-	if err == nil {
-		w.WriteHeader(http.StatusNoContent)
-		fmt.Fprintf(w, fmt.Sprintf("%s", err))
-		return
-	} else {
+	if err != nil {
 		rawJson, _ := json.Marshal(MessagePayload{Message: err.Error()})
 		http.Error(w, string(rawJson), http.StatusUnprocessableEntity)
+		return
 	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (app *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Request) {
@@ -70,10 +67,6 @@ func (app *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Request)
 	if (*r).Method == "OPTIONS" {
 		return
 	}
-	//if app.role == "slave" {
-	//	http.Error(w, `{"status":"error"}`, http.StatusBadRequest)
-	//	return
-	//}
 	auth := getAuthCookie(r)
 	if hasReadRole := app.jwtHasReadRole(auth); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
@@ -84,7 +77,8 @@ func (app *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Request)
 	token := r.Form.Get("token")
 
 	if token != app.masterSyncToken {
-		http.Error(w, `{"status":"error"}`, http.StatusForbidden)
+		rawJson, _ := json.Marshal(MessagePayload{Message: "error"})
+		http.Error(w, string(rawJson), http.StatusForbidden)
 		return
 	}
 
@@ -95,25 +89,22 @@ func (app *OvpnAdmin) downloadCcdHandler(w http.ResponseWriter, r *http.Request)
 
 func indexTxtParser(txt string) []*ClientCertificate {
 	var indexTxt = make([]*ClientCertificate, 0)
-	//apochNow := time.Now().Unix()
 
 	txtLinesArray := strings.Split(txt, "\n")
-
 	for _, v := range txtLinesArray {
 		str := strings.Fields(v)
-		if len(str) > 0 {
-			switch {
-			// case strings.HasPrefix(str[0], "E"):
-
-			case strings.HasPrefix(str[0], "V"):
-				identity := strings.Join(str[4:], " ")
-				line := createClientCertificate(identity, str[0], str[1], nil, str[2], str[3])
-				indexTxt = append(indexTxt, line)
-			case strings.HasPrefix(str[0], "R"):
-				identity := strings.Join(str[5:], " ")
-				line := createClientCertificate(identity, str[0], str[1], &str[2], str[3], str[4])
-				indexTxt = append(indexTxt, line)
-			}
+		if len(str) <= 0 {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(str[0], "V"):
+			identity := strings.Join(str[4:], " ")
+			line := createClientCertificate(identity, "V", str[1], nil, str[2], str[3])
+			indexTxt = append(indexTxt, line)
+		case strings.HasPrefix(str[0], "R"):
+			identity := strings.Join(str[5:], " ")
+			line := createClientCertificate(identity, "R", str[1], &str[2], str[3], str[4])
+			indexTxt = append(indexTxt, line)
 		}
 	}
 
@@ -134,9 +125,6 @@ func createClientCertificate(identity string, flag string, expirationDate string
 	line.Certificate.Filename = filename
 	line.Certificate.Identity = identity
 	line.Certificate.AccountStatus = "Active"
-	//line.Rpic = make([]*WsSafeConn, 0)
-	line.Connections = make([]*VpnClientConnection, 0)
-	line.Rpic = make([]*WsRpiConnection, 0)
 
 	line.Certificate.Country = extractCountry(line.Certificate.Identity)
 	line.Certificate.Province = extractProvince(line.Certificate.Identity)
@@ -153,6 +141,8 @@ func createClientCertificate(identity string, flag string, expirationDate string
 		//log.Printf("mark '%s' as DELETED at: %s\n", line.Username, line.DeletionDate)
 		line.Certificate.flag = "D"
 	}
+	line.Connections = make([]*VpnClientConnection, 0)
+	line.Rpic = make([]*WsRpiConnection, 0)
 	return line
 }
 
@@ -248,7 +238,7 @@ func renderIndexTxt(data []*ClientCertificate) string {
 	return indexTxt
 }
 
-func (app *OvpnAdmin) modifyCcd(ccd Ccd) error {
+func (app *OvpnAdmin) modifyCcd(serverMask string, ccd Ccd) error {
 	err := app.validateCcd(ccd)
 	if err != nil {
 		return err
@@ -257,7 +247,7 @@ func (app *OvpnAdmin) modifyCcd(ccd Ccd) error {
 	var lines = make([]string, 0)
 
 	if len(ccd.ClientAddress) > 0 {
-		lines = append(lines, fmt.Sprintf("ifconfig-push %s 255.255.255.0", ccd.ClientAddress))
+		lines = append(lines, fmt.Sprintf("ifconfig-push %s %s", ccd.ClientAddress, serverMask))
 	}
 
 	for _, route := range ccd.CustomRoutes {
@@ -280,7 +270,8 @@ func (app *OvpnAdmin) modifyCcd(ccd Ccd) error {
 	ccdFile := *ccdDir+"/"+ccd.User
 	err = fWrite(ccdFile, ccdContent)
 	if err != nil {
-		log.Errorf("modifyCcd: fWrite(): %v", err)
+		//log.Errorf("modifyCcd: fWrite(): %v", err)
+		return err
 	}
 
 	return nil
@@ -326,7 +317,7 @@ func (app *OvpnAdmin) parseCcd(username string) Ccd {
 					Description: strings.Trim(description, " "),
 				})
 			} else {
-				log.Warnf("ignored ccd line in \"%s\": \"%s\"", username, v)
+				log.Printf("ignored ccd line in \"%s\": \"%s\"", username, v)
 			}
 		}
 	}
@@ -338,39 +329,29 @@ func (app *OvpnAdmin) validateCcd(ccd Ccd) error {
 	if ccd.ClientAddress != "dynamic" && len(ccd.ClientAddress) > 0 {
 		_, ovpnNet, err := net.ParseCIDR(*openvpnNetwork)
 		if err != nil {
-			log.Error(err)
+			return err
 		}
 
 		if !app.checkStaticAddressIsFree(ccd.ClientAddress, ccd.User) {
-			ccdErr := fmt.Sprintf("ClientAddress \"%s\" already assigned to another user", ccd.ClientAddress)
-			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return errors.New(ccdErr)
+			return errors.New(fmt.Sprintf("ClientAddress \"%s\" already assigned to another user", ccd.ClientAddress))
 		}
 
 		if net.ParseIP(ccd.ClientAddress) == nil {
-			ccdErr := fmt.Sprintf("ClientAddress \"%s\" not a valid IP address", ccd.ClientAddress)
-			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return errors.New(ccdErr)
+			return errors.New(fmt.Sprintf("ClientAddress \"%s\" not a valid IP address", ccd.ClientAddress))
 		}
 
 		if !ovpnNet.Contains(net.ParseIP(ccd.ClientAddress)) {
-			ccdErr := fmt.Sprintf("ClientAddress \"%s\" not belongs to openvpn server network \"%s\"", ccd.ClientAddress, ovpnNet)
-			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return errors.New(ccdErr)
+			return errors.New(fmt.Sprintf("ClientAddress \"%s\" not belongs to openvpn server network \"%s\"", ccd.ClientAddress, ovpnNet))
 		}
 	}
 
 	for _, route := range ccd.CustomRoutes {
 		if net.ParseIP(route.Address) == nil {
-			ccdErr := fmt.Sprintf("CustomRoute.Address \"%s\" must be a valid IP address", route.Address)
-			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return errors.New(ccdErr)
+			return errors.New(fmt.Sprintf("CustomRoute.Address \"%s\" must be a valid IP address", route.Address))
 		}
 
 		if net.ParseIP(route.Netmask) == nil {
-			ccdErr := fmt.Sprintf("CustomRoute.Mask \"%s\" must be a valid IP address", route.Netmask)
-			log.Debugf("modify ccd for user %s: %s", ccd.User, ccdErr)
-			return errors.New(ccdErr)
+			return errors.New(fmt.Sprintf("CustomRoute.Mask \"%s\" must be a valid IP address", route.Netmask))
 		}
 	}
 
@@ -389,15 +370,14 @@ func checkUserActiveExist(username string) bool {
 func checkUserExist(username string) (*ClientCertificate, []*ClientCertificate, error) {
 	all := indexTxtParser(fRead(*indexTxtPath))
 	for _, u := range all {
-		log.Debugf("search username %s match %s", username, u.Username)
 		if u.Username == username {
 			return u, all, nil
 		}
 	}
-	return nil, all, errors.New(fmt.Sprint("User %s not found", username))
+	return nil, all, errors.New(fmt.Sprintf("User %s not found", username))
 }
 
-func (app *OvpnAdmin) usersList() {
+func (app *OvpnAdmin) updateClientList(clients []*ClientCertificate) {
 	totalCerts := 0
 	validCerts := 0
 	revokedCerts := 0
@@ -405,8 +385,6 @@ func (app *OvpnAdmin) usersList() {
 	connectedUniqUsers := 0
 	totalActiveConnections := 0
 	apochNow := time.Now().Unix()
-	clients := indexTxtParser(fRead(*indexTxtPath))
-	//app.clients = make([]*ClientCertificate, 0)
 
 	for _, line := range clients {
 		if line.Username != app.masterCn && line.Certificate.flag != "D" {
@@ -434,7 +412,7 @@ func (app *OvpnAdmin) usersList() {
 	otherCerts := totalCerts - validCerts - revokedCerts - expiredCerts
 
 	if otherCerts != 0 {
-		log.Warnf("there are %d otherCerts", otherCerts)
+		log.Printf("there are %d otherCerts", otherCerts)
 	}
 
 	ovpnClientsTotal.Set(float64(totalCerts))
@@ -466,7 +444,7 @@ func (app *OvpnAdmin) synchroConnections(conns []*VpnClientConnection) {
 			}
 		}
 		if !found {
-			log.Warnf("Can't find certificate for connection %s", conn.commonName)
+			log.Printf("Can't find certificate for connection %s", conn.commonName)
 		}
 	}
 }
@@ -491,7 +469,7 @@ func (app *OvpnAdmin) getCcd(username string) Ccd {
 }
 
 func (app *OvpnAdmin) checkStaticAddressIsFree(staticAddress string, username string) bool {
-	app.usersList()
+	app.updateClientList(indexTxtParser(fRead(*indexTxtPath)))
 	for _, client := range app.clients {
 		if client.Username != username {
 			ccd := app.getCcd(client.Username)
@@ -509,7 +487,7 @@ func (app *OvpnAdmin) getClientConfigTemplate() *template.Template {
 	} else {
 		clientConfigTpl, clientConfigTplErr := templates.ReadFile("templates/client.conf.tpl")
 		if clientConfigTplErr != nil {
-			log.Error("clientConfigTpl not found in templates box")
+			log.Printf("clientConfigTpl not found in templates box")
 		}
 		return template.Must(template.New("client-config").Parse(string(clientConfigTpl)))
 	}

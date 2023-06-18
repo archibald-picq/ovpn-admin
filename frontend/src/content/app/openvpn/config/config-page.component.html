@@ -31,14 +31,14 @@
       </div>
     </div>
     <ng-template #interacting>
-      - status: {{bleConnection.status}} <button *ngIf="bleConnection.status === 'connected'" class="btn btn-sm btn-outline-primary" (click)="disconnectBluetooth()">disconnect</button>
+      <div>
+        <span>- status:</span>
+        <mat-icon *ngIf="bleConnection.status !== 'connected'" class="material-icons-outlined rotate-icon">swap_vertical_circle</mat-icon>
+        <mat-icon *ngIf="bleConnection.status === 'connected'" class="material-icons-outlined">link</mat-icon>
+        {{bleConnection.status}}
+        <button *ngIf="bleConnection.status === 'connected'" class="btn btn-sm btn-outline-primary" (click)="disconnectBluetooth()">disconnect</button>
+      </div>
     </ng-template>
-<!--      </ng-container>-->
-<!--      <ng-template #connectByBluetooth>-->
-<!--        <div class="buttons">-->
-<!--          <button class="btn btn-sm btn-outline-primary">connect</button>-->
-<!--        </div>-->
-<!--      </ng-template>-->
   </div>
   <div class="bloc-graph">
     <div>cpu %</div>
@@ -50,35 +50,38 @@
   /!\ Multiple WsConnection
 </div>
 
-<div class="bloc-interfaces">
-  <h2>Network interfaces:</h2>
+<mat-card class="bloc-interfaces">
+  <mat-card-header>
+    <mat-icon mat-card-avatar class="material-icons-outlined">lan</mat-icon>
+    <mat-card-title>Network interfaces</mat-card-title>
+  </mat-card-header>
   <div class="content">
     <ng-container *ngFor="let interface of interfacesRunning">
       <bus-net-interface [interface]="interface"></bus-net-interface>
     </ng-container>
-<!--    <ng-container [ngTemplateOutlet]="networkInterface"></ng-container>-->
-<!--    <ng-container [ngTemplateOutlet]="wirelessInterface"></ng-container>-->
-<!--    <ng-container [ngTemplateOutlet]="vpnConfig"></ng-container>-->
-<!--    <ng-container [ngTemplateOutlet]="soracomInterface"></ng-container>-->
   </div>
-</div>
+</mat-card>
 
-<div class="bloc-targets">
-  <div class="bloc-header">
-    <h2>Expected packages:</h2>
-    <div class="bloc-buttons">
-      <button class="btn btn-sm btn-outline-primary" (click)="addPackage()">add</button>
-      <button class="btn btn-sm btn-outline-primary" (click)="manageRepositories()">repos</button>
-    </div>
-  </div>
-  <div class="bloc-content">
+<mat-card class="bloc-targets">
+  <mat-card-header>
+    <mat-icon mat-card-avatar class="material-icons-outlined">extension</mat-icon>
+    <mat-card-title>Packages</mat-card-title>
+  </mat-card-header>
+  <mat-card-content class="bloc-content">
     <ng-container
        *ngFor="let pkg of config.packages"
        [ngTemplateOutlet]="packageBloc"
        [ngTemplateOutletContext]="{expected: pkg, installed: getInstalledPackage(pkg.name)}">
     </ng-container>
-  </div>
-</div>
+    <div *ngIf="!config.packages.length" class="empty">
+      No package expected
+    </div>
+  </mat-card-content>
+  <mat-card-actions align="end">
+    <mat-button (click)="addPackage()">add</mat-button>
+    <mat-button (click)="manageRepositories()">repos</mat-button>
+  </mat-card-actions>
+</mat-card>
 
 <ng-template #packageBloc let-expected="expected" let-installed="installed">
   <div class="package">
@@ -96,6 +99,7 @@
   </div>
 </ng-template>
 
+<hr/>
 <div class="terminal">
   <h2 title="TODO: allow any request on agent side, manage permissions">Shell</h2>
   <div class="inputs">
@@ -143,37 +147,6 @@
     </ng-template>
   </div>
 </ng-template>
-
-<!--<ng-template #networkInterface>-->
-<!--  <div class="item">-->
-<!--    eth0:-->
-<!--    <div>-->
-<!--      <div>- mode: dhcp-server</div>-->
-<!--      <div>- ip: 10.42.23.1/24</div>-->
-<!--    </div>-->
-<!--  </div>-->
-<!--</ng-template>-->
-
-<!--<ng-template #wirelessInterface>-->
-<!--  <div class="item">-->
-<!--    wlan0:-->
-<!--    <div>-->
-<!--      <div>- mode: dhcp-client</div>-->
-<!--      <div>- ap: ArchiAP</div>-->
-<!--      <div>- ip: 192.168.0.64/24</div>-->
-<!--    </div>-->
-<!--  </div>-->
-<!--</ng-template>-->
-
-<!--<ng-template #soracomInterface>-->
-<!--  <div class="item">-->
-<!--    soracom1:-->
-<!--    <div>-->
-<!--      <div>- mode: dhcp-client</div>-->
-<!--      <div>- ip: 172.217.42.1/30</div>-->
-<!--    </div>-->
-<!--  </div>-->
-<!--</ng-template>-->
 
 <ng-template #identityTooltip>
   <ng-container *ngIf="!client.certificate.email && !client.certificate.country && !client.certificate.province && !client.certificate.city && !client.certificate.organisation && !client.certificate.organisationUnit">

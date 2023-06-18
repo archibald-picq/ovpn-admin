@@ -30,6 +30,8 @@ import {ConfigPageComponent} from './config/config-page.component';
 import {AddPackageComponent} from './config/modals/add-package.component';
 import {ConfigureMasterServerComponent} from './config/modals/configure-master-server.component';
 import {NetInterfaceComponent} from './config/components/net-interface.component';
+import {MatButtonModule} from '@angular/material/button';
+import {MatCard, MatCardModule} from '@angular/material/card';
 
 @NgModule({
     declarations: [
@@ -63,6 +65,8 @@ import {NetInterfaceComponent} from './config/components/net-interface.component
         MatIconModule,
         NgbTooltipModule,
         MatMenuModule,
+        MatButtonModule,
+        MatCardModule,
     ],
     providers: [
         OpenvpnService,
