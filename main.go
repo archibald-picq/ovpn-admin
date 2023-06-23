@@ -2,9 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/websocket"
 	"math/rand"
+	"rpiadm/backend/mgmt"
+	"rpiadm/backend/model"
+	"rpiadm/backend/openvpn"
+	"rpiadm/backend/preference"
+	"rpiadm/backend/rpi"
+	"rpiadm/backend/shell"
 
 	"embed"
 	"io/fs"
@@ -17,19 +22,16 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
+	"log"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 const (
-	usernameRegexp       = `^([a-zA-Z0-9_.\-@])+$`
-	passwordMinLength    = 6
 	downloadCertsApiUrl  = "/api/data/certs/download"
 	downloadCcdApiUrl    = "/api/data/ccd/download"
 	certsArchiveFileName = "certs.tar.gz"
 	ccdArchiveFileName   = "ccd.tar.gz"
-	indexTxtDateLayout   = "060102150405Z"
 	stringDateFormat     = "2006-01-02 15:04:05"
 )
 
@@ -59,38 +61,25 @@ var (
 	ccdArchivePath   = "/tmp/" + ccdArchiveFileName
 
 	upgrader = websocket.Upgrader{} // use default options
-	logLevels = map[string]log.Level{
-		"trace": log.TraceLevel,
-		"debug": log.DebugLevel,
-		"info":  log.InfoLevel,
-		"warn":  log.WarnLevel,
-		"error": log.ErrorLevel,
-	}
-	logFormats = map[string]log.Formatter{
-		"text": &log.TextFormatter{},
-		"json": &log.JSONFormatter{},
-	}
-
+	//logLevels = map[string]log.Level{
+	//	"trace": log.TraceLevel,
+	//	"debug": log.DebugLevel,
+	//	"info":  log.InfoLevel,
+	//	"warn":  log.WarnLevel,
+	//	"error": log.ErrorLevel,
+	//}
+	//logFormats = map[string]log.Formatter{
+	//	"text": &log.TextFormatter{},
+	//	"json": &log.JSONFormatter{},
+	//}
 )
 var version string
 
 //go:embed templates/*
 var templates embed.FS
+
 //go:embed frontend/static
 var content embed.FS
-
-type WsSafeConn struct {
-	ws              *websocket.Conn
-	mu              sync.Mutex
-	last            time.Time
-	next            *time.Timer
-	streams         []string
-	role            string
-	hello           Hello
-	xForwardedFor   string
-	xForwardedProto string
-	userAgent       string
-}
 
 type OvpnAdmin struct {
 	//role                   string
@@ -98,37 +87,26 @@ type OvpnAdmin struct {
 	lastSuccessfulSyncTime string
 	masterHostBasicAuth    bool
 	masterSyncToken        string
-	serverConf             OvpnConfig
-	clients                []*ClientCertificate
-	triggerUpdateChan      chan *ClientCertificate
+	serverConf             openvpn.OvpnConfig
+	clients                []*model.ClientCertificate
+	triggerUpdateChan      chan *model.ClientCertificate
 	promRegistry           *prometheus.Registry
 	mgmtInterface          string
 	createUserMutex        *sync.Mutex
-	conn                   net.Conn
-	waitingCommands        []WaitingCommand
-	mgmtBuffer             []string
-	updatedUsers           []*ClientCertificate
+	updatedUsers           []*model.ClientCertificate
 	masterCn               string
-	applicationPreferences ApplicationConfig
-	wsConnections          []*WsSafeConn
+	applicationPreferences model.ApplicationConfig
+	wsConnections          []*rpi.WsSafeConn
 	outboundIp             net.IP
-}
-
-type Roles struct {
-	Openvpn bool `json:"openvpn"`
-}
-
-type Claims struct {
-	jwt.StandardClaims
-	Roles Roles `json:"roles"`
+	mgmt                   mgmt.OpenVPNmgmt
 }
 
 type MessagePayload struct {
-	Message   string `json:"message"`
+	Message string `json:"message"`
 }
 
 func (app *OvpnAdmin) restartServer() error {
-	_, err := runBash(*serverRestartCommand)
+	_, err := shell.RunBash(*serverRestartCommand)
 	return err
 }
 
@@ -149,44 +127,57 @@ func main() {
 
 	log.Printf("PATH %s\n", os.Getenv("PATH"))
 
-	log.SetLevel(logLevels[*logLevel])
-	log.SetFormatter(logFormats[*logFormat])
-
 	if *indexTxtPath == "" {
 		*indexTxtPath = *easyrsaDirPath + "/pki/index.txt"
 	}
 
 	oAdmin := new(OvpnAdmin)
 	oAdmin.lastSyncTime = "unknown"
-	//oAdmin.role = *serverRole
 	oAdmin.lastSuccessfulSyncTime = "unknown"
 	oAdmin.masterSyncToken = *masterSyncToken
 	oAdmin.promRegistry = prometheus.NewRegistry()
-	//oAdmin.modules = []string{}
 	oAdmin.createUserMutex = &sync.Mutex{}
 	oAdmin.mgmtInterface = *mgmtAddress
-	oAdmin.parseServerConf(*serverConfFile)
+	oAdmin.outboundIp = shell.GetOutboundIP()
+
+	oAdmin.mgmt.GetConnection = oAdmin.getConnection
+	oAdmin.mgmt.GetUserConnection = oAdmin.getUserConnection
+	oAdmin.mgmt.TriggerBroadcastUser = oAdmin.triggerBroadcastUser
+	oAdmin.mgmt.SynchroConnections = oAdmin.synchroConnections
+	oAdmin.mgmt.AddClientConnection = oAdmin.addClientConnection
+	oAdmin.mgmt.BroadcastWritePacket = func(line string) {
+		oAdmin.broadcast(WebsocketPacket{Stream: "write", Data: line})
+	}
+	oAdmin.mgmt.BroadcastReadPacket = func(line string) {
+		oAdmin.broadcast(WebsocketPacket{Stream: "read", Data: line})
+	}
+
+	openvpn.ParseServerConf(&oAdmin.serverConf, *serverConfFile)
+	log.Printf("loaded config %v", oAdmin.serverConf)
 	//oAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile), oAdmin.serverConf)
-	oAdmin.loadPreferences()
-	oAdmin.outboundIp = GetOutboundIP()
+	preference.LoadPreferences(
+		&oAdmin.applicationPreferences,
+		*ovpnConfigDir,
+		*jwtSecretFile,
+	)
 	//oAdmin.applicationPreferences.JwtSecretData = []byte(fRead(*jwtSecretFile))
 
 	//log.Printf("mgmt interface %v", oAdmin.mgmtInterface)
 	if len(oAdmin.mgmtInterface) == 0 {
-		oAdmin.mgmtInterface = strings.Replace(oAdmin.serverConf.management, " ", ":", 1)
+		oAdmin.mgmtInterface = strings.Replace(oAdmin.serverConf.Management, " ", ":", 1)
 		//log.Printf("mgmt interface is now %v", oAdmin.mgmtInterface)
 	}
 
-	if len(oAdmin.serverConf.clientConfigDir) > 0 {
-		*ccdDir = absolutizePath(*serverConfFile, oAdmin.serverConf.clientConfigDir)
+	if len(oAdmin.serverConf.ClientConfigDir) > 0 {
+		*ccdDir = shell.AbsolutizePath(*serverConfFile, oAdmin.serverConf.ClientConfigDir)
 	}
 
-	if (openvpnNetwork == nil || len(*openvpnNetwork) == 0) && len(oAdmin.serverConf.server) > 0 {
-		*openvpnNetwork = convertNetworkMaskCidr(oAdmin.serverConf.server)
+	if (openvpnNetwork == nil || len(*openvpnNetwork) == 0) && len(oAdmin.serverConf.Server) > 0 {
+		*openvpnNetwork = convertNetworkMaskCidr(oAdmin.serverConf.Server)
 	}
 
-	if len(oAdmin.serverConf.cert) > 0 {
-		cert := oAdmin.getCommonNameFromCertificate(absolutizePath(*serverConfFile, oAdmin.serverConf.cert))
+	if len(oAdmin.serverConf.Cert) > 0 {
+		cert := openvpn.GetCommonNameFromCertificate(shell.AbsolutizePath(*serverConfFile, oAdmin.serverConf.Cert))
 		if cert != nil {
 			oAdmin.masterCn = cert.Subject.CommonName
 			ovpnServerCaCertExpire.Set(float64((cert.NotAfter.Unix() - time.Now().Unix()) / 3600 / 24))
@@ -201,8 +192,10 @@ func main() {
 
 	upgrader.CheckOrigin = oAdmin.checkWebsocketOrigin
 	upgrader.Subprotocols = []string{"ovpn"}
-	oAdmin.updateClientList(indexTxtParser(fRead(*indexTxtPath)))
-	oAdmin.triggerUpdateChan = make(chan *ClientCertificate)
+	for _, cert := range openvpn.IndexTxtParserCertificate(shell.ReadFile(*indexTxtPath)) {
+		oAdmin.updateCertificate(cert)
+	}
+	oAdmin.triggerUpdateChan = make(chan *model.ClientCertificate)
 	go oAdmin.autoUpdate()
 
 	staticDir, _ := fs.Sub(content, "frontend/static")
@@ -214,7 +207,6 @@ func main() {
 	http.HandleFunc("/api/config/admin/", oAdmin.saveAdminAccount)
 	http.HandleFunc("/api/authenticate", oAdmin.authenticate)
 	http.HandleFunc("/api/logout", oAdmin.logout)
-	//http.HandleFunc("/api/server/settings", oAdmin.serverSettingsHandler)
 	http.HandleFunc("/api/users/list", oAdmin.userListHandler)
 	http.HandleFunc("/api/user/create", oAdmin.userCreateHandler)
 	http.HandleFunc("/api/user/change-password", oAdmin.userChangePasswordHandler)
@@ -231,7 +223,7 @@ func main() {
 	http.HandleFunc("/api/node/", oAdmin.handleReadNodeConfig)
 
 	http.HandleFunc(downloadCertsApiUrl, oAdmin.downloadCertsHandler)
-	http.HandleFunc(downloadCcdApiUrl, oAdmin.downloadCcdHandler)
+	//http.HandleFunc(downloadCcdApiUrl, oAdmin.downloadCcdHandler)
 
 	http.Handle(*metricsPath, promhttp.HandlerFor(oAdmin.promRegistry, promhttp.HandlerOpts{}))
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -253,6 +245,27 @@ func (app *OvpnAdmin) catchAll(embedFs http.FileSystem, w http.ResponseWriter, r
 
 	httpFS := http.FileServer(embedFs)
 	httpFS.ServeHTTP(w, r)
+}
+
+func getAuthCookie(r *http.Request) string {
+	for _, c := range r.Cookies() {
+		if c.Name == "auth" {
+			return c.Value
+		}
+	}
+	return ""
+}
+
+func (app *OvpnAdmin) triggerBroadcastUser(user *model.ClientCertificate) {
+	if user == nil {
+		return
+	}
+	for _, u := range app.updatedUsers {
+		if u == user {
+			return
+		}
+	}
+	app.updatedUsers = append(app.updatedUsers, user)
 }
 
 //func (app *OvpnAdmin) handleHelloAction(conn *WsSafeConn, packet WebsocketAction, hello Hello) {

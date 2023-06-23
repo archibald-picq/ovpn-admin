@@ -3,44 +3,10 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"rpiadm/backend/model"
+	"rpiadm/backend/rpi"
 	"time"
 )
-
-
-type LsbInfo struct {
-	PrettyName      string `json:"prettyName"`
-	Name            string `json:"name"`
-	VersionId       int    `json:"versionId"`
-	Version         string `json:"version"`
-	VersionCodename string `json:"versionCodename"`
-	Id              string `json:"id"`
-	IdLike          string `json:"idLike"`
-	HomeUrl         string `json:"homeUrl"`
-	SupportUrl      string `json:"supportUrl"`
-	BugReportUrl    string `json:"bugReportUrl"`
-}
-
-type Dpkg struct {
-	Version      string `json:"version"`
-	Lsb          *LsbInfo `json:"lsb,omitempty"`
-	Packages     []InstalledPackage `json:"packages"`
-}
-
-type InstalledPackage struct {
-	Name         string  `json:"name"`
-	Version      string  `json:"version"`
-	Arch         string  `json:"arch"`
-	Description  string  `json:"description"`
-	DesiredState string  `json:"desiredState"`
-	State        string  `json:"state"`
-	Error        *string `json:"error,omitempty"`
-}
-
-type RpiState struct {
-	Lsb *LsbInfo `json:"lsb,omitempty"`
-	InstalledPackages []InstalledPackage
-	installedPackagesLastCheck time.Time
-}
 
 type RequestActionData struct {
 	Command string          `json:"command"`
@@ -48,30 +14,7 @@ type RequestActionData struct {
 	Data    interface{}     `json:"-"`
 }
 
-func (app *OvpnAdmin) addOrUpdateRpic(user *ClientCertificate, ws *WsSafeConn, hello *Hello) {
-	connection := WsRpiConnection{
-		ws: ws,
-	}
-	connection.RealAddress = connection.ws.ws.RemoteAddr().String()
-	connection.ConnectedSince = time.Now()
-	connection.LastRef = time.Now()
-	if len(connection.ws.xForwardedFor) > 0 {
-		connection.RealAddress = connection.ws.xForwardedFor
-	}
-	if connection.ws.xForwardedProto == "https" {
-		connection.Ssl = true
-	}
-	if len(connection.ws.userAgent) > 0 {
-		connection.UserAgent = &connection.ws.userAgent
-	}
-	connection.Hello = hello
-	user.Rpic = append(user.Rpic, &connection)
-	log.Printf("sending signal to auto update thread %v", app.triggerUpdateChan)
-	app.triggerUpdateChan <- user
-	log.Printf("rpi connected '%s'\n", user.Username)
-}
-
-func (app *OvpnAdmin) onRemoveRpi(user *ClientCertificate, rpic *WsRpiConnection) {
+func (app *OvpnAdmin) onRemoveRpi(user *model.ClientCertificate, rpic *rpi.WsRpiConnection) {
 	app.triggerUpdateChan <- user
 }
 
@@ -97,8 +40,8 @@ func (app *OvpnAdmin) autoUpdate() {
 				}
 			}
 
-		//case t := <-ticker.C:
-		//	log.Println("tick:", t.String())
+			//case t := <-ticker.C:
+			//	log.Println("tick:", t.String())
 			//conn.Base.sendPingAction(t)
 			nextTick := app.calcNextTick(intervalCheck)
 			log.Printf("next tick in %f", nextTick.Seconds())
@@ -128,7 +71,7 @@ func (app *OvpnAdmin) calcNextTick(intervalCheck time.Duration) time.Duration {
 			log.Printf(" - client %s, no state yet\n", client.Username)
 			return time.Duration(1 * time.Second)
 		} else {
-			lastCheck := client.RpiState.installedPackagesLastCheck
+			lastCheck := client.RpiState.InstalledPackagesLastCheck
 			expireAt := lastCheck.Add(intervalCheck).Sub(now)
 			nextCheck := time.Now().Add(intervalCheck).Sub(now)
 			//if expireAt < nextCheck {
@@ -149,31 +92,31 @@ func (app *OvpnAdmin) calcNextTick(intervalCheck time.Duration) time.Duration {
 	return nextTick
 }
 
-func (app *OvpnAdmin) updateState(intervalCheck time.Duration, user *ClientCertificate) {
+func (app *OvpnAdmin) updateState(intervalCheck time.Duration, user *model.ClientCertificate) {
 	if len(user.Rpic) == 0 {
 		return
 	}
 	rpic := user.Rpic[0]
 	//log.Printf("check if %s as updated", user.Username)
 	if user.RpiState == nil {
-		user.RpiState = new(RpiState)
+		user.RpiState = new(rpi.RpiState)
 	}
 
 	//log.Printf("last packages check %v", user.RpiState)
 	now := time.Now()
 	expired := now.Add(-intervalCheck)
-	if user.RpiState.installedPackagesLastCheck.After(expired) {
+	if user.RpiState.InstalledPackagesLastCheck.After(expired) {
 		return
 	}
 	//log.Printf("Need to update packages")
 	finished := make(chan bool)
-	rpic.request("request", RequestActionData{Command: "dpkg"}, func(response json.RawMessage, err error) {
+	rpic.Request("request", RequestActionData{Command: "dpkg"}, func(response json.RawMessage, err error) {
 		app.updatePackages(user, response)
-		user.RpiState.installedPackagesLastCheck = now
+		user.RpiState.InstalledPackagesLastCheck = now
 		finished <- true
 	})
 
-	<- finished
+	<-finished
 	//if await {
 	//	log.Printf("updateState finished with success")
 	//} else {
@@ -181,8 +124,8 @@ func (app *OvpnAdmin) updateState(intervalCheck time.Duration, user *ClientCerti
 	//}
 }
 
-func (app *OvpnAdmin) updatePackages(user *ClientCertificate, response json.RawMessage) {
-	var packet Dpkg
+func (app *OvpnAdmin) updatePackages(user *model.ClientCertificate, response json.RawMessage) {
+	var packet rpi.Dpkg
 	err := json.Unmarshal(response, &packet)
 	if err != nil {
 		log.Printf("Unmarshal: %v", err)

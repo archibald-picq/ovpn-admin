@@ -1,0 +1,55 @@
+package model
+
+import "rpiadm/backend/openvpn"
+
+type ConfigPublicSettings struct {
+	Server                     string          `json:"server"`
+	ForceGatewayIpv4           bool            `json:"forceGatewayIpv4"`
+	ForceGatewayIpv4ExceptDhcp bool            `json:"forceGatewayIpv4ExceptDhcp"`
+	ForceGatewayIpv4ExceptDns  bool            `json:"forceGatewayIpv4ExceptDns"`
+	ServerIpv6                 string          `json:"serverIpv6"`
+	ForceGatewayIpv6           bool            `json:"forceGatewayIpv6"`
+	ClientToClient             bool            `json:"clientToClient"`
+	DuplicateCn                bool            `json:"duplicateCn"`
+	CompLzo                    bool            `json:"compLzo"`
+	Auth                       string          `json:"auth"`
+	EnableMtu                  bool            `json:"enableMtu"`
+	TunMtu                     int             `json:"tunMtu"`
+	Routes                     []openvpn.Route `json:"routes"`
+	Pushs                      []openvpn.Push  `json:"pushs"`
+	PushRoutes                 []string        `json:"pushRoutes"`
+	DnsIpv4                    string          `json:"dnsIpv4"`
+	DnsIpv6                    string          `json:"dnsIpv6"`
+}
+
+type ConfigPublicPreferences struct {
+	Address             string                `json:"address"`
+	DefaultAddress      string                `json:"defaultAddress"`
+	CertificateDuration int                   `json:"certificateDuration"`
+	ExplicitExitNotify  bool                  `json:"explicitExitNotify"`
+	AuthNoCache         bool                  `json:"authNoCache"`
+	VerifyX509Name      bool                  `json:"verifyX509Name"`
+	Users               []ConfigPublicAccount `json:"users"`
+}
+
+type ConfigPublicAccount struct {
+	Username string `json:"username"`
+	Name     string `json:"name"`
+}
+
+type ConfigPublicUser struct {
+	Username string `json:"username"`
+	Name     string `json:"name"`
+}
+
+type ConfigPublicOpenvn struct {
+	Url          string                   `json:"url"`
+	Settings     *ConfigPublicSettings    `json:"settings,omitempty"`
+	Preferences  *ConfigPublicPreferences `json:"preferences,omitempty"`
+	Unconfigured *bool                    `json:"unconfigured,omitempty"`
+}
+
+type ConfigPublic struct {
+	User    *ConfigPublicUser  `json:"user,omitempty"`
+	Openvpn ConfigPublicOpenvn `json:"openvpn"`
+}
