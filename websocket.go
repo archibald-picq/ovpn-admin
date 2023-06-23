@@ -15,10 +15,19 @@ type WebsocketPacket struct {
 	Data   interface{} `json:"data"`
 }
 
+type ErrorMessage struct {
+	Message string `json:"message"`
+}
+
+type WebsocketErrorResponse struct {
+	Id      int64          `json:"id"`
+	Error   ErrorMessage   `json:"error"`
+}
+
 type WebsocketAction struct {
-	Id     *int64       `json:"id,omitempty"`
-	Action string      `json:"action"`
-	Data   interface{} `json:"-"`
+	Id      *int64          `json:"id,omitempty"`
+	Action  string          `json:"action"`
+	Data    interface{}     `json:"-"`
 	RawData json.RawMessage `json:"data"`
 }
 
@@ -36,9 +45,9 @@ type WebsocketResponseData struct {
 }
 
 type ForwardActionData struct {
-	Target string `json:"target"`
-	Action string `json:"action"`
-	Data   interface{} `json:"data"`
+	Target string          `json:"target"`
+	Action string          `json:"action"`
+	Data   json.RawMessage `json:"data"`
 }
 
 
@@ -69,11 +78,6 @@ type WebsocketUnregisterActionData struct {
 type WebsocketAuthResponse struct {
 	Status string `json:"status"`
 	DecodedData
-}
-
-type WsErrorResponse struct {
-	Id      *int64 `json:"id"`
-	Message string `json:"message"`
 }
 
 func (app *OvpnAdmin) checkWebsocketOrigin(r *http.Request) bool {
@@ -184,7 +188,7 @@ func (action *WebsocketAction) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, (*packet)(action)); err != nil {
 		return err
 	}
-	//log.Printf("parsing '%s'", action.Action)
+	//log.Printf("parsing '%v'", action)
 	var i interface{}
 	if len(action.Action) == 0 {
 		i = &WebsocketResponseData{}
@@ -203,6 +207,7 @@ func (action *WebsocketAction) UnmarshalJSON(data []byte) error {
 		//case "hello":
 		//	i = &Hello{}
 		default:
+			log.Printf("returns unknown action type")
 			return errors.New("unknown action type")
 		}
 	}
@@ -214,13 +219,23 @@ func (action *WebsocketAction) UnmarshalJSON(data []byte) error {
 	return nil
 }
 func (app *OvpnAdmin) handleWebsocketMessage(conn *WsSafeConn, message []byte) {
-	var packet WebsocketAction
-
-	err := json.Unmarshal(message, &packet)
-	if err != nil {
-		log.Printf("Unmarshal: %v", err)
+	var errResp WebsocketErrorResponse
+	//log.Printf("unmarshal %s", string(message))
+	err := json.Unmarshal(message, &errResp)
+	if err == nil && len(errResp.Error.Message) > 0 {
+		log.Printf("This is a error response \"%s\"", errResp.Error.Message)
+		app.handleWebsocketErrorResponse(conn, errResp.Id, errors.New(errResp.Error.Message))
 		return
 	}
+
+
+	var packet WebsocketAction
+	err = json.Unmarshal(message, &packet)
+	if err != nil {
+		log.Printf("Unmarshal from %s \"%s\": %v", conn.hello.Name, message, err)
+		return
+	}
+
 
 	//log.Printf(" => using %v", packet.Data)
 	switch a := packet.Data.(type) {
@@ -254,12 +269,31 @@ func (app *OvpnAdmin) handleWebsocketResponse(conn *WsSafeConn, packet Websocket
 	for i, req := range wsConn.requestQueue {
 		if req.id == *packet.Id {
 			wsConn.requestQueue = append(wsConn.requestQueue[0:i], wsConn.requestQueue[i+1:]...)
-			req.cb(data)
-
+			log.Printf("< handle response %d (%d bytes)", req.id, len(data))
+			req.cb(data, nil)
 			return
 		}
 	}
 	log.Printf("Can't find pending request %d on %s (pending: %d)", *packet.Id, wsConn.RealAddress, len(wsConn.requestQueue))
+}
+
+func (app *OvpnAdmin) handleWebsocketErrorResponse(conn *WsSafeConn, id int64, err error) {
+	_, wsConn := app.findConnection(conn)
+	if wsConn == nil {
+		log.Printf("Can't find connection")
+		return
+	}
+
+	for i, req := range wsConn.requestQueue {
+		if req.id == id {
+			wsConn.requestQueue = append(wsConn.requestQueue[0:i], wsConn.requestQueue[i+1:]...)
+			log.Printf("< handle error response %d", req.id)
+			req.cb(nil, err)
+
+			return
+		}
+	}
+	log.Printf("Can't find pending request %d on %s (pending: %d)", id, wsConn.RealAddress, len(wsConn.requestQueue))
 }
 
 func (app *OvpnAdmin) findConnection(conn *WsSafeConn) (*ClientCertificate, *WsRpiConnection) {
@@ -276,19 +310,59 @@ func (app *OvpnAdmin) findConnection(conn *WsSafeConn) (*ClientCertificate, *WsR
 func (app *OvpnAdmin) handleForwardAction(conn *WsSafeConn, packet WebsocketAction, data ForwardActionData) {
 	client := app.getCertificate(data.Target)
 	if client == nil {
-		app.send(conn, WsErrorResponse{packet.Id, "Can't find certificate"})
+		app.send(conn, WebsocketErrorResponse{Id: *packet.Id, Error: ErrorMessage{Message: "Can't find device"}})
 		return
 	}
 	if len(client.Rpic) == 0 {
-		app.send(conn, WsErrorResponse{packet.Id, "RPiC not connected"})
+		app.send(conn, WebsocketErrorResponse{Id: *packet.Id, Error: ErrorMessage{Message: "RPiC not connected"}})
 		return
 	}
 	rpic := client.Rpic[0]
-	rpic.request(data.Action, data.Data, func(response json.RawMessage) {
-		log.Printf("got response from device: %d bytes", len(response))
-		app.send(conn, WebsocketResponse{Id: packet.Id, RawData: response})
+	rpic.request(data.Action, data.Data, func(response json.RawMessage, err error) {
+		//log.Printf("got response from device: %d bytes", len(response))
+		if err != nil {
+			app.send(conn, WebsocketErrorResponse{Id: *packet.Id, Error: ErrorMessage{Message: err.Error()}})
+		} else {
+			log.Printf("success remote command to %s: %s", client.Username, data.Action)
+			if data.Action == "request" {
+				app.handleForwardedRequest(client, data.Data, response)
+			}
+			app.send(conn, WebsocketResponse{Id: packet.Id, RawData: response})
+		}
 	})
 	//app.send(conn, WebsocketAction{Action: "pong", Data: data})
+}
+
+func (app *OvpnAdmin) handleForwardedRequest(client *ClientCertificate, rawCmd json.RawMessage, response json.RawMessage) {
+	//log.Printf("Parsing")
+	var cmd RequestActionData
+	err := json.Unmarshal(rawCmd, &cmd)
+	if err != nil {
+		log.Printf("Can't parse forwarded packet %v", err)
+		return
+	}
+	if len(cmd.Command) == 0 {
+		log.Printf("Not a command")
+		return
+	}
+	log.Printf("handle %s", cmd.Command)
+	if cmd.Command == "apt-install" {
+		app.handleForwardedAptInstall(client, response)
+	} else if cmd.Command == "apt-remove" {
+		app.handleForwardedAptRemove(client, response)
+	} else {
+		log.Printf("Nothing to do with command %s", cmd.Command)
+	}
+}
+
+func (app *OvpnAdmin) handleForwardedAptInstall(conn *ClientCertificate, data json.RawMessage) {
+	log.Printf("add package to %d ", len(conn.RpiState.InstalledPackages))
+	log.Printf(" -> %v ", data)
+}
+
+func (app *OvpnAdmin) handleForwardedAptRemove(conn *ClientCertificate, data json.RawMessage) {
+	log.Printf("remove package from %d ", len(conn.RpiState.InstalledPackages))
+	log.Printf(" -> %v ", data)
 }
 
 func (app *OvpnAdmin) handleWebsocketPing(conn *WsSafeConn, data WebsocketPingActionData) {
@@ -396,7 +470,7 @@ func (app *OvpnAdmin) send(conn *WsSafeConn, v interface{}) {
 
 type Request struct {
 	id int64
-	cb func(response json.RawMessage)
+	cb func(response json.RawMessage, err error)
 }
 
 type WsRpiConnection struct {
@@ -412,14 +486,14 @@ type WsRpiConnection struct {
 	ws             *WsSafeConn
 }
 
-func (conn *WsRpiConnection) request(action string, data interface{}, f func(response json.RawMessage)) {
+func (conn *WsRpiConnection) request(action string, data interface{}, f func(response json.RawMessage, err error)) {
 	index := conn.reqIndex + 1
 	conn.reqIndex++
-	conn.requestQueue = append(conn.requestQueue, Request{index, f})
-	log.Printf("queing request %d on %s (pending %d)", index, conn.RealAddress, len(conn.requestQueue))
+	conn.requestQueue = append(conn.requestQueue, Request{id: index, cb: f})
+	log.Printf("> queing request %d on %s (pending %d)", index, conn.Hello.Name, len(conn.requestQueue))
 	conn.ws.mu.Lock()
 	defer conn.ws.mu.Unlock()
-	err := conn.ws.ws.WriteJSON(WebsocketAction{&index, action, data, nil})
+	err := conn.ws.ws.WriteJSON(WebsocketAction{Id: &index, Action: action, Data: data})
 	if err != nil {
 		log.Printf("Cant send packet %v", err)
 		return

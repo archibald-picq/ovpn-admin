@@ -12,6 +12,24 @@
       <label for="version">version</label>
       <input [disabled]="loading" id="version" name="version" class="form-control" [(ngModel)]="version" placeholder="^5.6.1" autocomplete="off">
     </div>
+    <div class="mb-3">
+      <mat-checkbox
+          name="autoUpdate"
+          [color]="'primary'"
+          [(ngModel)]="autoUpdate"
+      >
+        Auto update
+      </mat-checkbox>
+    </div>
+    <div>
+      <mat-checkbox
+          name="saveToMaster"
+          [color]="'primary'"
+          [(ngModel)]="saveToMaster"
+      >
+        Save in "Wanted Packages"
+      </mat-checkbox>
+    </div>
   </form>
 </div>
 <div class="modal-footer flex-nowrap">

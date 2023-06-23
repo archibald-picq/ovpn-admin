@@ -130,14 +130,18 @@ func (app *OvpnAdmin) calcNextTick(intervalCheck time.Duration) time.Duration {
 		} else {
 			lastCheck := client.RpiState.installedPackagesLastCheck
 			expireAt := lastCheck.Add(intervalCheck).Sub(now)
+			nextCheck := time.Now().Add(intervalCheck).Sub(now)
+			//if expireAt < nextCheck {
+			//	nextCheck = expireAt
+			//}
 			//log.Printf(" - client %s, exires in %f seconds\n", client.Username, expireAt.Seconds())
 			if now.After(lastCheck.Add(expireAt)) {
-				log.Printf(" - client %s, exired %f seconds ago\n", client.Username, now.Sub(lastCheck.Add(expireAt)).Seconds())
+				log.Printf(" - client %s, expired %f seconds ago\n", client.Username, now.Sub(lastCheck.Add(expireAt)).Seconds())
 				return time.Duration(1 * time.Second)
 			}
 			//log.Printf("   - next in %f", expireAt.Seconds())
-			if expireAt < nextTick {
-				nextTick = expireAt
+			if nextCheck < nextTick {
+				nextTick = nextCheck
 			}
 		}
 
@@ -163,7 +167,7 @@ func (app *OvpnAdmin) updateState(intervalCheck time.Duration, user *ClientCerti
 	}
 	//log.Printf("Need to update packages")
 	finished := make(chan bool)
-	rpic.request("request", RequestActionData{Command: "dpkg"}, func(response json.RawMessage) {
+	rpic.request("request", RequestActionData{Command: "dpkg"}, func(response json.RawMessage, err error) {
 		app.updatePackages(user, response)
 		user.RpiState.installedPackagesLastCheck = now
 		finished <- true

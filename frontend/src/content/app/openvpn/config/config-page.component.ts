@@ -8,7 +8,7 @@ import {NodeConfig} from '../models/node-config.model';
 import {Dpkg, Network, PackageInstalled} from '../models/node-status.model';
 import {InterfaceRunning} from '../models/node-interface.model';
 import {Hello} from '../models/hello.model';
-import {AddPackageComponent} from './modals/add-package.component';
+import {AddPackageComponent, AddPackageModalOptions} from './modals/add-package.component';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {ConfigureMasterServerComponent, ConfigureMasterServerParams} from './modals/configure-master-server.component';
 import {BleCommandConnection} from '../../shared/services/ble/ble-command.service';
@@ -203,13 +203,13 @@ export class ConfigPageComponent implements OnInit, OnDestroy {
 		try {
 			const result = await this.modalService.open(AddPackageComponent, {
 				centered: true,
-				// injector: Injector.create({
-				// 	providers: [{
-				// 		provide: DeleteClientOptions,
-				// 		useValue: new DeleteClientOptions(user),
-				// 	}],
-				// 	parent: this.injector,
-				// }),
+				injector: Injector.create({
+					providers: [{
+						provide: AddPackageModalOptions,
+						useValue: new AddPackageModalOptions(this.connWebsocket, this.connBluetooth),
+					}],
+					parent: this.injector,
+				}),
 			}).result;
 			console.warn('result', result);
 		} catch (e) {

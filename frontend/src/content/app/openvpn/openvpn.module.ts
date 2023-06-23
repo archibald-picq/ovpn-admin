@@ -32,6 +32,7 @@ import {ConfigureMasterServerComponent} from './config/modals/configure-master-s
 import {NetInterfaceComponent} from './config/components/net-interface.component';
 import {MatButtonModule} from '@angular/material/button';
 import {MatCard, MatCardModule} from '@angular/material/card';
+import {MatCheckboxModule} from '@angular/material/checkbox';
 
 @NgModule({
     declarations: [
@@ -66,6 +67,7 @@ import {MatCard, MatCardModule} from '@angular/material/card';
         NgbTooltipModule,
         MatMenuModule,
         MatButtonModule,
+        MatCheckboxModule,
         MatCardModule,
     ],
     providers: [
