@@ -58,7 +58,7 @@ func remove(s []*rpi.WsSafeConn, i int) []*rpi.WsSafeConn {
 	//s[i] = s[len(s)-1]
 	//return s[:len(s)-1]
 }
-func removeRpi(s []*rpi.WsRpiConnection, i int) []*rpi.WsRpiConnection {
+func removeRpi(s []*rpi.RpiConnection, i int) []*rpi.RpiConnection {
 	return append(s[0:i], s[i+1:]...)
 	//s[i] = s[len(s)-1]
 	//return s[:len(s)-1]
@@ -181,7 +181,7 @@ func (app *OvpnAdmin) handleWebsocketErrorResponse(conn *rpi.WsSafeConn, id int6
 	log.Printf("Can't find pending request %d on %s (pending: %d)", id, wsConn.RealAddress, len(wsConn.RequestQueue))
 }
 
-func (app *OvpnAdmin) findConnection(conn *rpi.WsSafeConn) (*model.ClientCertificate, *rpi.WsRpiConnection) {
+func (app *OvpnAdmin) findConnection(conn *rpi.WsSafeConn) (*model.Device, *rpi.RpiConnection) {
 	for _, device := range app.clients {
 		for _, rpic := range device.Rpic {
 			if rpic.Ws.Ws == conn.Ws {
@@ -218,7 +218,7 @@ func (app *OvpnAdmin) handleForwardAction(conn *rpi.WsSafeConn, packet cmd.Webso
 	//app.send(conn, WebsocketAction{Action: "pong", Data: data})
 }
 
-func (app *OvpnAdmin) handleForwardedRequest(client *model.ClientCertificate, rawCmd json.RawMessage, response json.RawMessage) {
+func (app *OvpnAdmin) handleForwardedRequest(client *model.Device, rawCmd json.RawMessage, response json.RawMessage) {
 	//log.Printf("Parsing")
 	var cmd RequestActionData
 	err := json.Unmarshal(rawCmd, &cmd)
@@ -240,12 +240,12 @@ func (app *OvpnAdmin) handleForwardedRequest(client *model.ClientCertificate, ra
 	}
 }
 
-func (app *OvpnAdmin) handleForwardedAptInstall(conn *model.ClientCertificate, data json.RawMessage) {
+func (app *OvpnAdmin) handleForwardedAptInstall(conn *model.Device, data json.RawMessage) {
 	log.Printf("add package to %d ", len(conn.RpiState.InstalledPackages))
 	log.Printf(" -> %v ", data)
 }
 
-func (app *OvpnAdmin) handleForwardedAptRemove(conn *model.ClientCertificate, data json.RawMessage) {
+func (app *OvpnAdmin) handleForwardedAptRemove(conn *model.Device, data json.RawMessage) {
 	log.Printf("remove package from %d ", len(conn.RpiState.InstalledPackages))
 	log.Printf(" -> %v ", data)
 }

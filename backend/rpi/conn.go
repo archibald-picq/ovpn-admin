@@ -26,7 +26,7 @@ type Request struct {
 	Cb func(response json.RawMessage, err error)
 }
 
-type WsRpiConnection struct {
+type RpiConnection struct {
 	RealAddress    string    `json:"realAddress"`
 	Ssl            bool      `json:"ssl"`
 	ConnectedSince time.Time `json:"connectedSince"`
@@ -39,8 +39,8 @@ type WsRpiConnection struct {
 	Ws           *WsSafeConn `json:"-"`
 }
 
-func AddOrUpdateRpic(ws *WsSafeConn, hello *cmd.Hello) *WsRpiConnection {
-	connection := WsRpiConnection{
+func AddOrUpdateRpic(ws *WsSafeConn, hello *cmd.Hello) *RpiConnection {
+	connection := RpiConnection{
 		Ws: ws,
 	}
 	connection.RealAddress = connection.Ws.Ws.RemoteAddr().String()

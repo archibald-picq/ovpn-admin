@@ -13,7 +13,7 @@ type NodeInfo struct {
 	LastSeen string `json:"lastSeen"`
 }
 
-type VpnClientConnection struct {
+type VpnConnection struct {
 	ClientId           int64 `json:"clientId"`
 	CommonName         string
 	RealAddress        string     `json:"realAddress"`

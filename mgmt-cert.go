@@ -28,7 +28,7 @@ func (app *OvpnAdmin) userRevoke(username string) error {
 		return errors.New(fmt.Sprintf("Fail to revoke certificat for \"%s\": ", err.Error()))
 	}
 
-	app.updateConnectionStats()
+	app.updateCertificateStats()
 
 	if client != nil {
 		if len(client.Connections) > 0 {
@@ -54,7 +54,7 @@ func (app *OvpnAdmin) userUnrevoke(username string) error {
 		return errors.New(fmt.Sprintf("Fail to unrevoke certificat for \"%s\": ", err.Error()))
 	}
 
-	app.updateConnectionStats()
+	app.updateCertificateStats()
 	return nil
 }
 
@@ -73,7 +73,7 @@ func (app *OvpnAdmin) userRotate(username string, newPassword string) error {
 		device.Certificate,
 	)
 
-	app.updateConnectionStats()
+	app.updateCertificateStats()
 	return nil
 }
 
@@ -87,6 +87,6 @@ func (app *OvpnAdmin) userDelete(username string) string {
 		return err.Error()
 	}
 
-	app.updateConnectionStats()
+	app.updateCertificateStats()
 	return fmt.Sprintf("{\"msg\":\"User %s successfully deleted\"}", username)
 }

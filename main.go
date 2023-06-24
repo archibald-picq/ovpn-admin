@@ -88,12 +88,12 @@ type OvpnAdmin struct {
 	masterHostBasicAuth    bool
 	masterSyncToken        string
 	serverConf             openvpn.OvpnConfig
-	clients                []*model.ClientCertificate
-	triggerUpdateChan      chan *model.ClientCertificate
+	clients                []*model.Device
+	triggerUpdateChan      chan *model.Device
 	promRegistry           *prometheus.Registry
 	mgmtInterface          string
 	createUserMutex        *sync.Mutex
-	updatedUsers           []*model.ClientCertificate
+	updatedUsers           []*model.Device
 	masterCn               string
 	applicationPreferences model.ApplicationConfig
 	wsConnections          []*rpi.WsSafeConn
@@ -153,14 +153,13 @@ func main() {
 	}
 
 	openvpn.ParseServerConf(&oAdmin.serverConf, *serverConfFile)
-	log.Printf("loaded config %v", oAdmin.serverConf)
-	//oAdmin.writeConfig(fmt.Sprintf("%s.test", *serverConfFile), oAdmin.serverConf)
+	//log.Printf("loaded config %v", oAdmin.serverConf)
+
 	preference.LoadPreferences(
 		&oAdmin.applicationPreferences,
 		*ovpnConfigDir,
 		*jwtSecretFile,
 	)
-	//oAdmin.applicationPreferences.JwtSecretData = []byte(fRead(*jwtSecretFile))
 
 	//log.Printf("mgmt interface %v", oAdmin.mgmtInterface)
 	if len(oAdmin.mgmtInterface) == 0 {
@@ -192,10 +191,11 @@ func main() {
 
 	upgrader.CheckOrigin = oAdmin.checkWebsocketOrigin
 	upgrader.Subprotocols = []string{"ovpn"}
+	// initial device load
 	for _, cert := range openvpn.IndexTxtParserCertificate(shell.ReadFile(*indexTxtPath)) {
-		oAdmin.updateCertificate(cert)
+		oAdmin.updateDeviceByCertificate(cert)
 	}
-	oAdmin.triggerUpdateChan = make(chan *model.ClientCertificate)
+	oAdmin.triggerUpdateChan = make(chan *model.Device)
 	go oAdmin.autoUpdate()
 
 	staticDir, _ := fs.Sub(content, "frontend/static")
@@ -256,7 +256,7 @@ func getAuthCookie(r *http.Request) string {
 	return ""
 }
 
-func (app *OvpnAdmin) triggerBroadcastUser(user *model.ClientCertificate) {
+func (app *OvpnAdmin) triggerBroadcastUser(user *model.Device) {
 	if user == nil {
 		return
 	}

@@ -14,7 +14,7 @@ type RequestActionData struct {
 	Data    interface{}     `json:"-"`
 }
 
-func (app *OvpnAdmin) onRemoveRpi(user *model.ClientCertificate, rpic *rpi.WsRpiConnection) {
+func (app *OvpnAdmin) onRemoveRpi(user *model.Device, rpic *rpi.RpiConnection) {
 	app.triggerUpdateChan <- user
 }
 
@@ -92,7 +92,7 @@ func (app *OvpnAdmin) calcNextTick(intervalCheck time.Duration) time.Duration {
 	return nextTick
 }
 
-func (app *OvpnAdmin) updateState(intervalCheck time.Duration, user *model.ClientCertificate) {
+func (app *OvpnAdmin) updateState(intervalCheck time.Duration, user *model.Device) {
 	if len(user.Rpic) == 0 {
 		return
 	}
@@ -124,7 +124,7 @@ func (app *OvpnAdmin) updateState(intervalCheck time.Duration, user *model.Clien
 	//}
 }
 
-func (app *OvpnAdmin) updatePackages(user *model.ClientCertificate, response json.RawMessage) {
+func (app *OvpnAdmin) updatePackages(user *model.Device, response json.RawMessage) {
 	var packet rpi.Dpkg
 	err := json.Unmarshal(response, &packet)
 	if err != nil {

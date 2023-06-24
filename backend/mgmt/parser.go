@@ -27,14 +27,14 @@ type OpenVPNmgmt struct {
 	Version              string
 	buffer               []string
 	Conn                 net.Conn
-	TriggerBroadcastUser func(certificate *model.ClientCertificate)
-	GetConnection        func(int64) (*model.ClientCertificate, *openvpn.VpnClientConnection)
-	GetUserConnection    func(string, int64) (*model.ClientCertificate, *openvpn.VpnClientConnection)
+	TriggerBroadcastUser func(certificate *model.Device)
+	GetConnection        func(int64) (*model.Device, *openvpn.VpnConnection)
+	GetUserConnection    func(string, int64) (*model.Device, *openvpn.VpnConnection)
 	WaitingCommands      []WaitingCommand
-	SynchroConnections   func([]*openvpn.VpnClientConnection)
+	SynchroConnections   func([]*openvpn.VpnConnection)
 	BroadcastWritePacket func(line string)
 	BroadcastReadPacket  func(line string)
-	AddClientConnection  func(connection *openvpn.VpnClientConnection)
+	AddClientConnection  func(connection *openvpn.VpnConnection)
 }
 
 var (
@@ -70,8 +70,8 @@ func (mgmt *OpenVPNmgmt) HandleMessages() {
 	log.Printf("end of scan")
 }
 
-func (mgmt *OpenVPNmgmt) MgmtConnectedUsersParser3(lines []string) []*openvpn.VpnClientConnection {
-	var u = make([]*openvpn.VpnClientConnection, 0)
+func (mgmt *OpenVPNmgmt) MgmtConnectedUsersParser3(lines []string) []*openvpn.VpnConnection {
+	var u = make([]*openvpn.VpnConnection, 0)
 	//isClientList := false
 	//isRouteTable := false
 	for _, txt := range lines {
@@ -84,7 +84,7 @@ func (mgmt *OpenVPNmgmt) MgmtConnectedUsersParser3(lines []string) []*openvpn.Vp
 			//log.Infof("parsed client %s id %d from", user[1], clientId, user[10])
 			var _, clientStatus = mgmt.GetUserConnection(user[1], clientId)
 			if clientStatus == nil {
-				clientStatus = new(openvpn.VpnClientConnection)
+				clientStatus = new(openvpn.VpnConnection)
 			}
 			clientStatus.ClientId = clientId
 			clientStatus.CommonName = user[1]
@@ -126,7 +126,7 @@ func (mgmt *OpenVPNmgmt) MgmtConnectedUsersParser3(lines []string) []*openvpn.Vp
 	return u
 }
 
-func addOrUpdateNode(clientStatus *openvpn.VpnClientConnection, peerAddress string, lastSeen string) {
+func addOrUpdateNode(clientStatus *openvpn.VpnConnection, peerAddress string, lastSeen string) {
 	for i := range clientStatus.Nodes {
 		if clientStatus.Nodes[i].Address == peerAddress {
 			clientStatus.Nodes[i].LastSeen = lastSeen
@@ -139,7 +139,7 @@ func addOrUpdateNode(clientStatus *openvpn.VpnClientConnection, peerAddress stri
 	})
 }
 
-func addOrUpdateNetwork(clientStatus *openvpn.VpnClientConnection, peerAddress string, lastSeen string) {
+func addOrUpdateNetwork(clientStatus *openvpn.VpnConnection, peerAddress string, lastSeen string) {
 	for i := range clientStatus.Networks {
 		if clientStatus.Networks[i].Address == peerAddress {
 			clientStatus.Networks[i].LastSeen = lastSeen
@@ -300,7 +300,7 @@ var regClientEstablished = regexp.MustCompile("^>CLIENT:ESTABLISHED,(.*)")
 
 func (mgmt *OpenVPNmgmt) handleNewClientEvent(lines []string) {
 	//log.Printf("CLIENT '%v'", lines)
-	var client = new(openvpn.VpnClientConnection)
+	var client = new(openvpn.VpnConnection)
 	var trustedAddress string
 	var trustedPort int64
 

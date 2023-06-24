@@ -22,3 +22,5 @@
 *.sln
 /pki
 /push.sh
+/rpiadm
+/rpiadm.iml
