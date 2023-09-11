@@ -31,8 +31,9 @@ import {AddPackageComponent} from './config/modals/add-package.component';
 import {ConfigureMasterServerComponent} from './config/modals/configure-master-server.component';
 import {NetInterfaceComponent} from './config/components/net-interface.component';
 import {MatButtonModule} from '@angular/material/button';
-import {MatCard, MatCardModule} from '@angular/material/card';
+import {MatCardModule} from '@angular/material/card';
 import {MatCheckboxModule} from '@angular/material/checkbox';
+import {SetupComponent} from './setup/setup.component';
 
 @NgModule({
     declarations: [
@@ -54,6 +55,7 @@ import {MatCheckboxModule} from '@angular/material/checkbox';
         AddPackageComponent,
         ConfigureMasterServerComponent,
         NetInterfaceComponent,
+        SetupComponent,
     ],
     imports: [
         RouterModule.forChild(OPENVPN_ROUTES),

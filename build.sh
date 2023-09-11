@@ -51,7 +51,7 @@ if [ $SKIP_DEB = 0 ]; then
 
   ## Add service binary file
   mkdir -p $BUILD_DIR/$PACKAGE_NAME/usr/sbin/
-  cp ./ovpn-admin $BUILD_DIR/$PACKAGE_NAME/usr/sbin/
+  cp ./rpiadm $BUILD_DIR/$PACKAGE_NAME/usr/sbin/ovpn-admin
 
   ## Add service startup file
   mkdir -p $BUILD_DIR/$PACKAGE_NAME/lib/systemd/system/

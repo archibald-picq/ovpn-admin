@@ -1,9 +1,9 @@
 import { Component } from '@angular/core';
 
 @Component({
-    selector: 'ovpn',
-    template: 'Access denied',
-    styleUrls: ['../error.component.scss'],
+    selector: 'bus-ui',
+    templateUrl: './denied.component.html',
+    styleUrls: ['../error.component.scss', './denied.component.scss'],
 })
 export class DeniedPageComponent {
 }

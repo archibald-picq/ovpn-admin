@@ -139,7 +139,7 @@ func UserRotate(easyrsaDirPath string, indexTxtPath string, authByPassword bool,
 				return errors.New(fmt.Sprintf("Error revoking certificate \"%s\"", err))
 			}
 
-			err = UserCreateCertificate(easyrsaDirPath, authByPassword, authDatabase, UserDefinition{
+			_, err = UserCreateCertificate(easyrsaDirPath, authByPassword, authDatabase, UserDefinition{
 				Username:         cert.Username,
 				Password:         newPassword,
 				City:             cert.City,

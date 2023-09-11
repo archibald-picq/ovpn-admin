@@ -32,7 +32,7 @@ export class EditClientComponent {
         if (this.options.client.ccd) {
             this.model = this.options.client.ccd.clone();
         } else {
-            this.model = new ClientConfig('');
+            this.model = new ClientConfig('', [], []);
         }
 
         if (this.model.staticAddress === 'dynamic') {

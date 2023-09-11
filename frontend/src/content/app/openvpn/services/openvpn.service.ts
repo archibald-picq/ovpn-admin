@@ -2,9 +2,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import {IClientCertificate, IConnection} from '../models/client-certificate.interface';
 import { ClientCertificate } from '../models/client-certificate.model';
-import { filter, map } from 'rxjs/operators';
+import {filter, map, tap} from 'rxjs/operators';
 import { Sort } from '@angular/material/sort';
-import {firstValueFrom, Observable} from 'rxjs';
+import {firstValueFrom} from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
 import { OpenvpnConfig, User } from '../models/openvpn-config.model';
@@ -13,6 +13,7 @@ import { NodeConfig } from '../models/node-config.model';
 @Injectable()
 export class OpenvpnService {
   public OPENVPN_ADMIN_API? = '';
+  private config?: Promise<OpenvpnConfig>;
 
   constructor(
     protected readonly http: HttpClient,
@@ -22,26 +23,38 @@ export class OpenvpnService {
     // console.warn('OPENVPN_API_URL', appConfigService.get().openvpn?.url);
   }
 
-  public loadConfig(): Observable<OpenvpnConfig> {
-    return this.http.get<OpenvpnConfig>(this.OPENVPN_ADMIN_API+'/api/config', { observe: 'response'}).pipe(
+  public loadConfig(): Promise<OpenvpnConfig> {
+    if (this.config) {
+      return this.config;
+    }
+    const config = this.appConfigService.get();
+    if ((config.openvpn?.settings && config.openvpn?.preferences) || config.openvpn?.unconfigured) {
+      this.config = Promise.resolve(config.openvpn);
+      return this.config;
+    }
+    this.config = firstValueFrom(this.http.get<OpenvpnConfig>(this.OPENVPN_ADMIN_API+'/api/config', { observe: 'response'}).pipe(
       filter((response: HttpResponse<any>) => response.ok),
       map((res: any) => res.body as any[]),
-      map((item: any) => OpenvpnConfig.parse(item.openvpn))
-    );
+      map(res => OpenvpnConfig.hydrate(res.openvpn)),
+      tap(openvpnConfig => {
+        config.openvpn = openvpnConfig;
+      })
+    ));
+    return this.config;
   }
 
-  public listClientCertificates(): Observable<IClientCertificate[]> {
-    return this.http.get<ClientCertificate[]>(this.OPENVPN_ADMIN_API+'/api/users/list', { observe: 'response'}).pipe(
+  public listClientCertificates(): Promise<IClientCertificate[]> {
+    return firstValueFrom(this.http.get<ClientCertificate[]>(this.OPENVPN_ADMIN_API+'/api/users/list', { observe: 'response'}).pipe(
       filter((response: HttpResponse<any>) => response.ok),
-      map((res: any) => res.body as any[]),
+      map((res: any) => res.body as IClientCertificate[]),
       map((items: any[]) => items.map(ClientCertificate.hydrate))
-    );
+    ));
   }
 
   public getNodeConfig(clientUsername: string): Promise<NodeConfig> {
     return firstValueFrom(this.http.get<NodeConfig>(this.OPENVPN_ADMIN_API+'/api/node/' + clientUsername, { observe: 'response'}).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map(res => res.body),
+      filter((response: HttpResponse<NodeConfig>) => response.ok),
+      map(res => res.body as NodeConfig),
       map(NodeConfig.hydrate)
     ));
   }
@@ -51,7 +64,7 @@ export class OpenvpnService {
     return firstValueFrom(this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/ccd', {observe: 'response', params}).pipe(
       filter((response: HttpResponse<any>) => response.ok),
       map((res: any) => res.body as Record<string, any>),
-      map(ClientConfig.parse)
+      map(ClientConfig.hydrate)
     ));
   }
 
@@ -59,8 +72,9 @@ export class OpenvpnService {
     return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/create', definition,{
       observe: 'response',
     }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map((response) => ClientCertificate.hydrate(response.body)),
+      filter((response: HttpResponse<IClientCertificate>) => response.ok),
+      map((res: any) => res.body as IClientCertificate),
+      map(ClientCertificate.hydrate),
     ));
   }
 
@@ -69,14 +83,14 @@ export class OpenvpnService {
     const headers = new HttpHeaders()
       .set('Content-type', 'application/x-www-form-urlencoded');
 
-    return this.http.post(this.OPENVPN_ADMIN_API+'/api/user/config/show', body, {
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/config/show', body, {
       headers,
       observe: 'response',
       responseType: 'blob',
     }).pipe(
       filter((response: HttpResponse<Blob>) => response.ok),
       map((res: HttpResponse<Blob>) => res.body as Blob),
-    ).toPromise() as Promise<Blob>;
+    ));
   }
 
   public async saveServerConfig(toSave: Record<string, any>): Promise<any> {

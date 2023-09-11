@@ -61,5 +61,5 @@ func SavePreferences(ovpnConfigDir string, preference *model.ApplicationConfig) 
 	if err != nil {
 		return err
 	}
-	return shell.WriteFile(ovpnConfigDir+"/config.json", string(rawJson))
+	return shell.WriteFile(ovpnConfigDir+"/config.json", rawJson)
 }

@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"rpiadm/backend/auth"
+	"rpiadm/backend/model"
 	"rpiadm/backend/openvpn"
+	"rpiadm/backend/rpi"
 )
 
 func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) {
@@ -29,15 +31,23 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	log.Printf("create user with %v\n", userDefinition)
-	err = openvpn.UserCreateCertificate(*easyrsaDirPath, *authByPassword, *authDatabase, userDefinition)
+	certificate, err := openvpn.UserCreateCertificate(*easyrsaDirPath, *authByPassword, *authDatabase, userDefinition)
 
 	if err != nil {
 		jsonErr, _ := json.Marshal(MessagePayload{Message: err.Error()})
 		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
 		return
 	}
+	app.clients = append(app.clients, &model.Device{
+		Username:         userDefinition.Username,
+		ConnectionStatus: "",
+		Certificate:      certificate,
+		RpiState:         nil,
+		Connections:      make([]*openvpn.VpnConnection, 0),
+		Rpic:             make([]*rpi.RpiConnection, 0),
+	})
 	user := app.getDevice(userDefinition.Username)
-	log.Printf("created user %v\n", user)
+	log.Printf("created user %v over %d clients\n", user, len(app.clients))
 	w.WriteHeader(http.StatusOK)
 	jsonErr, _ := json.Marshal(user)
 	w.Write(jsonErr)

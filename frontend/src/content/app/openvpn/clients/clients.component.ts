@@ -78,10 +78,13 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
             console.warn('revoke client certificate', client);
             await this.modalService.open(ConfirmRevokeClientCertificateComponent, {
                 centered: true,
-                injector: Injector.create([{
-                    provide: RevokeClientOptions,
-                    useValue: new RevokeClientOptions(client),
-                }], this.injector),
+                injector: Injector.create({
+                    providers: [{
+                        provide: RevokeClientOptions,
+                        useValue: new RevokeClientOptions(client),
+                    }],
+                    parent: this.injector,
+                }),
             }).result;
             this.applySorting();
         } catch (e) {

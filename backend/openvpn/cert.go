@@ -239,22 +239,32 @@ func ValidatePassword(password string) error {
 	}
 }
 
-func UserCreateCertificate(easyrsaDirPath string, authByPassword bool, authDatabase string, definition UserDefinition) error {
+func UserCreateCertificate(easyrsaDirPath string, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
 
 	if !validateUsername(definition.Username) {
-		return errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.Username, usernameRegexp))
+		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.Username, usernameRegexp))
 	}
 
 	if checkUserActiveExist(easyrsaDirPath+"/pki/index.txt", definition.Username) {
-		return errors.New(fmt.Sprintf("User \"%s\" already exists", definition.Username))
+		return nil, errors.New(fmt.Sprintf("User \"%s\" already exists", definition.Username))
 	}
 
 	if authByPassword && ValidatePassword(definition.Password) == nil {
-		return errors.New(fmt.Sprintf("Password too short, password length must be greater or equal %d", passwordMinLength))
+		return nil, errors.New(fmt.Sprintf("Password too short, password length must be greater or equal %d", passwordMinLength))
 	}
 
-	o, err := shell.RunBash(fmt.Sprintf(
-		"cd %s && EASYRSA_REQ_COUNTRY=%s EASYRSA_REQ_PROVINCE=%s EASYRSA_REQ_CITY=%s EASYRSA_REQ_ORG=%s EASYRSA_REQ_OU=%s EASYRSA_REQ_EMAIL=%s ./easyrsa build-client-full %s nopass 1>/dev/null",
+	cmd := fmt.Sprintf(
+		"cd %s && "+
+			"EASYRSA_REQ_COUNTRY=%s "+
+			"EASYRSA_REQ_PROVINCE=%s "+
+			"EASYRSA_REQ_CITY=%s "+
+			"EASYRSA_REQ_ORG=%s "+
+			"EASYRSA_REQ_OU=%s "+
+			"EASYRSA_REQ_EMAIL=%s "+
+			"./easyrsa "+
+			"--dn-mode=org "+
+			"--batch "+
+			"build-client-full %s nopass 1>/dev/null",
 		shellescape.Quote(easyrsaDirPath),
 		shellescape.Quote(definition.Country),
 		shellescape.Quote(definition.Province),
@@ -263,9 +273,11 @@ func UserCreateCertificate(easyrsaDirPath string, authByPassword bool, authDatab
 		shellescape.Quote(definition.OrganisationUnit),
 		shellescape.Quote(definition.Email),
 		shellescape.Quote(definition.Username),
-	))
+	)
+
+	o, err := shell.RunBash(cmd)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Error creating certificate \"%s\"", err))
+		return nil, errors.New(fmt.Sprintf("Error creating certificate \"%s\"", err))
 	}
 
 	log.Printf("cert generated %s", o)
@@ -273,14 +285,30 @@ func UserCreateCertificate(easyrsaDirPath string, authByPassword bool, authDatab
 	if authByPassword {
 		o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.Username, definition.Password))
 		if err != nil {
-			return errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
+			return nil, errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
 		}
 		log.Printf("create password for %s: %s", definition.Username, o)
 	}
 
 	log.Printf("Certificate for user %s issued", definition.Username)
 
-	return nil
+	return &Certificate{
+		//Identity         string `json:"identity"`
+		Username:         definition.Username,
+		Country:          definition.Country,
+		Province:         definition.Province,
+		City:             definition.City,
+		Organisation:     definition.Organisation,
+		OrganisationUnit: definition.OrganisationUnit,
+		Email:            definition.Email,
+		//ExpirationDate   string `json:"expirationDate"`
+		//RevocationDate   string `json:"revocationDate"`
+		//DeletionDate     string `json:"deletionDate"`
+		Flag: "V",
+		//SerialNumber     string `json:"serialNumber"`
+		//Filename         string `json:"filename"`
+		//AccountStatus    string `json:"accountStatus"`
+	}, nil
 }
 
 func IndexTxtParserCertificate(txt string) []*Certificate {

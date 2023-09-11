@@ -1,31 +1,33 @@
 import { Injectable } from '@angular/core';
-import {ActivatedRouteSnapshot, Resolve, Route} from '@angular/router';
+import {
+    ActivatedRouteSnapshot,
+    CanActivate,
+    Resolve,
+    Route, Router,
+    RouterStateSnapshot,
+    UrlTree
+} from '@angular/router';
 import { OpenvpnClientsComponent } from "./clients/clients.component";
 import { OpenvpnService } from './services/openvpn.service';
 import { IClientCertificate } from './models/client-certificate.interface';
-import {firstValueFrom, Observable} from 'rxjs';
+import {Observable} from 'rxjs';
 import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 import { OpenvpnConfig } from './models/openvpn-config.model';
-import { AppConfigService } from '../shared/services/app-config.service';
 import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
 import { UploadPageComponent } from './upload/upload.component';
 import { LogPageComponent } from './log/log.component';
 import { OpenvpnComponent } from './openvpn.component';
 import {ConfigPageComponent} from './config/config-page.component';
 import {NodeConfig} from './models/node-config.model';
+import {SetupComponent} from './setup/setup.component';
 
 @Injectable({ providedIn: 'root' })
 class ConfigResolve implements Resolve<OpenvpnConfig> {
     constructor(
         private readonly service: OpenvpnService,
-        protected readonly appConfigService: AppConfigService,
     ) {}
 
-    public resolve(): OpenvpnConfig|Observable<OpenvpnConfig> {
-        const config = this.appConfigService.get();
-        if ((config.openvpn?.settings && config.openvpn?.preferences) || config.openvpn?.unconfigured) {
-            return config.openvpn;
-        }
+    public resolve(): Promise<OpenvpnConfig> {
         return this.service.loadConfig();
     }
 }
@@ -34,7 +36,7 @@ class ConfigResolve implements Resolve<OpenvpnConfig> {
 class ClientsResolve implements Resolve<IClientCertificate[]> {
     constructor(private readonly service: OpenvpnService) {}
 
-    public resolve(): Observable<IClientCertificate[]> {
+    public resolve(): Promise<IClientCertificate[]> {
         return this.service.listClientCertificates();
     }
 }
@@ -44,7 +46,7 @@ class ClientResolve implements Resolve<IClientCertificate|undefined> {
     constructor(private readonly service: OpenvpnService) {}
 
     public resolve(route: ActivatedRouteSnapshot): Promise<IClientCertificate|undefined> {
-        return firstValueFrom(this.service.listClientCertificates()).then(list => list.find(l => l.username === route.params.username));
+        return this.service.listClientCertificates().then(list => list.find(l => l.username === route.params.username));
     }
 }
 
@@ -55,6 +57,28 @@ class NodeConfigResolve implements Resolve<NodeConfig> {
 
     public resolve(route: ActivatedRouteSnapshot): Promise<NodeConfig> {
         return this.service.getNodeConfig(route.params.username);
+    }
+}
+
+@Injectable({
+    providedIn: 'root',
+})
+export class IsConfigured implements CanActivate {
+    constructor(
+      private readonly service: OpenvpnService,
+      private readonly router: Router,
+    ) {
+    }
+    canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree {
+        return this.service.loadConfig().then((config) => {
+            if (config.unconfigured) {
+                return this.router.navigate(['./setup'] /* , {skipLocationChange: true}*/);
+            }
+            console.warn('config', config);
+            console.warn('route', route);
+            console.warn('state', state);
+            return true;
+        });
     }
 }
 
@@ -71,6 +95,9 @@ export const OPENVPN_ROUTES: Route[] = [{
             resolve: {
                 clients: ClientsResolve,
             },
+            canActivate: [
+              IsConfigured,
+            ],
         },
         {
             path: 'settings',
@@ -95,6 +122,10 @@ export const OPENVPN_ROUTES: Route[] = [{
                 client: ClientResolve,
                 config: NodeConfigResolve,
             }
+        },
+        {
+            path: 'setup',
+            component: SetupComponent,
         }
     ],
 }];

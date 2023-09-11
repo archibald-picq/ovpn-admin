@@ -109,7 +109,7 @@ export class OpenvpnConfig extends ServiceConfig {
         this.unconfigured = raw?.unconfigured;
     }
 
-    static parse(raw: any) {
+    static hydrate(raw: any) {
         return new OpenvpnConfig(raw);
     }
 

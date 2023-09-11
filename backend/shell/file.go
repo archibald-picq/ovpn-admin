@@ -52,8 +52,16 @@ func AbsolutizePath(referencePath string, relativePath string) string {
 	return referencePath + relativePath
 }
 
-func WriteFile(path string, content string) error {
-	err := os.WriteFile(path, []byte(content), 0644)
+func WriteFile(path string, content []byte) error {
+	parent := dirname(path)
+	if _, err := os.Stat(parent); err != nil {
+		//log.Printf("Create parent dir %s", parent)
+		if err := os.Mkdir(parent, 0755); err != nil {
+			log.Fatalf("Can't create config dir: %s", err.Error())
+		}
+	}
+
+	err := os.WriteFile(path, content, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}

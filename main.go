@@ -139,6 +139,7 @@ func main() {
 	oAdmin.createUserMutex = &sync.Mutex{}
 	oAdmin.mgmtInterface = *mgmtAddress
 	oAdmin.outboundIp = shell.GetOutboundIP()
+	oAdmin.clients = make([]*model.Device, 0)
 
 	oAdmin.mgmt.GetConnection = oAdmin.getConnection
 	oAdmin.mgmt.GetUserConnection = oAdmin.getUserConnection
@@ -193,7 +194,9 @@ func main() {
 	upgrader.Subprotocols = []string{"ovpn"}
 	// initial device load
 	for _, cert := range openvpn.IndexTxtParserCertificate(shell.ReadFile(*indexTxtPath)) {
-		oAdmin.updateDeviceByCertificate(cert)
+		if cert.Username != oAdmin.masterCn {
+			oAdmin.updateDeviceByCertificate(cert)
+		}
 	}
 	oAdmin.triggerUpdateChan = make(chan *model.Device)
 	go oAdmin.autoUpdate()

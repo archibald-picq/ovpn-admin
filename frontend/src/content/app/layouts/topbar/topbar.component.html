@@ -7,7 +7,7 @@
         </button>
 
         <div [ngbCollapse]="isMenuCollapsed" class="collapse navbar-collapse">
-            <div class="identity d-flex flex-row align-items-center">
+            <div class="identity d-flex flex-row align-items-center" *ngIf="!appConfig.openvpn?.unconfigured">
                 <ng-container *ngIf="appConfig.user">
                     <div class="pe-2">{{appConfig.user.name || appConfig.user.username}}</div>
                     <button class="btn btn-outline-success my-2 my-sm-0" (click)="logout()">logout</button>

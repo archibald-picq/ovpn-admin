@@ -24,7 +24,7 @@ export class AppConfig {
       this.user = UserProfile.parse(raw.user);
     }
     if (raw.openvpn) {
-      this.openvpn = OpenvpnConfig.parse(raw.openvpn);
+      this.openvpn = OpenvpnConfig.hydrate(raw.openvpn);
     }
   }
 }

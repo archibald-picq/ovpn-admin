@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"rpiadm/backend/shell"
 	"strconv"
@@ -345,7 +346,7 @@ func getIntValueWithoutComment(line string) (int, error) {
 	}
 }
 
-func BuildConfig(config OvpnConfig) string {
+func BuildConfig(config OvpnConfig) []byte {
 
 	var lines = make([]string, 0)
 
@@ -364,7 +365,7 @@ func BuildConfig(config OvpnConfig) string {
 	if config.EnableMtu && config.TunMtu >= 0 {
 		lines = append(lines, fmt.Sprintf("tun-mtu %d", config.TunMtu))
 	}
-	if config.Fragment >= 0 {
+	if config.Fragment > 0 {
 		lines = append(lines, fmt.Sprintf("fragment %d", config.Fragment))
 	}
 	if len(config.user) > 0 {
@@ -442,7 +443,9 @@ func BuildConfig(config OvpnConfig) string {
 		lines = append(lines, fmt.Sprintf("tls-crypt %s", config.TlsCrypt))
 	}
 	if len(config.crlVerify) > 0 {
-		lines = append(lines, fmt.Sprintf("crl-verify %s", config.crlVerify))
+		if _, err := os.Stat(config.crlVerify); err == nil {
+			lines = append(lines, fmt.Sprintf("crl-verify %s", config.crlVerify))
+		}
 	}
 	if len(config.Auth) > 0 {
 		lines = append(lines, fmt.Sprintf("auth %s", config.Auth))
@@ -497,7 +500,7 @@ func BuildConfig(config OvpnConfig) string {
 		}
 	}
 	lines = append(lines, "")
-	return strings.Join(lines, "\n")
+	return []byte(strings.Join(lines, "\n"))
 }
 
 func formatPush(push Push) string {

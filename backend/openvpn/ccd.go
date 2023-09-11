@@ -38,7 +38,7 @@ type OpenvpnClientConfig struct {
 	TlsCipher          string
 }
 
-func RenderIndexTxt(data []*Certificate) string {
+func RenderIndexTxt(data []*Certificate) []byte {
 	indexTxt := ""
 	for _, cert := range data {
 		///C=FR/ST=Meurthe-et-Moselle/L=Nancy/O=Architech/OU=ROOT-CA/CN=paris/emailAddress=archibald.picq@gmail.com
@@ -104,7 +104,7 @@ func RenderIndexTxt(data []*Certificate) string {
 			// case line.flag == "E":
 		}
 	}
-	return indexTxt
+	return []byte(indexTxt)
 }
 
 func ParseCcd(ccdDir string, username string) Ccd {
@@ -134,7 +134,7 @@ func ParseCcd(ccdDir string, username string) Ccd {
 		if len(str) > 0 {
 			if strings.HasPrefix(str[0], "ifconfig-Push") && len(str) > 1 {
 				ccd.ClientAddress = str[1]
-			} else if strings.HasPrefix(str[0], "Push") && len(str) > 3 {
+			} else if strings.HasPrefix(str[0], "push") && len(str) > 3 {
 				ccd.CustomRoutes = append(ccd.CustomRoutes, Route{
 					Address:     strings.Trim(str[2], "\""),
 					Netmask:     strings.Trim(str[3], "\""),
@@ -155,7 +155,7 @@ func ParseCcd(ccdDir string, username string) Ccd {
 	return ccd
 }
 
-func BuildCcd(ccd Ccd, serverMask string) string {
+func BuildCcd(ccd Ccd, serverMask string) []byte {
 
 	var lines = make([]string, 0)
 
@@ -179,7 +179,7 @@ func BuildCcd(ccd Ccd, serverMask string) string {
 		lines = append(lines, fmt.Sprintf(`iroute %s %s%s`, route.Address, route.Netmask, desc))
 	}
 
-	return strings.Join(lines, "\n") + "\n"
+	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
 func UpdateCcd(indexTxtPath string, ccdDir string, openvpnNetwork string, serverMask string, ccd Ccd) error {

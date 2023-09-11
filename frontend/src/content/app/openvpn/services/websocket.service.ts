@@ -199,6 +199,9 @@ export class WebsocketService {
     }
 
     private getLocalUrl(): string {
-        return document.location.protocol+'//'+document.location.hostname;
+        const port = document.location.port &&
+          ((document.location.protocol === 'https:' && document.location.port !== '443') ||
+          (document.location.protocol === 'http:' && document.location.port !== '80'))? ':'+document.location.port: '';
+        return document.location.protocol+'//'+document.location.hostname+port;
     }
 }
