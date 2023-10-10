@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"math/rand"
@@ -46,8 +47,8 @@ var (
 	openvpnServer            = kingpin.Flag("ovpn.server", "HOST:PORT:PROTOCOL for OpenVPN server; can have multiple values").Default("").Envar("OVPN_SERVER").PlaceHolder("HOST:PORT:PROTOCOL").Strings()
 	mgmtAddress              = kingpin.Flag("mgmt", "ALIAS=HOST:PORT for OpenVPN server mgmt interface; can have multiple values").Default("").Envar("OPENVPN_MANAGEMENT").String()
 	metricsPath              = kingpin.Flag("metrics.path", "URL path for exposing collected metrics").Default("/metrics").Envar("OVPN_METRICS_PATH").String()
-	easyrsaDirPath           = kingpin.Flag("easyrsa.path", "path to easyrsa dir").Default("/usr/share/easy-rsa/").Envar("EASYRSA_PATH").String()
-	indexTxtPath             = kingpin.Flag("easyrsa.index-path", "path to easyrsa index file").Default("").Envar("EASYRSA_INDEX_PATH").String()
+	easyrsaBinPath           = kingpin.Flag("easyrsa.bin", "path to easyrsa dir").Default("/usr/share/easy-rsa/easyrsa").Envar("EASYRSA_BIN").String()
+	easyrsaDirPath           = kingpin.Flag("easyrsa.path", "path to easyrsa config").Default("/etc/openvpn/easyrsa").Envar("EASYRSA_DIR").String()
 	ccdDir                   = kingpin.Flag("ccd.path", "path to client-config-dir").Default("./ccd").Envar("OVPN_CCD_PATH").String()
 	clientConfigTemplatePath = kingpin.Flag("templates.clientconfig-path", "path to custom client.conf.tpl").Default("").Envar("OVPN_TEMPLATES_CC_PATH").String()
 	authByPassword           = kingpin.Flag("auth.password", "enable additional password authentication").Default("false").Envar("OVPN_AUTH").Bool()
@@ -118,6 +119,11 @@ func enableCors(w *http.ResponseWriter, r *http.Request) {
 	(*w).Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
 }
 
+func returnErrorMessage(w http.ResponseWriter, status int, err error) {
+	jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
+	http.Error(w, string(jsonRaw), status)
+}
+
 var app OvpnAdmin
 
 func main() {
@@ -126,10 +132,6 @@ func main() {
 	kingpin.Parse()
 
 	log.Printf("PATH %s\n", os.Getenv("PATH"))
-
-	if *indexTxtPath == "" {
-		*indexTxtPath = *easyrsaDirPath + "/pki/index.txt"
-	}
 
 	oAdmin := new(OvpnAdmin)
 	oAdmin.lastSyncTime = "unknown"
@@ -193,7 +195,7 @@ func main() {
 	upgrader.CheckOrigin = oAdmin.checkWebsocketOrigin
 	upgrader.Subprotocols = []string{"ovpn"}
 	// initial device load
-	for _, cert := range openvpn.IndexTxtParserCertificate(shell.ReadFile(*indexTxtPath)) {
+	for _, cert := range openvpn.IndexTxtParserCertificate(shell.ReadFile(*easyrsaDirPath + "/pki/index.txt")) {
 		if cert.Username != oAdmin.masterCn {
 			oAdmin.updateDeviceByCertificate(cert)
 		}

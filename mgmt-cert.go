@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"rpiadm/backend/openvpn"
+	"time"
 )
 
 // WARN: highly risky
@@ -23,11 +24,14 @@ func (app *OvpnAdmin) userRevoke(username string) error {
 		return errors.New(fmt.Sprintf("User \"%s\" not found", username))
 	}
 
-	err := openvpn.RevokeCertificate(*easyrsaDirPath, *authByPassword, *authDatabase, client.Certificate, username)
+	err := openvpn.RevokeCertificate(*easyrsaBinPath, *easyrsaDirPath, *authByPassword, *authDatabase, client.Certificate)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Fail to revoke certificat for \"%s\": ", err.Error()))
 	}
 
+	client.Certificate.Flag = "R"
+	client.Certificate.RevocationDate = time.Now().Format(time.RFC3339)
+	app.updateDeviceByCertificate(client.Certificate)
 	app.updateCertificateStats()
 
 	if client != nil {
@@ -35,7 +39,7 @@ func (app *OvpnAdmin) userRevoke(username string) error {
 			log.Printf("User %s connected: %d", username, len(client.Connections))
 			app.mgmt.KillUserConnections(client)
 		} else {
-			log.Printf("User %s not connected: %d")
+			log.Printf("User %s not connected", username)
 		}
 	}
 
@@ -49,11 +53,14 @@ func (app *OvpnAdmin) userUnrevoke(username string) error {
 		return errors.New(fmt.Sprintf("User \"%s\" not found", username))
 	}
 
-	err := openvpn.UserUnrevoke(*easyrsaDirPath, *indexTxtPath, *authByPassword, *authDatabase, client.Certificate)
+	err := openvpn.UserUnrevoke(*easyrsaBinPath, *easyrsaDirPath, *authByPassword, *authDatabase, client.Certificate)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Fail to unrevoke certificat for \"%s\": ", err.Error()))
 	}
 
+	client.Certificate.Flag = "V"
+	client.Certificate.RevocationDate = ""
+	app.updateDeviceByCertificate(client.Certificate)
 	app.updateCertificateStats()
 	return nil
 }
@@ -64,8 +71,8 @@ func (app *OvpnAdmin) userRotate(username string, newPassword string) error {
 		return errors.New(fmt.Sprintf("User \"%s\" not found\"", username))
 	}
 	openvpn.UserRotate(
+		*easyrsaBinPath,
 		*easyrsaDirPath,
-		*indexTxtPath,
 		*authByPassword,
 		*authDatabase,
 		username,
@@ -83,7 +90,7 @@ func (app *OvpnAdmin) userDelete(username string) string {
 		return fmt.Sprintf("{\"msg\":\"User \"%s\" not found\"}", username)
 	}
 
-	if err := openvpn.UserDelete(*easyrsaDirPath, *indexTxtPath, client.Certificate); err != nil {
+	if err := openvpn.UserDelete(*easyrsaBinPath, *easyrsaDirPath, client.Certificate); err != nil {
 		return err.Error()
 	}
 

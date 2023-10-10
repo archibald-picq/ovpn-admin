@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,23 +20,21 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
-		json, _ := json.Marshal(MessagePayload{Message: "User not authorized to create certificate"})
-		http.Error(w, string(json), http.StatusUnauthorized)
+
+		returnErrorMessage(w, http.StatusUnauthorized, errors.New("User not authorized to create certificate"))
 		return
 	}
 	var userDefinition openvpn.UserDefinition
 	err := json.NewDecoder(r.Body).Decode(&userDefinition)
 	if err != nil {
-		jsonErr, _ := json.Marshal(MessagePayload{Message: "Cant parse JSON"})
-		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
+		returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("Cant parse JSON"))
 		return
 	}
 	log.Printf("create user with %v\n", userDefinition)
 	certificate, err := openvpn.UserCreateCertificate(*easyrsaDirPath, *authByPassword, *authDatabase, userDefinition)
 
 	if err != nil {
-		jsonErr, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 	app.clients = append(app.clients, &model.Device{
@@ -69,8 +68,8 @@ func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request) 
 	err := app.userRevoke(r.FormValue("username"))
 	//fmt.Fprintf(w, "%s", ret)
 	if err != nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(jsonRaw), http.StatusUnprocessableEntity)
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -90,8 +89,7 @@ func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request
 	err := app.userUnrevoke(r.FormValue("username"))
 	if err != nil {
 		log.Printf("unrevoke error %s", err.Error())
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(jsonRaw), http.StatusUnprocessableEntity)
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -132,8 +130,7 @@ func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request) 
 	username := r.FormValue("username")
 	err := app.userRotate(username, r.FormValue("password"))
 	if err != nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(jsonRaw), http.StatusUnprocessableEntity)
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 	//fmt.Sprintf(`{"message":"User %s successfully rotated"}`, username)

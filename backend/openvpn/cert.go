@@ -533,9 +533,9 @@ func genCRL(certs []*RevokedCert, ca *x509.Certificate, caKey *rsa.PrivateKey) (
 	return
 }
 
-func RebuildClientRevocationList(easyrsaDirPath string) {
+func RebuildClientRevocationList(easyrsaBinPath string, easyrsaDirPath string) {
 	log.Printf("rebuild CRL")
-	_, err := shell.RunBash(fmt.Sprintf("cd %s && ./easyrsa gen-crl", easyrsaDirPath))
+	_, err := shell.RunBash(fmt.Sprintf("cd %s && %s gen-crl", easyrsaDirPath, easyrsaBinPath))
 	if err != nil {
 		log.Printf("fail to rebuild crl", err)
 	}
@@ -546,55 +546,55 @@ func RestoreCertBySerial(easyrsaDirPath string, serial string, cn string) error 
 
 	copyCertFile(
 		easyrsaDirPath,
-		fmt.Sprintf("pki/revoked/certs_by_serial/%s.crt", serial),
-		fmt.Sprintf("pki/issued/%s.crt", cn),
+		fmt.Sprintf("/pki/revoked/certs_by_serial/%s.crt", serial),
+		fmt.Sprintf("/pki/issued/%s.crt", cn),
 	)
 
 	copyCertFile(
 		easyrsaDirPath,
-		fmt.Sprintf("pki/revoked/certs_by_serial/%s.crt", serial),
-		fmt.Sprintf("pki/certs_by_serial/%s.pem", serial),
+		fmt.Sprintf("/pki/revoked/certs_by_serial/%s.crt", serial),
+		fmt.Sprintf("/pki/certs_by_serial/%s.pem", serial),
 	)
 
 	copyCertFile(
 		easyrsaDirPath,
-		fmt.Sprintf("pki/revoked/private_by_serial/%s.key", serial),
-		fmt.Sprintf("pki/private/%s.key", cn),
+		fmt.Sprintf("/pki/revoked/private_by_serial/%s.key", serial),
+		fmt.Sprintf("/pki/private/%s.key", cn),
 	)
 
 	copyCertFile(
 		easyrsaDirPath,
-		fmt.Sprintf("pki/revoked/reqs_by_serial/%s.req", serial),
-		fmt.Sprintf("pki/reqs/%s.req", cn),
+		fmt.Sprintf("/pki/revoked/reqs_by_serial/%s.req", serial),
+		fmt.Sprintf("/pki/reqs/%s.req", cn),
 	)
 
-	if fExistsPki(easyrsaDirPath, fmt.Sprintf("pki/issued/%s.crt", cn)) && fExistsPki(easyrsaDirPath, fmt.Sprintf("pki/certs_by_serial/%s.pem", serial)) {
-		os.Remove(easyrsaDirPath + fmt.Sprintf("pki/revoked/certs_by_serial/%s.crt", serial))
+	if fExistsPki(easyrsaDirPath, fmt.Sprintf("/pki/issued/%s.crt", cn)) && fExistsPki(easyrsaDirPath, fmt.Sprintf("/pki/certs_by_serial/%s.pem", serial)) {
+		os.Remove(easyrsaDirPath + fmt.Sprintf("/pki/revoked/certs_by_serial/%s.crt", serial))
 	}
-	if fExistsPki(easyrsaDirPath, fmt.Sprintf("pki/private/%s.key", cn)) {
-		os.Remove(easyrsaDirPath + fmt.Sprintf("pki/revoked/private_by_serial/%s.key", serial))
+	if fExistsPki(easyrsaDirPath, fmt.Sprintf("/pki/private/%s.key", cn)) {
+		os.Remove(easyrsaDirPath + fmt.Sprintf("/pki/revoked/private_by_serial/%s.key", serial))
 	}
-	if fExistsPki(easyrsaDirPath, fmt.Sprintf("pki/reqs/%s.req", cn)) {
-		os.Remove(easyrsaDirPath + fmt.Sprintf("pki/revoked/reqs_by_serial/%s.req", serial))
+	if fExistsPki(easyrsaDirPath, fmt.Sprintf("/pki/reqs/%s.req", cn)) {
+		os.Remove(easyrsaDirPath + fmt.Sprintf("/pki/revoked/reqs_by_serial/%s.req", serial))
 	}
 	return nil
 }
 
-func fExistsPki(easyrsaDirPath string, f string) bool {
-	return shell.FileExist(easyrsaDirPath)
+func fExistsPki(path string, f string) bool {
+	return shell.FileExist(path)
 }
 
-func copyCertFile(easyrsaDirPath string, from string, to string) error {
-	if !shell.FileExist(easyrsaDirPath + from) {
-		log.Printf("source file %s does not exists", easyrsaDirPath+from)
+func copyCertFile(base string, from string, to string) error {
+	if !shell.FileExist(base + from) {
+		log.Printf("source file %s does not exists", base+from)
 		return nil
 	}
-	if shell.FileExist(easyrsaDirPath + to) {
-		log.Printf("target file %s already exists", easyrsaDirPath+to)
+	if shell.FileExist(base + to) {
+		log.Printf("target file %s already exists", base+to)
 		return nil
 	}
 
-	err := shell.FileCopy(easyrsaDirPath+from, easyrsaDirPath+to)
+	err := shell.FileCopy(base+from, base+to)
 	if err == nil {
 		log.Printf("Moved %s to %s", from, to)
 	}

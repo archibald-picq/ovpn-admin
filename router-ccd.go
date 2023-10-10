@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"rpiadm/backend/auth"
@@ -28,15 +29,13 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 
 	var ccd openvpn.Ccd
 	if r.Body == nil {
-		json, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
-		http.Error(w, string(json), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("Please send a request body"))
 		return
 	}
 
 	err := json.NewDecoder(r.Body).Decode(&ccd)
 	if err != nil {
-		rawJson, _ := json.Marshal(MessagePayload{Message: "Can't parse JSON body"})
-		http.Error(w, string(rawJson), http.StatusInternalServerError)
+		returnErrorMessage(w, http.StatusInternalServerError, errors.New("Can't parse JSON body"))
 		return
 	}
 
@@ -47,11 +46,10 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 		ccd.CustomIRoutes[i].Description = strings.Trim(ccd.CustomIRoutes[i].Description, " ")
 	}
 
-	err = openvpn.UpdateCcd(*indexTxtPath, *ccdDir, *openvpnNetwork, extractNetmask(app.serverConf.Server), ccd)
+	err = openvpn.UpdateCcd(*easyrsaDirPath, *ccdDir, *openvpnNetwork, extractNetmask(app.serverConf.Server), ccd)
 
 	if err != nil {
-		rawJson, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(rawJson), http.StatusUnprocessableEntity)
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -88,8 +86,7 @@ func (app *OvpnAdmin) userShowConfigHandler(w http.ResponseWriter, r *http.Reque
 	username := r.FormValue("username")
 	device := app.getDevice(username)
 	if device == nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("User \"%s\" not found", username)})
-		http.Error(w, string(jsonRaw), http.StatusNotFound)
+		returnErrorMessage(w, http.StatusNotFound, errors.New("User "+username+" not found"))
 		return
 	}
 

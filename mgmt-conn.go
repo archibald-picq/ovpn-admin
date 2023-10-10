@@ -137,9 +137,12 @@ func (app *OvpnAdmin) updateCertificateStats() {
 }
 
 func (app *OvpnAdmin) updateDeviceByCertificate(certificate *openvpn.Certificate) {
-	for _, existing := range app.clients {
+	for idx, existing := range app.clients {
 		if existing.Username == certificate.Username {
-			existing.Certificate = certificate
+			app.clients[idx].Certificate = certificate
+			app.clients[idx].Certificate.Flag = certificate.Flag
+			app.clients[idx].Certificate.DeletionDate = certificate.DeletionDate
+			log.Printf("update certificate", app.clients[idx].Certificate)
 			return
 		}
 	}
@@ -166,7 +169,7 @@ func (app *OvpnAdmin) synchroConnections(conns []*openvpn.VpnConnection) {
 			}
 		}
 		if !found {
-			log.Printf("Can't find certificate for connection %s", conn.CommonName)
+			log.Printf("Can't find certificate for connection %s from %s", conn.CommonName, conn.RealAddress)
 		}
 	}
 	app.broadcast(WebsocketPacket{Stream: "users", Data: app.clients})

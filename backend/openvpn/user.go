@@ -38,23 +38,26 @@ func UserChangePassword(authDatabase, username, password string) error {
 }
 
 func RevokeCertificate(
+	easyrsaBinPath string,
 	easyrsaDirPath string,
 	authByPassword bool,
 	authDatabase string,
 	client *Certificate,
-	username string,
 ) error {
 	var shellOut string
 
-	log.Printf("revoke cert \"%s\" ", username)
-	shellOut, err := shell.RunBash(fmt.Sprintf("cd %s && echo yes | ./easyrsa revoke %s", easyrsaDirPath, username))
+	log.Printf("revoke cert \"%s\" ", client.Username)
+	cmd := fmt.Sprintf("cd %s && echo yes | %s revoke %s", easyrsaDirPath, easyrsaBinPath, client.Username)
+	log.Printf("running %s", cmd)
+	shellOut, err := shell.RunBash(cmd)
 	if err != nil {
+		log.Print(err)
 		return errors.New(fmt.Sprintf("Error revoking certificate \"%s\"", err))
 	}
 	log.Printf(shellOut)
 
 	if authByPassword {
-		shellOut, err := shell.RunBash(fmt.Sprintf("openvpn-user revoke --db-path %s --user %s", authDatabase, username))
+		shellOut, err := shell.RunBash(fmt.Sprintf("openvpn-user revoke --db-path %s --user %s", authDatabase, client.Username))
 		if err != nil {
 			return errors.New(fmt.Sprintf("Error updateing DB \"%s\"", err))
 		}
@@ -62,18 +65,18 @@ func RevokeCertificate(
 	}
 
 	(*client).Flag = "R"
-	RebuildClientRevocationList(easyrsaDirPath)
+	RebuildClientRevocationList(easyrsaBinPath, easyrsaDirPath)
 	return nil
 }
 
-func UserDelete(easyrsaDirPath string, indexTxtPath string, certificate *Certificate) error {
-	all := IndexTxtParserCertificate(shell.ReadFile(indexTxtPath))
+func UserDelete(easyrsaBinPath string, easyrsaDirPath string, certificate *Certificate) error {
+	all := IndexTxtParserCertificate(shell.ReadFile(easyrsaDirPath + "/pki/index.txt"))
 	for _, u := range all {
 		if u.Username == certificate.Username {
 			uniqHash := strings.Replace(uuid.New().String(), "-", "", -1)
 			(*u).Username = "DELETED-" + certificate.Username + "-" + uniqHash
-			shell.WriteFile(indexTxtPath, RenderIndexTxt(all))
-			RebuildClientRevocationList(easyrsaDirPath)
+			shell.WriteFile(easyrsaDirPath+"/pki/index.txt", RenderIndexTxt(all))
+			RebuildClientRevocationList(easyrsaBinPath, easyrsaDirPath)
 			chmodFix(easyrsaDirPath)
 			(*certificate).Flag = "D"
 			return nil
@@ -96,9 +99,9 @@ func chmodFix(easyrsaDirPath string) {
 	}
 }
 
-func UserUnrevoke(easyrsaDirPath string, indexTxtPath string, authByPassword bool, authDatabase string, client *Certificate) error {
-	all := IndexTxtParserCertificate(shell.ReadFile(indexTxtPath))
-	for _, cert := range all {
+func UserUnrevoke(easyrsaBinPath, easyrsaDirPath string, authByPassword bool, authDatabase string, client *Certificate) error {
+	all := IndexTxtParserCertificate(shell.ReadFile(easyrsaDirPath + "/pki/index.txt"))
+	for idx, cert := range all {
 		if cert.Username == client.Username {
 			log.Printf("unrevoke %v", client)
 
@@ -111,30 +114,32 @@ func UserUnrevoke(easyrsaDirPath string, indexTxtPath string, authByPassword boo
 				_, _ = shell.RunBash(fmt.Sprintf("openvpn-user restore --db-path %s --user %s", authDatabase, client.Username))
 			}
 
-			(*client).Flag = "V"
+			all[idx].Flag = "V"
 
-			err := shell.WriteFile(indexTxtPath, RenderIndexTxt(all))
+			rendered := RenderIndexTxt(all)
+			//log.Printf(string(rendered))
+			err := shell.WriteFile(easyrsaDirPath+"/pki/index.txt", rendered)
 			chmodFix(easyrsaDirPath)
 			if err != nil {
 				log.Printf(err.Error())
 				return err
 			}
-			RebuildClientRevocationList(easyrsaDirPath)
+			RebuildClientRevocationList(easyrsaBinPath, easyrsaDirPath)
 			return nil
 		}
 	}
 	return errors.New("certificate not found")
 }
 
-func UserRotate(easyrsaDirPath string, indexTxtPath string, authByPassword bool, authDatabase string, username string, newPassword string, certificate *Certificate) error {
-	all := IndexTxtParserCertificate(shell.ReadFile(indexTxtPath))
+func UserRotate(easyrsaBinPath string, easyrsaDirPath string, authByPassword bool, authDatabase string, username string, newPassword string, certificate *Certificate) error {
+	all := IndexTxtParserCertificate(shell.ReadFile(easyrsaDirPath + "/pki/index.txt"))
 	for _, cert := range all {
 		if cert.Username == certificate.Username {
 
 			if cert.Flag != "V" {
 				return errors.New(fmt.Sprintf("Certificate \"%s\" is already revoked", cert.Username))
 			}
-			_, err := shell.RunBash(fmt.Sprintf("cd %s && echo yes | ./easyrsa revoke %s", easyrsaDirPath, cert.Username))
+			_, err := shell.RunBash(fmt.Sprintf("cd %s && echo yes | %s revoke %s", easyrsaDirPath, easyrsaBinPath, cert.Username))
 			if err != nil {
 				return errors.New(fmt.Sprintf("Error revoking certificate \"%s\"", err))
 			}
@@ -157,8 +162,8 @@ func UserRotate(easyrsaDirPath string, indexTxtPath string, authByPassword bool,
 				shell.RunBash(fmt.Sprintf("openvpn-user change-password --db.path %s --user %s --password %s", authDatabase, username, newPassword))
 			}
 
-			shell.WriteFile(indexTxtPath, RenderIndexTxt(all))
-			RebuildClientRevocationList(easyrsaDirPath)
+			shell.WriteFile(easyrsaDirPath+"/pki/index.txt", RenderIndexTxt(all))
+			RebuildClientRevocationList(easyrsaBinPath, easyrsaDirPath)
 			chmodFix(easyrsaDirPath)
 			return nil
 		}

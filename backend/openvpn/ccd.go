@@ -38,71 +38,85 @@ type OpenvpnClientConfig struct {
 	TlsCipher          string
 }
 
+func BuildIndexLine(cert *Certificate) string {
+	indexTxt := ""
+	///C=FR/ST=Meurthe-et-Moselle/L=Nancy/O=Architech/OU=ROOT-CA/CN=paris/emailAddress=archibald.picq@gmail.com
+	identity := ""
+	if len(cert.Country) > 0 {
+		identity = identity + "/C=" + cert.Country
+	}
+	if len(cert.Province) > 0 {
+		identity = identity + "/ST=" + cert.Province
+	}
+	if len(cert.City) > 0 {
+		identity = identity + "/L=" + cert.City
+	}
+	if len(cert.Organisation) > 0 {
+		identity = identity + "/O=" + cert.Organisation
+	}
+	if len(cert.OrganisationUnit) > 0 {
+		identity = identity + "/OU=" + cert.OrganisationUnit
+	}
+	if len(cert.Username) > 0 {
+		if cert.Flag == "D" {
+			identity = identity + "/CN=DELETED-" + cert.Username + "-" + cert.DeletionDate
+
+		} else {
+			identity = identity + "/CN=" + cert.Username
+		}
+	}
+	if len(cert.Email) > 0 {
+		identity = identity + "/emailAddress=" + cert.Email
+	}
+
+	switch {
+	case cert.Flag == "V":
+		indexTxt += fmt.Sprintf(
+			"%s\t%s\t\t%s\t%s\t%s\n",
+			cert.Flag,
+			parseDate(stringDateFormat, cert.ExpirationDate).Format(indexTxtDateLayout),
+			cert.SerialNumber,
+			cert.Filename,
+			identity,
+		)
+	case cert.Flag == "R":
+		indexTxt += fmt.Sprintf(
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
+			cert.Flag,
+			parseDate(stringDateFormat, cert.ExpirationDate).Format(indexTxtDateLayout),
+			parseDate(stringDateFormat, cert.RevocationDate).Format(indexTxtDateLayout),
+			cert.SerialNumber,
+			cert.Filename,
+			identity,
+		)
+	case cert.Flag == "D":
+		indexTxt += fmt.Sprintf(
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
+			cert.Flag,
+			parseDate(stringDateFormat, cert.ExpirationDate).Format(indexTxtDateLayout),
+			parseDate(stringDateFormat, cert.RevocationDate).Format(indexTxtDateLayout),
+			cert.SerialNumber,
+			cert.Filename,
+			identity,
+		)
+
+		// case line.flag == "E":
+	}
+	return indexTxt
+}
+
+//func RenderIndexTxtDevice(data []*model.Device) []byte {
+//	indexTxt := ""
+//	for _, device := range data {
+//		indexTxt += BuildIndexLine(device.Certificate)
+//	}
+//	return []byte(indexTxt)
+//}
+
 func RenderIndexTxt(data []*Certificate) []byte {
 	indexTxt := ""
 	for _, cert := range data {
-		///C=FR/ST=Meurthe-et-Moselle/L=Nancy/O=Architech/OU=ROOT-CA/CN=paris/emailAddress=archibald.picq@gmail.com
-		identity := ""
-		if len(cert.Country) > 0 {
-			identity = identity + "/C=" + cert.Country
-		}
-		if len(cert.Province) > 0 {
-			identity = identity + "/ST=" + cert.Province
-		}
-		if len(cert.City) > 0 {
-			identity = identity + "/L=" + cert.City
-		}
-		if len(cert.Organisation) > 0 {
-			identity = identity + "/O=" + cert.Organisation
-		}
-		if len(cert.OrganisationUnit) > 0 {
-			identity = identity + "/OU=" + cert.OrganisationUnit
-		}
-		if len(cert.Username) > 0 {
-			if cert.Flag == "D" {
-				identity = identity + "/CN=DELETED-" + cert.Username + "-" + cert.DeletionDate
-
-			} else {
-				identity = identity + "/CN=" + cert.Username
-			}
-		}
-		if len(cert.Email) > 0 {
-			identity = identity + "/emailAddress=" + cert.Email
-		}
-
-		switch {
-		case cert.Flag == "V":
-			indexTxt += fmt.Sprintf(
-				"%s\t%s\t\t%s\t%s\t%s\n",
-				cert.Flag,
-				parseDate(stringDateFormat, cert.ExpirationDate).Format(indexTxtDateLayout),
-				cert.SerialNumber,
-				cert.Filename,
-				identity,
-			)
-		case cert.Flag == "R":
-			indexTxt += fmt.Sprintf(
-				"%s\t%s\t%s\t%s\t%s\t%s\n",
-				cert.Flag,
-				parseDate(stringDateFormat, cert.ExpirationDate).Format(indexTxtDateLayout),
-				parseDate(stringDateFormat, cert.RevocationDate).Format(indexTxtDateLayout),
-				cert.SerialNumber,
-				cert.Filename,
-				identity,
-			)
-		case cert.Flag == "D":
-			indexTxt += fmt.Sprintf(
-				"%s\t%s\t%s\t%s\t%s\t%s\n",
-				cert.Flag,
-				parseDate(stringDateFormat, cert.ExpirationDate).Format(indexTxtDateLayout),
-				parseDate(stringDateFormat, cert.RevocationDate).Format(indexTxtDateLayout),
-				cert.SerialNumber,
-				cert.Filename,
-				identity,
-			)
-
-			// case line.flag == "E":
-		}
+		indexTxt += BuildIndexLine(cert)
 	}
 	return []byte(indexTxt)
 }
@@ -132,7 +146,7 @@ func ParseCcd(ccdDir string, username string) Ccd {
 		// log.Warnf("reading ccd line [%s] [%s]", code, description)
 		str := strings.Fields(code)
 		if len(str) > 0 {
-			if strings.HasPrefix(str[0], "ifconfig-Push") && len(str) > 1 {
+			if strings.HasPrefix(str[0], "ifconfig-push") && len(str) > 1 {
 				ccd.ClientAddress = str[1]
 			} else if strings.HasPrefix(str[0], "push") && len(str) > 3 {
 				ccd.CustomRoutes = append(ccd.CustomRoutes, Route{
@@ -182,8 +196,8 @@ func BuildCcd(ccd Ccd, serverMask string) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
-func UpdateCcd(indexTxtPath string, ccdDir string, openvpnNetwork string, serverMask string, ccd Ccd) error {
-	err := ValidateCcd(indexTxtPath, ccdDir, openvpnNetwork, ccd)
+func UpdateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, serverMask string, ccd Ccd) error {
+	err := ValidateCcd(easyDirPath, ccdDir, openvpnNetwork, ccd)
 	if err != nil {
 		return err
 	}
@@ -195,8 +209,8 @@ func UpdateCcd(indexTxtPath string, ccdDir string, openvpnNetwork string, server
 	return nil
 }
 
-func ValidateCcd(indexTxtPath string, ccdDir string, openvpnNetwork string, ccd Ccd) error {
-	certs := IndexTxtParserCertificate(shell.ReadFile(indexTxtPath))
+func ValidateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, ccd Ccd) error {
+	certs := IndexTxtParserCertificate(shell.ReadFile(easyDirPath + "/pki/index.txt"))
 	if ccd.ClientAddress != "dynamic" && len(ccd.ClientAddress) > 0 {
 		_, ovpnNet, err := net.ParseCIDR(openvpnNetwork)
 		if err != nil {
@@ -286,9 +300,9 @@ func RenderClientConfig(
 
 	conf := OpenvpnClientConfig{}
 	conf.Hosts = hosts
-	conf.CA = shell.ReadFile(easyrsaDirPath + "pki/ca.crt")
-	if _, err := os.Stat(easyrsaDirPath + "pki/ta.key"); err == nil {
-		conf.TLS = shell.ReadFile(easyrsaDirPath + "pki/ta.key")
+	conf.CA = shell.ReadFile(easyrsaDirPath + "/pki/ca.crt")
+	if _, err := os.Stat(easyrsaDirPath + "/pki/ta.key"); err == nil {
+		conf.TLS = shell.ReadFile(easyrsaDirPath + "/pki/ta.key")
 	}
 	if len(masterCn) > 0 && VerifyX509Name {
 		conf.CertCommonName = masterCn
