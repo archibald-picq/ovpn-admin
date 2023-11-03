@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 VERSION=1.2.0
 PACKAGE=ovpn-admin
@@ -8,11 +9,15 @@ PATH=$PATH:~/go/bin
 SKIP_FRONT=0
 SKIP_BACK=0
 SKIP_DEB=0
+BUILD_DEV=0
 
 PACKAGE_DEPENDENCIES="libc6, openvpn, easy-rsa"
 
 while [ $# -ge 1 ]; do
   case $1 in
+    --dev)
+      BUILD_DEV=1
+      ;;
     --skip-front)
       SKIP_FRONT=1
       ;;
@@ -29,10 +34,13 @@ while [ $# -ge 1 ]; do
   shift
 done
 
+PACKAGE_BUILD_SCRIPT=build
+[ "$BUILD_DEV" = 1 ] && PACKAGE_BUILD_SCRIPT=build-dev
+
 if [ $SKIP_FRONT = 0 ]; then
   rsync --progress --times --recursive --delete-after ~/bus-ui/src/content/app/openvpn/ ./frontend/src/content/app/openvpn/
   rsync --progress --times --recursive --delete-after ~/bus-ui/src/content/app/shared/services/ble/ ./frontend/src/content/app/shared/services/ble/
-  cd frontend && npm install && npm run build && cd ..
+  cd frontend && npm install && npm run $PACKAGE_BUILD_SCRIPT && cd ..
 fi
 
 if [ $SKIP_BACK = 0 ]; then
