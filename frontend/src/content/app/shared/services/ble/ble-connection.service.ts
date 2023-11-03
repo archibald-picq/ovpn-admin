@@ -75,28 +75,32 @@ export class BleConnection {
     return new Promise((resolve, reject) => {
       this.status = 'prompting';
       // console.warn('request', this.params.name, 'with service', this.params.service);
-      navigator.bluetooth.requestDevice({
-        filters: [{
-          namePrefix: this.params.name,
-        }],
-        // acceptAllDevices: true,
-        optionalServices: [
-          this.params.service,
-        ],
-      })
-        .then((device) => {
-          this.persistent.device = device;
-          device.addEventListener('gattserverdisconnected', (event) => this.onDisconnected(event));
-          this.connectToPeripheral(device).then(
-            () => resolve(),
-            () => reject(),
-          );
+      try {
+        navigator.bluetooth.requestDevice({
+          filters: [{
+            namePrefix: this.params.name,
+          }],
+          // acceptAllDevices: true,
+          optionalServices: [
+            this.params.service,
+          ],
         })
-        .catch((error) => {
-          console.warn('error: ', error, error.message);
-          this.status = 'failed';
-          reject();
-        });
+          .then((device) => {
+            this.persistent.device = device;
+            device.addEventListener('gattserverdisconnected', (event) => this.onDisconnected(event));
+            this.connectToPeripheral(device).then(
+              () => resolve(),
+              () => reject(),
+            );
+          })
+          .catch((error) => {
+            console.warn('error: ', error, error.message);
+            this.status = 'failed';
+            reject(error);
+          });
+      } catch(e) {
+        reject(e);
+      }
     });
   }
 

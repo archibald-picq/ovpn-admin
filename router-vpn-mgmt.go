@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"rpiadm/backend/auth"
@@ -25,17 +26,16 @@ func (app *OvpnAdmin) apiConnectionKill(w http.ResponseWriter, r *http.Request) 
 	var req ConnectionId
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		jsonErr, _ := json.Marshal(MessagePayload{Message: "Cant parse JSON"})
-		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
+		returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("Cant parse JSON"))
 		return
 	}
 
 	for _, c := range app.clients {
 		for _, conn := range c.Connections {
 			if conn.ClientId == req.ClientId {
+				log.Printf("killing collection %v", conn)
 				if err := app.killAndRemoveConnection(c, conn); err != nil {
-					jsonErr, _ := json.Marshal(MessagePayload{Message: err.Error()})
-					http.Error(w, string(jsonErr), http.StatusInternalServerError)
+					returnErrorMessage(w, http.StatusInternalServerError, err)
 					return
 				}
 			}

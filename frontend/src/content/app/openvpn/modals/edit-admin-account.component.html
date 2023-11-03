@@ -6,15 +6,15 @@
     <form>
         <div class="mb-3">
             <label for="admin-username">Username</label>
-            <input [disabled]="loading" id="admin-username" name="username" class="form-control" [(ngModel)]="username" placeholder="homer" autocomplete="off">
+            <input [disabled]="loading" id="admin-username" name="username" class="form-control" [(ngModel)]="account.username" placeholder="homer" autocomplete="off">
         </div>
         <div class="mb-3">
             <label for="admin-name">Name</label>
-            <input [disabled]="loading" id="admin-name" name="email" class="form-control" [(ngModel)]="name" placeholder="Homer Simpson" autocomplete="off">
+            <input [disabled]="loading" id="admin-name" name="email" class="form-control" [(ngModel)]="account.name" placeholder="Homer Simpson" autocomplete="off">
         </div>
         <div class="mb-3">
             <label for="admin-name">Password</label>
-            <input [disabled]="loading" id="admin-password" type="password" name="password" class="form-control" [(ngModel)]="password" placeholder="********" autocomplete="off">
+            <input [disabled]="loading" id="admin-password" type="password" name="password" class="form-control" [(ngModel)]="account.password" placeholder="********" autocomplete="off">
         </div>
         <div class="mb-3">
             <label for="admin-password-confirm">Password confirmation</label>

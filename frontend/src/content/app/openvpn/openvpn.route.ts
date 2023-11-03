@@ -74,9 +74,25 @@ export class IsConfigured implements CanActivate {
             if (config.unconfigured) {
                 return this.router.navigate(['./setup'] /* , {skipLocationChange: true}*/);
             }
-            console.warn('config', config);
-            console.warn('route', route);
-            console.warn('state', state);
+            return true;
+        });
+    }
+}
+
+@Injectable({
+    providedIn: 'root',
+})
+export class IsNotConfigured implements CanActivate {
+    constructor(
+      private readonly service: OpenvpnService,
+      private readonly router: Router,
+    ) {
+    }
+    canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree {
+        return this.service.loadConfig().then((config) => {
+            if (!config.unconfigured) {
+                return this.router.navigate(['./'] /* , {skipLocationChange: true}*/);
+            }
             return true;
         });
     }
@@ -96,7 +112,7 @@ export const OPENVPN_ROUTES: Route[] = [{
                 clients: ClientsResolve,
             },
             canActivate: [
-              IsConfigured,
+                IsConfigured,
             ],
         },
         {
@@ -126,6 +142,9 @@ export const OPENVPN_ROUTES: Route[] = [{
         {
             path: 'setup',
             component: SetupComponent,
+            canActivate: [
+                IsNotConfigured,
+            ],
         }
     ],
 }];

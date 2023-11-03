@@ -17,9 +17,15 @@ func (app *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
-		return
+	firstCreateUser := false
+	if len(app.applicationPreferences.Users) != 0 {
+		// bypass auth if there is no user yet
+		if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+	} else {
+		firstCreateUser = true
 	}
 	log.Printf("%s admin account %s", r.Method, r.URL)
 	re := regexp.MustCompile("^/api/config/admin/(.*)$")
@@ -78,6 +84,23 @@ func (app *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
 		jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Failed to delete user %s", err)})
 		http.Error(w, string(jsonRaw), http.StatusBadRequest)
 		return
+	}
+
+	if firstCreateUser {
+		cookie, expirationTime, err := auth.BuildJwtCookie(&app.applicationPreferences, adminAccountUpdate.Username)
+		if err != nil {
+			jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
+			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			return
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "auth",
+			Value:    cookie,
+			Expires:  expirationTime,
+			HttpOnly: true,
+			Path:     "/",
+		})
 	}
 
 	w.WriteHeader(http.StatusNoContent)

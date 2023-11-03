@@ -7,7 +7,7 @@ import { Sort } from '@angular/material/sort';
 import {firstValueFrom} from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
-import { OpenvpnConfig, User } from '../models/openvpn-config.model';
+import { OpenvpnConfig } from '../models/openvpn-config.model';
 import { NodeConfig } from '../models/node-config.model';
 
 @Injectable()
@@ -35,9 +35,13 @@ export class OpenvpnService {
     this.config = firstValueFrom(this.http.get<OpenvpnConfig>(this.OPENVPN_ADMIN_API+'/api/config', { observe: 'response'}).pipe(
       filter((response: HttpResponse<any>) => response.ok),
       map((res: any) => res.body as any[]),
+      tap(console.warn),
       map(res => OpenvpnConfig.hydrate(res.openvpn)),
       tap(openvpnConfig => {
         config.openvpn = openvpnConfig;
+        if (!config.openvpn.url) {
+          config.openvpn.url = this.OPENVPN_ADMIN_API;
+        }
       })
     ));
     return this.config;
@@ -109,33 +113,6 @@ export class OpenvpnService {
     ));
   }
 
-  public async createAdminAccount(params: Record<string, any>): Promise<User> {
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/config/admin/', params, {
-      observe: 'response',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map((response: HttpResponse<any>) => response.body),
-    ));
-  }
-
-  public async updateAdminAccount(username: string, params: Record<string, any>): Promise<User> {
-    return firstValueFrom(this.http.put(this.OPENVPN_ADMIN_API+'/api/config/admin/'+username, params, {
-      observe: 'response',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map((response: HttpResponse<any>) => response.body),
-    ));
-  }
-
-  public async deleteAdminAccount(user: User): Promise<any> {
-    return firstValueFrom(this.http.delete(this.OPENVPN_ADMIN_API+'/api/config/admin/'+user.username, {
-      observe: 'response',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map(() => undefined as any)
-    ));
-  }
-
   public async saveClientConfig(client: IClientCertificate, model: ClientConfig): Promise<void> {
     const body = {
       clientAddress: model.staticAddress ?? 'dynamic',
@@ -143,11 +120,11 @@ export class OpenvpnService {
       customRoutes: model.pushRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
       user: client.username,
     };
-    return this.http.post(this.OPENVPN_ADMIN_API+'/api/user/ccd/apply', body, {
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/ccd/apply', body, {
       observe: 'response',
     }).pipe(
       filter((response: HttpResponse<any>) => response.ok),
-    ).toPromise().then();
+    )).then();
   }
 
   public revokeCertificate(client: IClientCertificate): Promise<any> {
@@ -167,7 +144,7 @@ export class OpenvpnService {
     const body = {
       clientId: conn.clientId,
     }
-    return this.http.post(this.OPENVPN_ADMIN_API+'/api/user/kill', body, {
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/kill', body, {
       // headers,
       observe: 'response',
       // responseType: 'text',
@@ -185,7 +162,7 @@ export class OpenvpnService {
         //     throwError(() => new Error('Invalid return value'));
         // }
       })
-    ).toPromise();
+    ));
   }
 
   public unrevokeCertificate(client: IClientCertificate): Promise<any> {

@@ -30,13 +30,26 @@ func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, expirationTime, err := auth.Authenticate(&app.applicationPreferences, authPayload.Username, authPayload.Password)
+	err = auth.Authenticate(&app.applicationPreferences, authPayload.Username, authPayload.Password)
+	if err != nil {
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
+
+	cookie, expirationTime, err := auth.BuildJwtCookie(&app.applicationPreferences, authPayload.Username)
+	if err != nil {
+		jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
+		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		return
+	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth",
 		Value:    cookie,
 		Expires:  expirationTime,
 		HttpOnly: true,
+		Path:     "/",
 	})
 	rawJson, _ := json.Marshal(auth.GetUserProfile(&app.applicationPreferences, authPayload.Username))
 	_, err = w.Write(rawJson)
@@ -53,6 +66,7 @@ func (app *OvpnAdmin) logout(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
+		Path:     "/",
 	})
 	w.WriteHeader(http.StatusNoContent)
 }

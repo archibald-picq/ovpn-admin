@@ -19,18 +19,22 @@ func getEncryptedPasswordForUser(preferences *model.ApplicationConfig, username 
 
 	return "", errors.New("User not found")
 }
-func Authenticate(preferences *model.ApplicationConfig, username string, password string) (string, time.Time, error) {
+func Authenticate(preferences *model.ApplicationConfig, username string, password string) error {
 
 	expectedPassword, err := getEncryptedPasswordForUser(preferences, username)
 	if err != nil {
-		return "", time.Time{}, errors.New(fmt.Sprintf("Password error %v", err))
+		return errors.New(fmt.Sprintf("Password error %v", err))
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(expectedPassword), []byte(password))
 	if err != nil {
-		return "", time.Time{}, errors.New("Username or password does not match")
+		return errors.New("Username or password does not match")
 	}
 
+	return err
+}
+
+func BuildJwtCookie(preferences *model.ApplicationConfig, username string) (string, time.Time, error) {
 	expirationTime := time.Now().Add(24 * time.Hour)
 	// Create the JWT claims, which includes the username and expiry time
 	claims := &Claims{

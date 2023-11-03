@@ -136,27 +136,3 @@ func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request) 
 	//fmt.Sprintf(`{"message":"User %s successfully rotated"}`, username)
 	w.WriteHeader(http.StatusNoContent)
 }
-
-func (app *OvpnAdmin) downloadCertsHandler(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
-		return
-	}
-
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
-	_ = r.ParseForm()
-	token := r.Form.Get("token")
-
-	if token != app.masterSyncToken {
-		http.Error(w, `{"status":"error"}`, http.StatusForbidden)
-		return
-	}
-
-	//archiveCerts()
-	w.Header().Set("Content-Disposition", "attachment; filename="+certsArchiveFileName)
-	http.ServeFile(w, r, certsArchivePath)
-}

@@ -34,6 +34,7 @@ import {MatButtonModule} from '@angular/material/button';
 import {MatCardModule} from '@angular/material/card';
 import {MatCheckboxModule} from '@angular/material/checkbox';
 import {SetupComponent} from './setup/setup.component';
+import {AccountService} from './services/account.service';
 
 @NgModule({
     declarations: [
@@ -75,6 +76,7 @@ import {SetupComponent} from './setup/setup.component';
     providers: [
         OpenvpnService,
         WebsocketService,
+        AccountService,
     ],
     schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })

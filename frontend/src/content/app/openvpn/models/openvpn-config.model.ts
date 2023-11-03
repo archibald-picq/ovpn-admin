@@ -2,16 +2,17 @@ import { Route } from './route.model';
 import { ServiceConfig } from '../../shared/models/service-config';
 
 export class User {
-    username: string;
-    name: string;
-
-    constructor(raw: Record<string, any>) {
-        this.username = raw?.username;
-        this.name = raw?.name;
+    constructor(
+      public username: string,
+      public name?: string,
+    ) {
     }
 
-    static parse(raw: Record<string, any>): User {
-        return new User(raw);
+    static hydrate(raw: User): User {
+        return new User(
+          raw.username,
+          raw.name,
+        );
     }
 }
 
@@ -81,7 +82,7 @@ export class Preferences {
         this.explicitExitNotify = raw?.explicitExitNotify;
         this.authNoCache = raw?.authNoCache;
         this.verifyX509Name = raw?.verifyX509Name;
-        this.users = (raw?.users ?? []).map((u: Record<string, any>) => User.parse(u));
+        this.users = (raw?.users ?? []).map(User.hydrate);
     }
 
     static parse(raw: any) {

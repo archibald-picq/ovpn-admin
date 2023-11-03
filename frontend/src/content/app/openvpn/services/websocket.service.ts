@@ -26,14 +26,17 @@ export class WebsocketService {
     constructor(
         protected readonly appConfigService: AppConfigService,
     ) {
+        console.warn('openvpn', appConfigService.get());
         this.url = appConfigService.get().openvpn?.url;
     }
 
     public bind(streamName: string, callback: Callback): void {
         if (!this.streams[streamName]) {
             this.streams[streamName] = [];
-            if (this.server && this.status === 'opened') {
+            if (this.server?.readyState === 1) {
                 this.server.send(JSON.stringify({action: 'register', data: {stream: streamName}}));
+            } else {
+                console.warn('not connected to register stream', streamName);
             }
         }
         this.streams[streamName].push(callback);
@@ -50,7 +53,11 @@ export class WebsocketService {
         }
         this.streams[streamName].splice(p, 1);
         if (this.streams[streamName].length === 0) {
-            this.server?.send(JSON.stringify({action: 'unregister', data: {stream: streamName}}));
+            if (this.server?.readyState === 1) {
+                this.server?.send(JSON.stringify({action: 'unregister', data: {stream: streamName}}));
+            } else {
+                console.warn('not connected');
+            }
             delete this.streams[streamName];
         }
     }
@@ -74,6 +81,7 @@ export class WebsocketService {
         this.shouldReconnect = true;
 
         const url = (this.url || this.getLocalUrl()).replace(/^http/, 'ws')+'/api/ws';
+        console.warn('connect to ovpn-admin ws at', url);
         // console.warn('WS url', url);
         this.server = new WebSocket(url, this.protocol);
 

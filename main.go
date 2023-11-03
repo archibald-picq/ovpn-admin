@@ -16,7 +16,6 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -29,11 +28,7 @@ import (
 )
 
 const (
-	downloadCertsApiUrl  = "/api/data/certs/download"
-	downloadCcdApiUrl    = "/api/data/ccd/download"
-	certsArchiveFileName = "certs.tar.gz"
-	ccdArchiveFileName   = "ccd.tar.gz"
-	stringDateFormat     = "2006-01-02 15:04:05"
+	stringDateFormat = "2006-01-02 15:04:05"
 )
 
 var (
@@ -53,13 +48,8 @@ var (
 	clientConfigTemplatePath = kingpin.Flag("templates.clientconfig-path", "path to custom client.conf.tpl").Default("").Envar("OVPN_TEMPLATES_CC_PATH").String()
 	authByPassword           = kingpin.Flag("auth.password", "enable additional password authentication").Default("false").Envar("OVPN_AUTH").Bool()
 	authDatabase             = kingpin.Flag("auth.db", "database path for password authentication").Default("./easyrsa/pki/users.db").Envar("OVPN_AUTH_DB_PATH").String()
-	logLevel                 = kingpin.Flag("log.level", "set log level: trace, debug, info, warn, error (default info)").Default("info").Envar("LOG_LEVEL").String()
-	logFormat                = kingpin.Flag("log.format", "set log format: text, json (default text)").Default("text").Envar("LOG_FORMAT").String()
 	jwtSecretFile            = kingpin.Flag("jwt.secret", "jwt secret file").Default("").Envar("JWT_SECRET").String()
 	ovpnConfigDir            = kingpin.Flag("config.dir", "Configuration files dir").Default("/etc/openvpn/admin").Envar("CONFIG_DIR").String()
-
-	certsArchivePath = "/tmp/" + certsArchiveFileName
-	ccdArchivePath   = "/tmp/" + ccdArchiveFileName
 
 	upgrader = websocket.Upgrader{} // use default options
 	//logLevels = map[string]log.Level{
@@ -83,7 +73,6 @@ var templates embed.FS
 var content embed.FS
 
 type OvpnAdmin struct {
-	//role                   string
 	lastSyncTime           string
 	lastSuccessfulSyncTime string
 	masterHostBasicAuth    bool
@@ -131,7 +120,7 @@ func main() {
 	kingpin.Version(version)
 	kingpin.Parse()
 
-	log.Printf("PATH %s\n", os.Getenv("PATH"))
+	//log.Printf("PATH %s\n", os.Getenv("PATH"))
 
 	oAdmin := new(OvpnAdmin)
 	oAdmin.lastSyncTime = "unknown"
@@ -226,9 +215,6 @@ func main() {
 	http.HandleFunc("/api/user/ccd", oAdmin.userShowCcdHandler)
 	http.HandleFunc("/api/user/ccd/apply", oAdmin.userApplyCcdHandler)
 	http.HandleFunc("/api/node/", oAdmin.handleReadNodeConfig)
-
-	http.HandleFunc(downloadCertsApiUrl, oAdmin.downloadCertsHandler)
-	//http.HandleFunc(downloadCcdApiUrl, oAdmin.downloadCcdHandler)
 
 	http.Handle(*metricsPath, promhttp.HandlerFor(oAdmin.promRegistry, promhttp.HandlerOpts{}))
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
