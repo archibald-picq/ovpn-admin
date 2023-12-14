@@ -54,10 +54,10 @@ export class Settings {
             raw?.duplicateCn,
             raw?.clientToClient,
             raw?.compLzo,
-            raw?.auth === ''? null: raw?.auth,
             (raw?.routes ?? []).map(Route.parse),
             (raw?.routesPush ?? []).map(Route.parse),
             raw?.pushs ?? [],
+          raw?.auth === ''? null: raw?.auth,
         );
     }
 
