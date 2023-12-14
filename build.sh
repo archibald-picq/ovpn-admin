@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-VERSION=1.2.0
+VERSION=1.3.0
 PACKAGE=ovpn-admin
 
 PATH=$PATH:~/go/bin
@@ -40,7 +40,7 @@ PACKAGE_BUILD_SCRIPT=build
 if [ $SKIP_FRONT = 0 ]; then
   rsync --progress --times --recursive --delete-after ~/bus-ui/src/content/app/openvpn/ ./frontend/src/content/app/openvpn/
   rsync --progress --times --recursive --delete-after ~/bus-ui/src/content/app/shared/services/ble/ ./frontend/src/content/app/shared/services/ble/
-  cd frontend && npm install && npm run $PACKAGE_BUILD_SCRIPT && cd ..
+  cd frontend && npm install && npm run $PACKAGE_BUILD_SCRIPT && cd .. || (echo "Build front failed"; exit 1)
 fi
 
 if [ $SKIP_BACK = 0 ]; then
