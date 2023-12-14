@@ -3,66 +3,66 @@ import { ServiceConfig } from '../../shared/models/service-config';
 
 export class User {
     constructor(
-      public username: string,
-      public name?: string,
+        public username: string,
+        public name?: string,
     ) {
     }
 
     static hydrate(raw: User): User {
         return new User(
-          raw.username,
-          raw.name,
+            raw.username,
+            raw.name,
         );
     }
 }
 
 export class Settings {
-    server: string;
-    forceGatewayIpv4: boolean;
-    forceGatewayIpv4ExceptDhcp: boolean;
-    forceGatewayIpv4ExceptDns: boolean;
-    dnsIpv4: string;
+    constructor(
+        public server: string,
+        public forceGatewayIpv4: boolean,
+        public forceGatewayIpv4ExceptDhcp: boolean,
+        public forceGatewayIpv4ExceptDns: boolean,
+        public dnsIpv4: string,
+        public serverIpv6: string,
+        public forceGatewayIpv6: boolean,
+        public dnsIpv6: string,
+        public enableMtu: boolean,
+        public tunMtu: number,
+        public duplicateCn: boolean,
+        public clientToClient: boolean,
+        public compLzo: boolean,
+        public routes: Route[],
+        public routesPush: Route[],
+        public pushs: Route[],
+        public auth: string,
+    ) {
 
-    serverIpv6: string;
-    forceGatewayIpv6: boolean;
-    dnsIpv6: string;
-
-    enableMtu: boolean;
-    tunMtu: number;
-    duplicateCn: boolean;
-    clientToClient: boolean;
-    compLzo: boolean;
-    routes: Route[];
-    pushs: Route[];
-    auth: string;
-
-    constructor(raw: Record<string, any>) {
-        this.server = raw?.server;
-        this.forceGatewayIpv4 = raw?.forceGatewayIpv4;
-        this.forceGatewayIpv4ExceptDhcp = raw?.forceGatewayIpv4ExceptDhcp;
-        this.forceGatewayIpv4ExceptDns = raw?.forceGatewayIpv4ExceptDns;
-        this.dnsIpv4 = raw?.dnsIpv4;
-
-        this.serverIpv6 = raw?.serverIpv6;
-        this.forceGatewayIpv6 = raw?.forceGatewayIpv6;
-        this.dnsIpv6 = raw?.dnsIpv6;
-
-        this.enableMtu = raw?.enableMtu;
-        this.tunMtu = raw?.tunMtu;
-        this.duplicateCn = raw?.duplicateCn;
-        this.clientToClient = raw?.clientToClient;
-        this.compLzo = raw?.compLzo;
-        this.auth = raw?.auth === ''? null: raw?.auth;
-        this.routes = (raw?.routes ?? []).map((r: Record<string, any>) => Route.parse(r));
-        this.pushs = raw?.pushs ?? [];
     }
 
     static parse(raw: Record<string, any>): Settings {
-        return new Settings(raw);
+        return new Settings(
+            raw?.server,
+            raw?.forceGatewayIpv4,
+            raw?.forceGatewayIpv4ExceptDhcp,
+            raw?.forceGatewayIpv4ExceptDns,
+            raw?.dnsIpv4,
+            raw?.serverIpv6,
+            raw?.forceGatewayIpv6,
+            raw?.dnsIpv6,
+            raw?.enableMtu,
+            raw?.tunMtu,
+            raw?.duplicateCn,
+            raw?.clientToClient,
+            raw?.compLzo,
+            raw?.auth === ''? null: raw?.auth,
+            (raw?.routes ?? []).map(Route.parse),
+            (raw?.routesPush ?? []).map(Route.parse),
+            raw?.pushs ?? [],
+        );
     }
 
     public clone(): Settings {
-        return new Settings(this);
+        return Settings.parse(this);
     }
 }
 

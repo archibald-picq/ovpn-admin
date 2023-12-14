@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/seancfoley/ipaddress-go/ipaddr"
 	"log"
@@ -28,6 +29,7 @@ type ServerSavePayload struct {
 	EnableMtu                  bool            `json:"enableMtu"`
 	TunMtu                     int             `json:"tunMtu"`
 	Routes                     []openvpn.Route `json:"routes"`
+	RoutesPush                 []openvpn.Route `json:"routesPush"`
 	DnsIpv4                    string          `json:"dnsIpv4"`
 	DnsIpv6                    string          `json:"dnsIpv6"`
 }
@@ -48,7 +50,7 @@ func convertCidrNetworkMask(cidr string) string {
 }
 
 func (app *OvpnAdmin) exportPublicSettings() *model.ConfigPublicSettings {
-	log.Println("exporting settings %v", app.serverConf)
+	//log.Println("exporting settings %v", app.serverConf)
 	var settings = new(model.ConfigPublicSettings)
 	settings.Server = convertNetworkMaskCidr(app.serverConf.Server)
 	settings.ForceGatewayIpv4 = app.serverConf.ForceGatewayIpv4
@@ -60,6 +62,7 @@ func (app *OvpnAdmin) exportPublicSettings() *model.ConfigPublicSettings {
 	settings.ClientToClient = app.serverConf.ClientToClient
 	settings.CompLzo = app.serverConf.CompLzo
 	settings.Routes = app.serverConf.Routes
+	settings.RoutesPush = app.serverConf.RoutesPush
 	settings.Auth = app.serverConf.Auth
 	settings.Pushs = app.serverConf.Push
 	settings.EnableMtu = app.serverConf.EnableMtu
@@ -94,12 +97,11 @@ func (app *OvpnAdmin) exportPublicPreferences() *model.ConfigPublicPreferences {
 }
 
 func (app *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+	if enableCors(&w, r) {
 		return
 	}
 
-	log.Printf("config %v", app.serverConf)
+	//log.Printf("config %v", app.serverConf)
 	configPublic := new(model.ConfigPublic)
 	configPublic.Openvpn.Url = ""
 
@@ -124,21 +126,25 @@ func (app *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 	//fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
 }
 
+func (app *OvpnAdmin) restartServer() error {
+	_, err := shell.RunBash(*serverRestartCommand)
+	return err
+}
+
 func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 
 	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
+		returnErrorMessage(w, http.StatusForbidden, errors.New("Access denied"))
 		return
 	}
 
 	var savePayload ServerSavePayload
 	if r.Body == nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Please send a request body"})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("Please send a request body"))
 		return
 	}
 
@@ -150,14 +156,12 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 	// check addresses in post payload
 	for _, route := range savePayload.Routes {
 		if net.ParseIP(route.Address) == nil {
-			jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Invalid route.address %s", route.Address)})
-			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("Invalid route.address %s", route.Address)))
 			return
 		}
 
 		if net.ParseIP(route.Netmask) == nil {
-			jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Invalid route.netmasl %s", route.Netmask)})
-			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("Invalid route.netmasl %s", route.Netmask)))
 			return
 		}
 	}
@@ -174,6 +178,7 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 	conf.ClientToClient = savePayload.ClientToClient
 	conf.DuplicateCn = savePayload.DuplicateCn
 	conf.Routes = savePayload.Routes
+	conf.RoutesPush = savePayload.RoutesPush
 	conf.Auth = savePayload.Auth
 	conf.EnableMtu = savePayload.EnableMtu
 	conf.TunMtu = savePayload.TunMtu
@@ -185,8 +190,7 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 	// make a backup of the original OpenVPN config file
 	err = shell.FileCopy(*serverConfFile, backupFile)
 	if err != nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Can't backup config file"})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("Can't backup config file"))
 		return
 	}
 
@@ -194,8 +198,7 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 	err = shell.WriteFile(*serverConfFile, openvpn.BuildConfig(conf))
 	if err != nil {
 		shell.FileCopy(backupFile, *serverConfFile)
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -204,8 +207,7 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 		// rollback config and restart server on error
 		shell.FileCopy(backupFile, *serverConfFile)
 		err = app.restartServer()
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: "restarted"})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("restarted"))
 		return
 	}
 
@@ -224,6 +226,8 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 	app.serverConf.TunMtu = conf.TunMtu
 	app.serverConf.DnsIpv4 = conf.DnsIpv4
 	app.serverConf.DnsIpv6 = conf.DnsIpv6
+	app.serverConf.Routes = conf.Routes
+	app.serverConf.RoutesPush = conf.RoutesPush
 
 	w.WriteHeader(http.StatusNoContent)
 }

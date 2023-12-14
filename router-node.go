@@ -12,8 +12,8 @@ import (
 
 func (app *OvpnAdmin) handleReadNodeConfig(w http.ResponseWriter, r *http.Request) {
 	//log.Debug(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 

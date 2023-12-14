@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"rpiadm/backend/auth"
 	"rpiadm/backend/openvpn"
+	"rpiadm/backend/shell"
 	"strings"
 )
 
@@ -17,8 +18,7 @@ func extractNetmask(cidr string) string {
 }
 
 func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -27,12 +27,12 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var ccd openvpn.Ccd
 	if r.Body == nil {
 		returnErrorMessage(w, http.StatusBadRequest, errors.New("Please send a request body"))
 		return
 	}
 
+	var ccd openvpn.Ccd
 	err := json.NewDecoder(r.Body).Decode(&ccd)
 	if err != nil {
 		returnErrorMessage(w, http.StatusInternalServerError, errors.New("Can't parse JSON body"))
@@ -46,7 +46,9 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 		ccd.CustomIRoutes[i].Description = strings.Trim(ccd.CustomIRoutes[i].Description, " ")
 	}
 
-	err = openvpn.UpdateCcd(*easyrsaDirPath, *ccdDir, *openvpnNetwork, extractNetmask(app.serverConf.Server), ccd)
+	ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
+	openvpnNetwork := convertNetworkMaskCidr(app.serverConf.Server)
+	err = openvpn.UpdateCcd(*easyrsaDirPath, ccdDir, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd)
 
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
@@ -56,9 +58,7 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Request) {
-	//log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -66,15 +66,15 @@ func (app *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
+
+	ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
 	_ = r.ParseForm()
-	ccd, _ := json.Marshal(openvpn.ParseCcd(*ccdDir, r.FormValue("username")))
+	ccd, _ := json.Marshal(openvpn.ParseCcd(ccdDir, r.FormValue("username")))
 	fmt.Fprintf(w, "%s", ccd)
 }
 
 func (app *OvpnAdmin) userShowConfigHandler(w http.ResponseWriter, r *http.Request) {
-	//log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -82,6 +82,7 @@ func (app *OvpnAdmin) userShowConfigHandler(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
+
 	_ = r.ParseForm()
 	username := r.FormValue("username")
 	device := app.getDevice(username)
@@ -98,7 +99,7 @@ func (app *OvpnAdmin) userShowConfigHandler(w http.ResponseWriter, r *http.Reque
 		app.applicationPreferences.Preferences.Address,
 		app.applicationPreferences.Preferences.VerifyX509Name,
 		app.outboundIp.String(),
-		app.masterCn,
+		app.serverConf.MasterCn,
 		*serverConfFile,
 		*easyrsaDirPath,
 		app.getClientConfigTemplate(),

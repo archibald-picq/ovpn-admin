@@ -22,7 +22,7 @@ func (app *OvpnAdmin) checkWebsocketOrigin(r *http.Request) bool {
 	return true
 }
 func (app *OvpnAdmin) removeConnection(conn *websocket.Conn) {
-	log.Printf("web client disconnected, removing connection %s", conn.RemoteAddr().String())
+	log.Printf("Websocket client disconnected, removing connection %s", conn.RemoteAddr().String())
 	conn.Close()
 	var found *rpi.WsSafeConn
 	for i, c := range app.wsConnections {

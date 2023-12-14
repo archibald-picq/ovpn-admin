@@ -19,8 +19,7 @@ type ConfigPublicPreferencesPost struct {
 
 func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
 	//log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+	if enableCors(&w, r) {
 		return
 	}
 

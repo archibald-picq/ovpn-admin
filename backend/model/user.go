@@ -16,6 +16,7 @@ type ConfigPublicSettings struct {
 	EnableMtu                  bool            `json:"enableMtu"`
 	TunMtu                     int             `json:"tunMtu"`
 	Routes                     []openvpn.Route `json:"routes"`
+	RoutesPush                 []openvpn.Route `json:"routesPush"`
 	Pushs                      []openvpn.Push  `json:"pushs"`
 	PushRoutes                 []string        `json:"pushRoutes"`
 	DnsIpv4                    string          `json:"dnsIpv4"`
@@ -33,16 +34,11 @@ type ConfigPublicPreferences struct {
 }
 
 type ConfigPublicAccount struct {
-	Username string `json:"username"`
-	Name     string `json:"name"`
+	Username string  `json:"username"`
+	Name     *string `json:"name,omitempty"`
 }
 
-type ConfigPublicUser struct {
-	Username string `json:"username"`
-	Name     string `json:"name"`
-}
-
-type ConfigPublicOpenvn struct {
+type ConfigPublicOpenvpn struct {
 	Url          string                   `json:"url"`
 	Settings     *ConfigPublicSettings    `json:"settings,omitempty"`
 	Preferences  *ConfigPublicPreferences `json:"preferences,omitempty"`
@@ -50,6 +46,6 @@ type ConfigPublicOpenvn struct {
 }
 
 type ConfigPublic struct {
-	User    *ConfigPublicUser  `json:"user,omitempty"`
-	Openvpn ConfigPublicOpenvn `json:"openvpn"`
+	User    *ConfigPublicAccount `json:"user,omitempty"`
+	Openvpn ConfigPublicOpenvpn  `json:"openvpn"`
 }

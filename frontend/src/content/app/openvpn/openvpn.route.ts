@@ -1,16 +1,8 @@
 import { Injectable } from '@angular/core';
-import {
-    ActivatedRouteSnapshot,
-    CanActivate,
-    Resolve,
-    Route, Router,
-    RouterStateSnapshot,
-    UrlTree
-} from '@angular/router';
+import { ActivatedRouteSnapshot, Resolve, Route } from '@angular/router';
 import { OpenvpnClientsComponent } from "./clients/clients.component";
 import { OpenvpnService } from './services/openvpn.service';
 import { IClientCertificate } from './models/client-certificate.interface';
-import {Observable} from 'rxjs';
 import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 import { OpenvpnConfig } from './models/openvpn-config.model';
 import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
@@ -19,6 +11,9 @@ import { LogPageComponent } from './log/log.component';
 import { OpenvpnComponent } from './openvpn.component';
 import {ConfigPageComponent} from './config/config-page.component';
 import {NodeConfig} from './models/node-config.model';
+import {SETUP_ROUTES} from './setup/setup.route';
+import {IsConfigured} from './shared/resolver/is-configured.resolver';
+import {IsNotConfigured} from './shared/resolver/is-not-configured.resolver';
 import {SetupComponent} from './setup/setup.component';
 
 @Injectable({ providedIn: 'root' })
@@ -60,43 +55,6 @@ class NodeConfigResolve implements Resolve<NodeConfig> {
     }
 }
 
-@Injectable({
-    providedIn: 'root',
-})
-export class IsConfigured implements CanActivate {
-    constructor(
-      private readonly service: OpenvpnService,
-      private readonly router: Router,
-    ) {
-    }
-    canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree {
-        return this.service.loadConfig().then((config) => {
-            if (config.unconfigured) {
-                return this.router.navigate(['./setup'] /* , {skipLocationChange: true}*/);
-            }
-            return true;
-        });
-    }
-}
-
-@Injectable({
-    providedIn: 'root',
-})
-export class IsNotConfigured implements CanActivate {
-    constructor(
-      private readonly service: OpenvpnService,
-      private readonly router: Router,
-    ) {
-    }
-    canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree {
-        return this.service.loadConfig().then((config) => {
-            if (!config.unconfigured) {
-                return this.router.navigate(['./'] /* , {skipLocationChange: true}*/);
-            }
-            return true;
-        });
-    }
-}
 
 export const OPENVPN_ROUTES: Route[] = [{
     path: '',
@@ -145,6 +103,7 @@ export const OPENVPN_ROUTES: Route[] = [{
             canActivate: [
                 IsNotConfigured,
             ],
+            children: SETUP_ROUTES,
         }
     ],
 }];

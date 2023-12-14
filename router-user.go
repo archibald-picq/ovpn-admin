@@ -12,8 +12,8 @@ import (
 
 func (app *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s\n", r.RemoteAddr, r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -108,8 +108,8 @@ func (app *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
 
 func (app *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request) {
 	//log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -125,8 +125,8 @@ func (app *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request) {
 
 func (app *OvpnAdmin) userChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	//log.Info(r.RemoteAddr, " ", r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 

@@ -1,0 +1,14 @@
+<div class="page">
+  <div>connect to a master server</div>
+
+  <form (ngSubmit)="save()">
+    <div class="mb-3">
+      <label for="master-url">Master URL *</label>
+      <input [disabled]="loading" id="master-url" name="url" class="form-control" [(ngModel)]="url" placeholder="https://master-host:8042" autocomplete="off">
+    </div>
+    <div class="mb-3 d-flex">
+      <div class="flex-grow-1">{{error}}</div>
+      <input type="submit" value="Save">
+    </div>
+  </form>
+</div>

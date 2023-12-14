@@ -5,6 +5,7 @@ import (
 	"rpiadm/backend/model"
 	"rpiadm/backend/openvpn"
 	"rpiadm/backend/rpi"
+	"strings"
 	"text/template"
 	"time"
 
@@ -101,7 +102,7 @@ func (app *OvpnAdmin) updateCertificateStats() {
 	apochNow := time.Now().Unix()
 
 	for _, line := range app.clients {
-		if line.Username != app.masterCn && line.Certificate.Flag != "D" {
+		if line.Username != app.serverConf.MasterCn && line.Certificate.Flag != "D" {
 			totalCerts += 1
 			switch {
 			case line.Certificate.Flag == "V":
@@ -218,13 +219,13 @@ func (app *OvpnAdmin) connectToManagementInterface() {
 		}
 	}()
 	for {
-		if len(app.mgmtInterface) == 0 {
+		if len(app.serverConf.Management) == 0 {
 			time.Sleep(time.Duration(30) * time.Second)
 			continue
 		}
-		conn, err := net.Dial("tcp", app.mgmtInterface)
+		conn, err := net.Dial("tcp", strings.Replace(app.serverConf.Management, " ", ":", 1))
 		if err != nil {
-			log.Printf("openvpn mgmt interface is not reachable at %s", app.mgmtInterface)
+			log.Printf("openvpn mgmt interface is not reachable at %s", app.serverConf.Management)
 			time.Sleep(time.Duration(30) * time.Second)
 			continue
 		}

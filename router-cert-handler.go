@@ -14,8 +14,8 @@ import (
 
 func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -54,8 +54,8 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 
 func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -76,8 +76,8 @@ func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request) 
 
 func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -97,8 +97,8 @@ func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request
 
 func (app *OvpnAdmin) userDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 
@@ -116,8 +116,8 @@ func (app *OvpnAdmin) userDeleteHandler(w http.ResponseWriter, r *http.Request) 
 
 func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+
+	if enableCors(&w, r) {
 		return
 	}
 

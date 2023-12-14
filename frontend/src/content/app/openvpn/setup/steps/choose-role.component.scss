@@ -1,0 +1,26 @@
+
+.page {
+  margin: auto;
+  max-width: 600px;
+
+  .option {
+    display: block;
+    border: 1px solid gray;
+    border-radius: 3px;
+    padding: 5px;
+    text-decoration: none;
+    margin-bottom: 15px;
+
+    .title {
+      color: #424242;
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .description {
+      color: #a6a6a6;
+      font-size: 14px;
+    }
+  }
+}

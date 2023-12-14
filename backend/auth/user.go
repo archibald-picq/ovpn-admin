@@ -4,12 +4,14 @@ import (
 	"rpiadm/backend/model"
 )
 
-func GetUserProfile(preference *model.ApplicationConfig, username string) *model.ConfigPublicUser {
+func GetUserProfile(preference *model.ApplicationConfig, username string) *model.ConfigPublicAccount {
 	for _, u := range preference.Users {
 		if u.Username == username {
-			configPublicUser := new(model.ConfigPublicUser)
+			configPublicUser := new(model.ConfigPublicAccount)
 			configPublicUser.Username = username
-			configPublicUser.Name = u.Name
+			if len(*u.Name) > 0 {
+				configPublicUser.Name = u.Name
+			}
 			return configPublicUser
 		}
 	}

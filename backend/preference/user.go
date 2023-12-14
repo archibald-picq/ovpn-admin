@@ -8,9 +8,9 @@ import (
 )
 
 type AdminAccountUpdate struct {
-	Username string `json:"username"`
-	Name     string `json:"name"`
-	Password string `json:"password"`
+	Username string  `json:"username"`
+	Password string  `json:"password"`
+	Name     *string `json:"name,omitempty"`
 }
 
 func CreateUser(ovpnConfigDir string, preferences *model.ApplicationConfig, updates AdminAccountUpdate) error {
@@ -25,8 +25,8 @@ func CreateUser(ovpnConfigDir string, preferences *model.ApplicationConfig, upda
 	}
 	preferences.Users = append(preferences.Users, model.Account{
 		Username: updates.Username,
-		Name:     updates.Name,
 		Password: string(encoded),
+		Name:     updates.Name,
 	})
 	return SavePreferences(ovpnConfigDir, preferences)
 }

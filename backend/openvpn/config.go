@@ -21,6 +21,7 @@ type Push struct {
 
 type OvpnConfig struct {
 	Server                     string // 10.8.0.0 255.255.255.0
+	MasterCn                   string
 	ForceGatewayIpv4           bool   // push "redirect-gateway def1 bypass-dhcp"
 	ForceGatewayIpv4ExceptDhcp bool   // push "redirect-gateway def1 bypass-dhcp"
 	ForceGatewayIpv4ExceptDns  bool   // push "redirect-gateway def1 bypass-dns"
@@ -68,7 +69,8 @@ type OvpnConfig struct {
 	Routes                     []Route // 10.42.44.0 255.255.255.0
 	// 10.42.78.0 255.255.255.0
 	// 10.8.0.0 255.255.255.0
-	Push []Push // "dhcp-option DNS 10.8.0.1"
+	RoutesPush []Route // "route 10.42.44.0 255.255.255.0"
+	Push       []Push  // "dhcp-option DNS 10.8.0.1"
 	// "dhcp-option DNS fd42:42:42:42::1"
 	// "redirect-gateway def1 bypass-dhcp"
 	// "tun-ipv6"
@@ -83,6 +85,10 @@ func isIpv4(addr string) bool {
 }
 
 func ParseServerConf(config *OvpnConfig, file string) {
+	if !shell.FileExist(file) {
+		log.Printf("OpenVPN server not configured")
+		return
+	}
 	lines := strings.Split(shell.ReadFile(file), "\n")
 
 	config.TunMtu = -1
@@ -98,6 +104,14 @@ func ParseServerConf(config *OvpnConfig, file string) {
 			parseServerConfLine(config, line, true)
 		} else {
 			parseServerConfLine(config, line, false)
+		}
+	}
+
+	if len(config.Cert) > 0 {
+		cert := GetCommonNameFromCertificate(shell.AbsolutizePath(file, config.Cert))
+		if cert != nil {
+			config.MasterCn = cert.Subject.CommonName
+			//ovpnServerCaCertExpire.Set(float64((cert.NotAfter.Unix() - time.Now().Unix()) / 3600 / 24))
 		}
 	}
 }
@@ -211,7 +225,7 @@ func parseServerConfLine(config *OvpnConfig, line string, commented bool) {
 		}
 	case key == "push":
 		value, comment := getQuotedValueAndComment(value)
-		log.Printf("parsed [%d] [%s] [%s]", commented, value, comment)
+		log.Printf("parsed push [%d] [%s] [%s]", commented, value, comment)
 		//getQuotedValueWithoutComment(line)
 		extractPushConfig(config, !commented, value, comment)
 
@@ -224,6 +238,8 @@ func extractPushConfig(config *OvpnConfig, enabled bool, line string, comment st
 	if !enabled {
 		return
 	}
+	line = strings.TrimRight(line, " ")
+	line = strings.TrimLeft(line, " ")
 	parts := strings.Split(line, " ")
 
 	if parts[0] == "redirect-gateway" {
@@ -247,11 +263,17 @@ func extractPushConfig(config *OvpnConfig, enabled bool, line string, comment st
 		} else {
 			config.DnsIpv6 = parts[2]
 		}
+	} else if parts[0] == "route" {
+		if route, err := getRouteQuotedValue(parts[1:]); err == nil {
+			route.Description = comment
+			config.RoutesPush = append(config.RoutesPush, route)
+		} else {
+			log.Printf("failed to line %v\n", err)
+		}
 	} else {
 		log.Printf("import push '%v'", parts)
 
 		// TODO: extract:
-		//   - #push "dhcp-option DNS 10.8.0.1"
 		//   - #push "tun-ipv6"
 		//   - #push "route-ipv6 2000::/3"
 		//   - #push "dhcp-option DNS fd42:42:42:42::1"
@@ -320,6 +342,16 @@ func getRouteValueWithComment(line string) (Route, error) {
 	var route Route
 	route.Description = comment
 	parts := strings.Fields(line)
+	if len(parts) != 2 {
+		return route, errors.New("Invalid route format")
+	}
+	route.Address = parts[0]
+	route.Netmask = parts[1]
+	return route, nil
+}
+
+func getRouteQuotedValue(parts []string) (Route, error) {
+	var route Route
 	if len(parts) != 2 {
 		return route, errors.New("Invalid route format")
 	}
@@ -474,6 +506,12 @@ func BuildConfig(config OvpnConfig) []byte {
 			lines = append(lines, formatRoute(route))
 		}
 	}
+	if len(config.RoutesPush) > 0 {
+		lines = append(lines, "")
+		for _, route := range config.RoutesPush {
+			lines = append(lines, formatRoutePush(route))
+		}
+	}
 	if config.ForceGatewayIpv4 {
 		options := ""
 		if config.ForceGatewayIpv4ExceptDhcp {
@@ -520,6 +558,19 @@ func formatRoute(route Route) string {
 	parts = append(parts, "route")
 	parts = append(parts, route.Address)
 	parts = append(parts, route.Netmask)
+	if len(route.Description) > 0 {
+		parts = append(parts, "#")
+		parts = append(parts, route.Description)
+	}
+	return strings.Join(parts, " ")
+}
+
+func formatRoutePush(route Route) string {
+	var parts = make([]string, 0)
+	parts = append(parts, "push \"route")
+	parts = append(parts, route.Address)
+	parts = append(parts, route.Netmask)
+	parts = append(parts, "\"")
 	if len(route.Description) > 0 {
 		parts = append(parts, "#")
 		parts = append(parts, route.Description)

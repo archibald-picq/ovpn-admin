@@ -14,8 +14,7 @@ type ConnectionId struct {
 
 func (app *OvpnAdmin) apiConnectionKill(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-	enableCors(&w, r)
-	if (*r).Method == "OPTIONS" {
+	if enableCors(&w, r) {
 		return
 	}
 

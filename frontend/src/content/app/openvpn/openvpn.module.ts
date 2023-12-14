@@ -33,8 +33,11 @@ import {NetInterfaceComponent} from './config/components/net-interface.component
 import {MatButtonModule} from '@angular/material/button';
 import {MatCardModule} from '@angular/material/card';
 import {MatCheckboxModule} from '@angular/material/checkbox';
-import {SetupComponent} from './setup/setup.component';
 import {AccountService} from './services/account.service';
+import {SetupComponent} from './setup/setup.component';
+import {ChooseRoleComponent} from './setup/steps/choose-role.component';
+import {CreateAccountComponent} from './setup/steps/create-account.component';
+import {JoinMasterComponent} from './setup/steps/join-master.component';
 
 @NgModule({
     declarations: [
@@ -57,6 +60,9 @@ import {AccountService} from './services/account.service';
         ConfigureMasterServerComponent,
         NetInterfaceComponent,
         SetupComponent,
+        ChooseRoleComponent,
+        CreateAccountComponent,
+        JoinMasterComponent,
     ],
     imports: [
         RouterModule.forChild(OPENVPN_ROUTES),
@@ -78,7 +84,7 @@ import {AccountService} from './services/account.service';
         WebsocketService,
         AccountService,
     ],
-    schemas: [CUSTOM_ELEMENTS_SCHEMA]
+    schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
 export class OpenvpnModule {
     public static forRoot() {

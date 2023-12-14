@@ -139,7 +139,17 @@
             <table>
                 <tbody>
                 <tr>
-                    <td colspan="4">Networks around OpenVPN clients :</td>
+                    <td colspan="4">Networks behind OpenVPN server :</td>
+                </tr>
+                <tr>
+                    <td colspan="4">
+                        <em>
+                            Note: this will create routes on the openvpn server. It is used
+                            when the server have other networks interfaces and you want to reach machines
+                            on these networks from remote clients. You need to enable ip forward on the
+                            server to make this works.
+                        </em>
+                    </td>
                 </tr>
                 <tr>
                     <th>Adresse</th>
@@ -163,31 +173,42 @@
                         <button [disabled]="loading" type="button" class="btn btn-primary btn-sm" (click)="addRoute()">add</button>
                     </td>
                 </tr>
-<!--                <tr>-->
-<!--                    <td colspan="4"><hr></td>-->
-<!--                </tr>-->
-<!--                <tr>-->
-<!--                    <th>Adresse</th>-->
-<!--                    <th>Mask</th>-->
-<!--                    <th>Description</th>-->
-<!--                    <th>Actions</th>-->
-<!--                </tr>-->
-<!--                <tr *ngFor="let push of model.pushs; let index = index">-->
-<!--                    <td><input [disabled]="loading" class="form-control" name="address-{{index}}-pushroute" [(ngModel)]="push.address" /></td>-->
-<!--                    <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-pushroute" [(ngModel)]="push.netmask" /></td>-->
-<!--                    <td><input [disabled]="loading" class="form-control" name="description-{{index}}-pushroute" [(ngModel)]="push.description" /></td>-->
-<!--                    <td class="actions">-->
-<!--                        <button [disabled]="loading" type="button" class="btn btn-warning btn-sm" (click)="removePush(push)">remove</button>-->
-<!--                    </td>-->
-<!--                </tr>-->
-<!--                <tr>-->
-<!--                    <td><input [disabled]="loading" class="form-control" name="address-new-pushroute" [(ngModel)]="newPush.address"></td>-->
-<!--                    <td><input [disabled]="loading" class="form-control" name="netmask-new-pushroute" [(ngModel)]="newPush.netmask"></td>-->
-<!--                    <td><input [disabled]="loading" class="form-control" name="description-new-pushroute" [(ngModel)]="newPush.description"></td>-->
-<!--                    <td class="actions">-->
-<!--                        <button [disabled]="loading" type="button" class="btn btn-primary btn-sm" (click)="addPush()">add</button>-->
-<!--                    </td>-->
-<!--                </tr>-->
+                <tr>
+                    <td colspan="4">Networks around OpenVPN clients :</td>
+                </tr>
+                <tr>
+                    <td colspan="4">
+                        <em>
+                            Note: this will announce routes to all openvpn clients (except if the client explicitly have
+                            the network in it's client routes config). This is used when a client want to route traffic of
+                            local machines to the overall openvpn network. Clients have to configure routes
+                            to the vpn if the default gateway is not the vpn client machine (such as DSL-boxes).
+                            Clients also have to enable ip forwarding depending on the OS.
+                        </em>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Adresse</th>
+                    <th>Mask</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+                <tr *ngFor="let push of model.routesPush; let index = index">
+                    <td><input [disabled]="loading" class="form-control" name="address-{{index}}-pushroute" [(ngModel)]="push.address" /></td>
+                    <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-pushroute" [(ngModel)]="push.netmask" /></td>
+                    <td><input [disabled]="loading" class="form-control" name="description-{{index}}-pushroute" [(ngModel)]="push.description" /></td>
+                    <td class="actions">
+                        <button [disabled]="loading" type="button" class="btn btn-warning btn-sm" (click)="removePushRoute(push)">remove</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td><input [disabled]="loading" class="form-control" name="address-new-pushroute" [(ngModel)]="newRoutePush.address"></td>
+                    <td><input [disabled]="loading" class="form-control" name="netmask-new-pushroute" [(ngModel)]="newRoutePush.netmask"></td>
+                    <td><input [disabled]="loading" class="form-control" name="description-new-pushroute" [(ngModel)]="newRoutePush.description"></td>
+                    <td class="actions">
+                        <button [disabled]="loading" type="button" class="btn btn-primary btn-sm" (click)="addRoutePush()">add</button>
+                    </td>
+                </tr>
 
                 </tbody>
             </table>

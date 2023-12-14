@@ -1,14 +1,10 @@
 
 export class Route {
-    public address: string;
-    public netmask: string;
-    public description?: string;
-
-    constructor(address: string, netmask: string, description?: string) {
-        this.address = address;
-        this.netmask = netmask;
-        this.description = description;
-    }
+    constructor(
+      public address: string,
+      public netmask: string,
+      public description?: string,
+    ) { }
 
     public static parse(fromServer: Record<string, any>): Route {
         return new Route(fromServer.address, fromServer.netmask, fromServer.description);

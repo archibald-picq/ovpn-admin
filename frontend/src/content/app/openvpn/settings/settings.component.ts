@@ -15,7 +15,7 @@ export class OpenvpnSettingsPageComponent {
     public loading = false;
     public model: Settings;
     public original: Settings;
-    public newPush = new Route('', '');
+    public newRoutePush = new Route('', '');
     public newRoute = new Route('', '');
     public enableIpv4 = false;
     public enableIpv6 = false;
@@ -49,13 +49,13 @@ export class OpenvpnSettingsPageComponent {
         this.serialized = JSON.stringify(this.toSave());
     }
 
-    public removePush(route: Route): void {
-        const p = this.model.pushs.indexOf(route);
+    public removePushRoute(route: Route): void {
+        const p = this.model.routesPush.indexOf(route);
         if (p === -1) {
             console.warn('Error in page');
             return;
         }
-        this.model.pushs.splice(p, 1);
+        this.model.routesPush.splice(p, 1);
     }
 
     public removeRoute(route: Route): void {
@@ -67,9 +67,9 @@ export class OpenvpnSettingsPageComponent {
         this.model.routes.splice(p, 1);
     }
 
-    public addPush(): void {
-        this.model.pushs.push(this.newPush.clone());
-        this.newPush.reset();
+    public addRoutePush(): void {
+        this.model.routesPush.push(this.newRoutePush.clone());
+        this.newRoutePush.reset();
     }
 
     public addRoute(): void {
@@ -123,6 +123,11 @@ export class OpenvpnSettingsPageComponent {
             duplicateCn: this.model.duplicateCn,
             clientToClient: this.model.clientToClient,
             routes: this.model.routes.map((route) => ({
+                address: route.address,
+                netmask: route.netmask,
+                description: route.description,
+            })),
+            routesPush: this.model.routesPush.map((route) => ({
                 address: route.address,
                 netmask: route.netmask,
                 description: route.description,
