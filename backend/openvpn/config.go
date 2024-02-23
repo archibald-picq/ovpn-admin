@@ -61,7 +61,7 @@ type OvpnConfig struct {
 	crlVerify                  string // crl.pem
 	Auth                       string // SHA256
 	Cipher                     string // AES-128-GCM
-	ncpCiphers                 string // AES-128-GCM
+	dataCiphers                string // AES-128-GCM
 	TlsServer                  bool
 	TlsVersionMin              string  // 1.2
 	TlsCipher                  string  // TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
@@ -208,7 +208,9 @@ func parseServerConfLine(config *OvpnConfig, line string, commented bool) {
 	case key == "cipher":
 		config.Cipher = getValueWithoutComment(line)
 	case key == "ncp-ciphers":
-		config.ncpCiphers = getValueWithoutComment(line)
+		config.dataCiphers = getValueWithoutComment(line)
+	case key == "data-ciphers":
+		config.dataCiphers = getValueWithoutComment(line)
 	case key == "tls-server":
 		config.TlsServer = true
 	case key == "tls-version-min":
@@ -485,8 +487,8 @@ func BuildConfig(config OvpnConfig) []byte {
 	if len(config.Cipher) > 0 {
 		lines = append(lines, fmt.Sprintf("cipher %s", config.Cipher))
 	}
-	if len(config.ncpCiphers) > 0 {
-		lines = append(lines, fmt.Sprintf("ncp-ciphers %s", config.ncpCiphers))
+	if len(config.dataCiphers) > 0 {
+		lines = append(lines, fmt.Sprintf("data-ciphers %s", config.dataCiphers))
 	}
 	if config.TlsServer {
 		lines = append(lines, fmt.Sprintf("tls-server"))

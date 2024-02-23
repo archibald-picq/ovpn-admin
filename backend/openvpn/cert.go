@@ -239,7 +239,7 @@ func ValidatePassword(password string) error {
 	}
 }
 
-func UserCreateCertificate(easyrsaDirPath string, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
+func UserCreateCertificate(easyrsaDirPath string, easyrsaBinPath string, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
 
 	if !validateUsername(definition.Username) {
 		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.Username, usernameRegexp))
@@ -261,7 +261,7 @@ func UserCreateCertificate(easyrsaDirPath string, authByPassword bool, authDatab
 			"EASYRSA_REQ_ORG=%s "+
 			"EASYRSA_REQ_OU=%s "+
 			"EASYRSA_REQ_EMAIL=%s "+
-			"./easyrsa "+
+			"%s "+
 			"--dn-mode=org "+
 			"--batch "+
 			"build-client-full %s nopass 1>/dev/null",
@@ -272,11 +272,13 @@ func UserCreateCertificate(easyrsaDirPath string, authByPassword bool, authDatab
 		shellescape.Quote(definition.Organisation),
 		shellescape.Quote(definition.OrganisationUnit),
 		shellescape.Quote(definition.Email),
+		shellescape.Quote(easyrsaBinPath),
 		shellescape.Quote(definition.Username),
 	)
 
 	o, err := shell.RunBash(cmd)
 	if err != nil {
+		log.Printf("Error creating certificate \"%s\", using \"cmd\" %s", err, cmd)
 		return nil, errors.New(fmt.Sprintf("Error creating certificate \"%s\"", err))
 	}
 

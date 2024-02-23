@@ -72,10 +72,12 @@ func (mgmt *OpenVPNmgmt) HandleMessages() {
 
 func (mgmt *OpenVPNmgmt) MgmtConnectedUsersParser3(lines []string) []*openvpn.VpnConnection {
 	var u = make([]*openvpn.VpnConnection, 0)
+	reClientList := regexp.MustCompile(`^CLIENT_LIST\t`)
+	reRoutingTable := regexp.MustCompile(`^ROUTING_TABLE\t`)
 	//isClientList := false
 	//isRouteTable := false
 	for _, txt := range lines {
-		if regexp.MustCompile(`^CLIENT_LIST\t`).MatchString(txt) {
+		if reClientList.MatchString(txt) {
 			user := strings.Split(txt, "\t")
 
 			bytesReceive, _ := strconv.ParseInt(user[5], 10, 64)
@@ -100,7 +102,7 @@ func (mgmt *OpenVPNmgmt) MgmtConnectedUsersParser3(lines []string) []*openvpn.Vp
 
 			u = append(u, clientStatus)
 		}
-		if regexp.MustCompile(`^ROUTING_TABLE\t`).MatchString(txt) {
+		if reRoutingTable.MatchString(txt) {
 			user := strings.Split(txt, "\t")
 			peerAddress := user[1]
 			userName := user[2]
@@ -272,9 +274,6 @@ func (mgmt *OpenVPNmgmt) HandleBytecountUpdate(line string) {
 	bytesSent, _ := strconv.ParseInt(matches[3], 10, 64)
 
 	u, c := mgmt.GetConnection(clientId)
-	//for _, u := range app.clients {
-	//	for _, c := range u.Connections {
-	//		if c.ClientId == clientId {
 	if c != nil {
 		duration := time.Now().UnixMilli() - c.LastByteReceived.UnixMilli()
 		if duration > 0 {
@@ -290,8 +289,6 @@ func (mgmt *OpenVPNmgmt) HandleBytecountUpdate(line string) {
 		//app.triggerBroadcastUser(u)
 		return
 	}
-	//}
-	//}
 	log.Printf("Cant find client %d to update %d/%d", clientId, bytesSent, bytesReceive)
 }
 

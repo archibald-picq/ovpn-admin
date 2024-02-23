@@ -31,7 +31,7 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	log.Printf("create user with %v\n", userDefinition)
-	certificate, err := openvpn.UserCreateCertificate(*easyrsaDirPath, *authByPassword, *authDatabase, userDefinition)
+	certificate, err := openvpn.UserCreateCertificate(*easyrsaDirPath, *easyrsaBinPath, *authByPassword, *authDatabase, userDefinition)
 
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
