@@ -84,6 +84,7 @@ func (app *OvpnAdmin) exportPublicPreferences() *model.ConfigPublicPreferences {
 	preferences.ExplicitExitNotify = app.applicationPreferences.Preferences.ExplicitExitNotify
 	preferences.AuthNoCache = app.applicationPreferences.Preferences.AuthNocache
 	preferences.VerifyX509Name = app.applicationPreferences.Preferences.VerifyX509Name
+	preferences.ApiKeys = make([]model.ConfigPublicApiKey, 0)
 
 	if app.applicationPreferences.Preferences.CertificateDuration > 0 {
 		preferences.CertificateDuration = app.applicationPreferences.Preferences.CertificateDuration
@@ -93,10 +94,14 @@ func (app *OvpnAdmin) exportPublicPreferences() *model.ConfigPublicPreferences {
 		preferences.Users = append(preferences.Users, model.ConfigPublicAccount{Username: u.Username, Name: u.Name})
 	}
 
+	for _, u := range app.applicationPreferences.ApiKeys {
+		preferences.ApiKeys = append(preferences.ApiKeys, apiKeyMapper(u))
+	}
+
 	return preferences
 }
 
-func (app *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if enableCors(&w, r) {
 		return
 	}
@@ -117,8 +122,7 @@ func (app *OvpnAdmin) showConfig(w http.ResponseWriter, r *http.Request) {
 		configPublic.Openvpn.Unconfigured = &b
 	}
 
-	rawJson, _ := json.Marshal(configPublic)
-	_, err := w.Write(rawJson)
+	err := returnJson(w, configPublic)
 	if err != nil {
 		log.Println("Fail to write response")
 		return

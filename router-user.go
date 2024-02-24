@@ -2,15 +2,77 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"regexp"
 	"rpiadm/backend/auth"
+	"rpiadm/backend/model"
 	"rpiadm/backend/preference"
 )
 
-func (app *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) handleUserCommand(w http.ResponseWriter, r *http.Request) {
+	if enableCors(&w, r) {
+		return
+	}
+
+	if r.URL.Path == "/api/user/" && r.Method == "POST" {
+		app.userCreateHandler(w, r)
+		return
+	} else if r.URL.Path == "/api/user/" && r.Method == "GET" {
+		app.userListHandler(w, r)
+		return
+	}
+
+	regUser := regexp.MustCompile("^/api/user/([^/]*)/(.*)$")
+	matches := regUser.FindStringSubmatch(r.URL.Path)
+	if len(matches) < 2 {
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
+		return
+	}
+	username := matches[1]
+	cmd := matches[2]
+	log.Printf("exec cmd %s for user %s", cmd, username)
+
+	if r.Method == "PUT" {
+		if cmd == "ccd" {
+			app.userApplyCcdHandler(w, r, username)
+			return
+		}
+	} else if r.Method == "GET" {
+		if cmd == "ccd" {
+			app.userShowCcdHandler(w, r, username)
+			return
+		} else if cmd == "conf" {
+			app.buildClientConf(w, r, username)
+			return
+		}
+	} else if r.Method == "DELETE" {
+		app.userDeleteHandler(w, r, username)
+		return
+	} else if r.Method == "POST" {
+		if cmd == "kill" {
+			app.apiConnectionKill(w, r, username)
+			return
+		} else if cmd == "revoke" {
+			app.userRevokeHandler(w, r, username)
+			return
+		} else if cmd == "unrevoke" {
+			app.userUnrevokeHandler(w, r, username)
+			return
+		} else if cmd == "rotate" {
+			app.userRotateHandler(w, r, username)
+			return
+		} else if cmd == "change-password" {
+			app.userChangePasswordHandler(w, r, username)
+			return
+		}
+	}
+	returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
+}
+
+func (app *OvpnAdmin) handleAdminAccount(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s\n", r.RemoteAddr, r.RequestURI)
 
 	if enableCors(&w, r) {
@@ -35,15 +97,13 @@ func (app *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
 		if len(matches) > 0 {
 			err := preference.DeleteUser(*ovpnConfigDir, &app.applicationPreferences, matches[1])
 			if err != nil {
-				jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Failed to delete user %s", err)})
-				http.Error(w, string(jsonRaw), http.StatusBadRequest)
+				returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete user %s", err)))
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		} else {
-			jsonRaw, _ := json.Marshal(MessagePayload{Message: "Bad request"})
-			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
 			return
 		}
 	}
@@ -60,37 +120,32 @@ func (app *OvpnAdmin) saveAdminAccount(w http.ResponseWriter, r *http.Request) {
 		if len(matches) > 0 {
 			err := preference.UpdateUser(*ovpnConfigDir, &app.applicationPreferences, matches[1], adminAccountUpdate)
 			if err != nil {
-				jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Failed to delete user %s", err)})
-				http.Error(w, string(jsonRaw), http.StatusBadRequest)
+				returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete user %s", err)))
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		} else {
-			jsonRaw, _ := json.Marshal(MessagePayload{Message: "Bad request"})
-			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
 			return
 		}
 	}
 
 	if r.URL.Path != "/api/config/admin/" {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Bad request"})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
 		return
 	}
 
 	err = preference.CreateUser(*ovpnConfigDir, &app.applicationPreferences, adminAccountUpdate)
 	if err != nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Failed to delete user %s", err)})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete user %s", err)))
 		return
 	}
 
 	if firstCreateUser {
 		cookie, expirationTime, err := auth.BuildJwtCookie(&app.applicationPreferences, adminAccountUpdate.Username)
 		if err != nil {
-			jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
-			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			returnErrorMessage(w, http.StatusBadRequest, err)
 			return
 		}
 
@@ -118,33 +173,15 @@ func (app *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//app.updateCertificateStats(openvpn.IndexTxtParserCertificate(shell.ReadFile(*indexTxtPath)))
-	usersList, _ := json.Marshal(app.clients)
-	_, _ = w.Write(usersList)
-	//fmt.Fprintf(w, "%s", updateClientList)
-}
+	clients := make([]*model.Device, 0)
 
-func (app *OvpnAdmin) userChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
-	//log.Info(r.RemoteAddr, " ", r.RequestURI)
-
-	if enableCors(&w, r) {
-		return
+	for _, client := range app.clients {
+		if client.Certificate.Flag != "D" {
+			clients = append(clients, client)
+		}
 	}
-
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-	_ = r.ParseForm()
-	if !*authByPassword {
-		jsonErr, _ := json.Marshal(MessagePayload{Message: "Not implemented"})
-		http.Error(w, string(jsonErr), http.StatusNotImplemented)
-		return
-	}
-	err := app.userChangePassword(r.FormValue("username"), r.FormValue("password"))
+	err := returnJson(w, clients)
 	if err != nil {
-		jsonErr, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(jsonErr), http.StatusUnprocessableEntity)
-		return
+		log.Printf("error sending response")
 	}
-	w.WriteHeader(http.StatusNoContent)
 }

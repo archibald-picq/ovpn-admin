@@ -40,7 +40,7 @@ func (mgmt *OpenVPNmgmt) SendManagementCommandWaitResponse(cmd string) AwaitedRe
 }
 
 func (mgmt *OpenVPNmgmt) KillConnection(serverName *openvpn.VpnConnection) error {
-	resp := mgmt.SendManagementCommandWaitResponse(fmt.Sprintf("kill %s\n", serverName.RealAddress)) // address:port
+	resp := mgmt.SendManagementCommandWaitResponse(fmt.Sprintf("client-kill %d\n", serverName.ClientId)) // address:port
 	if resp.error {
 		return errors.New(resp.body)
 	}

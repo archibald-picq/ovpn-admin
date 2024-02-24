@@ -1,6 +1,23 @@
 import { Route } from './route.model';
 import { ServiceConfig } from '../../shared/models/service-config';
 
+export class ApiKey {
+    constructor(
+      public id: string,
+      public comment: string,
+      public expires: Date,
+    ) {
+    }
+
+    static hydrate(raw: ApiKey): ApiKey {
+        return new ApiKey(
+          raw.id,
+          raw.comment,
+          new Date(raw.expires),
+        );
+    }
+}
+
 export class User {
     constructor(
         public username: string,
@@ -74,6 +91,7 @@ export class Preferences {
     authNoCache: boolean;
     verifyX509Name: boolean;
     users: User[];
+    apiKeys: ApiKey[];
 
     constructor(raw?: Record<string, any>) {
         this.address = raw?.address;
@@ -83,6 +101,7 @@ export class Preferences {
         this.authNoCache = raw?.authNoCache;
         this.verifyX509Name = raw?.verifyX509Name;
         this.users = (raw?.users ?? []).map(User.hydrate);
+        this.apiKeys = (raw?.apiKeys ?? []).map(ApiKey.hydrate);
     }
 
     static parse(raw: any) {

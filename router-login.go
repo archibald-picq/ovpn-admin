@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,30 +18,26 @@ type AuthenticatePayload struct {
 func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 	ok, _ := auth.JwtUsername(app.applicationPreferences.JwtData, getAuthCookie(r))
 	if ok {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Already authenticated"})
-		http.Error(w, string(jsonRaw), http.StatusForbidden)
+		returnErrorMessage(w, http.StatusForbidden, errors.New("already authenticated"))
 		return
 	}
 
 	var authPayload AuthenticatePayload
 	err := json.NewDecoder(r.Body).Decode(&authPayload)
 	if err != nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Can't decode auth payload %s", err)})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("can't decode auth payload %s", err)))
 		return
 	}
 
 	err = auth.Authenticate(&app.applicationPreferences, authPayload.Username, authPayload.Password)
 	if err != nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, err)
 		return
 	}
 
 	cookie, expirationTime, err := auth.BuildJwtCookie(&app.applicationPreferences, authPayload.Username)
 	if err != nil {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -51,11 +48,9 @@ func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		Path:     "/",
 	})
-	rawJson, _ := json.Marshal(auth.GetUserProfile(&app.applicationPreferences, authPayload.Username))
-	_, err = w.Write(rawJson)
+	err = returnJson(w, auth.GetUserProfile(&app.applicationPreferences, authPayload.Username))
 	if err != nil {
-		log.Printf("Fail to write response")
-		return
+		log.Printf("error sending response")
 	}
 }
 

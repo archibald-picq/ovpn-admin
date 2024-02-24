@@ -51,7 +51,6 @@ type Route struct {
 }
 
 type Ccd struct {
-	User          string  `json:"user"`
 	ClientAddress string  `json:"clientAddress"`
 	CustomRoutes  []Route `json:"customRoutes"`
 	CustomIRoutes []Route `json:"customIRoutes"`
@@ -250,7 +249,7 @@ func UserCreateCertificate(easyrsaDirPath string, easyrsaBinPath string, authByP
 	}
 
 	if authByPassword && ValidatePassword(definition.Password) == nil {
-		return nil, errors.New(fmt.Sprintf("Password too short, password length must be greater or equal %d", passwordMinLength))
+		return nil, errors.New(fmt.Sprintf("Key too short, password length must be greater or equal %d", passwordMinLength))
 	}
 
 	cmd := fmt.Sprintf(
@@ -545,7 +544,9 @@ func RebuildClientRevocationList(easyrsaBinPath string, easyrsaDirPath string) {
 }
 
 func RestoreCertBySerial(easyrsaDirPath string, serial string, cn string) error {
-
+	if len(cn) == 0 {
+		return errors.New("certificate name is empty")
+	}
 	copyCertFile(
 		easyrsaDirPath,
 		fmt.Sprintf("/pki/revoked/certs_by_serial/%s.crt", serial),
@@ -583,7 +584,7 @@ func RestoreCertBySerial(easyrsaDirPath string, serial string, cn string) error 
 }
 
 func fExistsPki(path string, f string) bool {
-	return shell.FileExist(path)
+	return shell.FileExist(path + f)
 }
 
 func copyCertFile(base string, from string, to string) error {

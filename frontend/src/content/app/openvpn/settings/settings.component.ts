@@ -30,10 +30,12 @@ export class OpenvpnSettingsPageComponent {
         private readonly injector: Injector,
         private readonly openvpnService: OpenvpnService,
     ) {
-        console.warn('config', this.activatedRoute.parent?.snapshot.data.config);
+        // console.warn('config', this.activatedRoute.parent?.snapshot.data.config);
+        console.warn('settings', this.activatedRoute.parent?.snapshot.data.config.settings);
         this.original = this.activatedRoute.parent?.snapshot.data.config.settings;
         this.model = this.original.clone();
-        // console.warn('this.model', this.model.routes);
+        console.warn('routes', this.model.routes);
+        console.warn('routesPush', this.model.routesPush);
         if (this.model.server) {
             this.enableIpv4 = true;
         }

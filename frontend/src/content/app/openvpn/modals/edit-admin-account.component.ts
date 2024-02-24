@@ -52,8 +52,8 @@ export class EditAdminAccountComponent {
                 ));
             }
         } catch (e: any) {
+            console.warn('service call failed: ', e);
             this.error = e.error.message;
-            console.warn('service call failed: ', e.error.message);
         }
         this.loading = false;
     }

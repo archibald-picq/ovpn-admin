@@ -49,7 +49,7 @@
             <div class="actions d-flex justify-content-end mb-2">
                 <button class="btn btn-primary btn-sm" type="button" (click)="createUser()">create</button>
             </div>
-            <table mat-table [dataSource]="dataSource" matSort (matSortChange)="sortData($event)" style="width: 100%" class="mat-elevation-z8">
+            <table mat-table [dataSource]="dataSource" matSort (matSortChange)="sortDataUsers($event)" style="width: 100%" class="mat-elevation-z8">
 
                 <ng-container matColumnDef="username">
                     <th mat-header-cell *matHeaderCellDef mat-sort-header="username">Username</th>
@@ -72,6 +72,45 @@
                 </ng-container>
                 <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
                 <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+            </table>
+        </div>
+    </div>
+    <div class="form-group row mb-4">
+        <div class="col-2">API keys</div>
+        <div class="col-10">
+            <div class="actions d-flex justify-content-end mb-2">
+                <button class="btn btn-primary btn-sm" type="button" (click)="createApiKey()">create</button>
+            </div>
+            <div>
+                <em>
+                    Note: this will allow you to download a client config file from the command line:
+                </em>
+                <pre>wget --user=api --password=<b>azerty</b> {{serverUrl}}/api/user/<b>username</b>/conf</pre>
+            </div>
+            <table mat-table [dataSource]="dataSourceApiKey" matSort (matSortChange)="sortDataApiKey($event)" style="width: 100%" class="mat-elevation-z8">
+
+                <ng-container matColumnDef="comment">
+                    <th mat-header-cell *matHeaderCellDef mat-sort-header="comment">Comment</th>
+                    <td mat-cell *matCellDef="let element">
+                        {{element.comment}}
+                    </td>
+                </ng-container>
+                <ng-container matColumnDef="expires">
+                    <th mat-header-cell *matHeaderCellDef mat-sort-header="expires">Expires</th>
+                    <td mat-cell *matCellDef="let element">
+                        {{element.expires | date:'yyyy/MM/dd HH:mm:ss'}}
+                    </td>
+                </ng-container>
+                <ng-container matColumnDef="actions">
+                    <th mat-header-cell *matHeaderCellDef>Actions</th>
+                    <td mat-cell *matCellDef="let element">
+                        <button class="btn btn-primary btn-sm" type="button" (click)="editApiKey(element)">edit</button>
+                        <button class="btn btn-danger btn-sm" type="button" (click)="deleteApiKey(element)">delete</button>
+                    </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="displayedColumnsApiKey"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumnsApiKey;"></tr>
 
             </table>
         </div>

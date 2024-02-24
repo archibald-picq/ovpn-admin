@@ -1,16 +1,13 @@
 package openvpn
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"regexp"
 	"rpiadm/backend/shell"
 	"strings"
-	"text/template"
 )
 
 type OpenvpnServer struct {
@@ -92,7 +89,7 @@ func BuildIndexLine(cert *Certificate) string {
 	case cert.Flag == "D":
 		indexTxt += fmt.Sprintf(
 			"%s\t%s\t%s\t%s\t%s\t%s\n",
-			cert.Flag,
+			"R",
 			parseDate(stringDateFormat, cert.ExpirationDate).Format(indexTxtDateLayout),
 			parseDate(stringDateFormat, cert.RevocationDate).Format(indexTxtDateLayout),
 			cert.SerialNumber,
@@ -123,7 +120,6 @@ func RenderIndexTxt(data []*Certificate) []byte {
 
 func ParseCcd(ccdDir string, username string) Ccd {
 	ccd := Ccd{}
-	ccd.User = username
 	ccd.ClientAddress = "dynamic"
 	ccd.CustomRoutes = []Route{}
 	ccd.CustomIRoutes = []Route{}
@@ -196,12 +192,12 @@ func BuildCcd(ccd Ccd, serverMask string) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
-func UpdateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, serverMask string, ccd Ccd) error {
-	err := ValidateCcd(easyDirPath, ccdDir, openvpnNetwork, ccd)
+func UpdateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, serverMask string, ccd Ccd, username string) error {
+	err := ValidateCcd(easyDirPath, ccdDir, openvpnNetwork, ccd, username)
 	if err != nil {
 		return err
 	}
-	err = shell.WriteFile(ccdDir+"/"+ccd.User, BuildCcd(ccd, serverMask))
+	err = shell.WriteFile(ccdDir+"/"+username, BuildCcd(ccd, serverMask))
 	if err != nil {
 		log.Printf("modifyCcd: fWrite(): %v", err)
 		return err
@@ -209,7 +205,7 @@ func UpdateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, serverM
 	return nil
 }
 
-func ValidateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, ccd Ccd) error {
+func ValidateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, ccd Ccd, username string) error {
 	certs := IndexTxtParserCertificate(shell.ReadFile(easyDirPath + "/pki/index.txt"))
 	if ccd.ClientAddress != "dynamic" && len(ccd.ClientAddress) > 0 {
 		_, ovpnNet, err := net.ParseCIDR(openvpnNetwork)
@@ -217,7 +213,7 @@ func ValidateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, ccd C
 			return err
 		}
 
-		if !checkStaticAddressIsFree(ccdDir, certs, ccd.ClientAddress, ccd.User) {
+		if !checkStaticAddressIsFree(ccdDir, certs, ccd.ClientAddress, username) {
 			return errors.New(fmt.Sprintf("ClientAddress \"%s\" already assigned to another user", ccd.ClientAddress))
 		}
 
@@ -253,92 +249,6 @@ func checkStaticAddressIsFree(ccdDir string, certs []*Certificate, staticAddress
 		}
 	}
 	return true
-}
-
-func RenderClientConfig(
-	servers []string,
-	config OvpnConfig,
-	explicitExitNotify bool,
-	authNocache bool,
-	address string,
-	VerifyX509Name bool,
-	outboundIp string,
-	masterCn string,
-	serverConfFile string,
-	easyrsaDirPath string,
-	t *template.Template,
-	authByPassword bool,
-	username string,
-) string {
-	var hosts []OpenvpnServer
-	for _, server := range servers {
-		if len(server) > 0 {
-			parts := strings.SplitN(server, ":", 3)
-			l := len(parts)
-			if l > 2 {
-				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1], Protocol: parts[2]})
-			} else {
-				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1]})
-			}
-		}
-	}
-
-	if len(hosts) == 0 {
-		if len(address) > 0 {
-			parts := strings.SplitN(address, ":", 2)
-			if len(parts) == 1 {
-				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: fmt.Sprintf("%d", config.Port)})
-			} else {
-				hosts = append(hosts, OpenvpnServer{Host: parts[0], Port: parts[1]})
-			}
-		} else {
-			hosts = append(hosts, OpenvpnServer{Host: outboundIp, Port: fmt.Sprintf("%d", config.Port)})
-		}
-	}
-
-	//log.Infof("hosts for %s\n %v", username, hosts)
-
-	conf := OpenvpnClientConfig{}
-	conf.Hosts = hosts
-	conf.CA = shell.ReadFile(easyrsaDirPath + "/pki/ca.crt")
-	if _, err := os.Stat(easyrsaDirPath + "/pki/ta.key"); err == nil {
-		conf.TLS = shell.ReadFile(easyrsaDirPath + "/pki/ta.key")
-	}
-	if len(masterCn) > 0 && VerifyX509Name {
-		conf.CertCommonName = masterCn
-	}
-	if config.CompLzo {
-		conf.CompLzo = true
-	}
-	if len(config.TlsCrypt) > 0 {
-		conf.TlsCrypt = shell.ReadFile(shell.AbsolutizePath(serverConfFile, config.TlsCrypt))
-	}
-
-	conf.Auth = config.Auth
-	conf.ExplicitExitNotify = explicitExitNotify
-	conf.AuthNocache = authNocache
-	conf.Cipher = config.Cipher
-	conf.TlsClient = config.TlsServer
-	conf.TlsVersionMin = config.TlsVersionMin
-	conf.TlsCipher = config.TlsCipher
-
-	conf.Cert = removeCertificatText(shell.ReadFile(easyrsaDirPath + "/pki/issued/" + username + ".crt"))
-	conf.Key = shell.ReadFile(easyrsaDirPath + "/pki/private/" + username + ".key")
-
-	conf.PasswdAuth = authByPassword
-
-	var tmp bytes.Buffer
-	err := t.Execute(&tmp, conf)
-	if err != nil {
-		//log.Errorf("something goes wrong during rendering config for %s", username)
-		//log.Debugf("rendering config for %s failed with error %v", username, err)
-	}
-
-	hosts = nil
-
-	//log.Printf("Rendered config for user %s: %+v", username, tmp.String())
-
-	return fmt.Sprintf("%+v", tmp.String())
 }
 
 func removeCertificatText(content string) string {

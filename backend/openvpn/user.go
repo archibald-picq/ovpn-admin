@@ -46,7 +46,13 @@ func RevokeCertificate(
 ) error {
 	var shellOut string
 
-	log.Printf("revoke cert \"%s\" ", client.Username)
+	if (*client).Flag != "V" {
+		return errors.New(fmt.Sprintf("Certificate %s is not valid state (is %s)", client.Username, client.Flag))
+	}
+
+	// patch file in case of filesystem error
+	RestoreCertBySerial(easyrsaDirPath, client.SerialNumber, client.Username)
+
 	cmd := fmt.Sprintf("cd %s && echo yes | %s revoke %s", easyrsaDirPath, easyrsaBinPath, client.Username)
 	log.Printf("running %s", cmd)
 	shellOut, err := shell.RunBash(cmd)
@@ -103,7 +109,7 @@ func UserUnrevoke(easyrsaBinPath, easyrsaDirPath string, authByPassword bool, au
 	all := IndexTxtParserCertificate(shell.ReadFile(easyrsaDirPath + "/pki/index.txt"))
 	for idx, cert := range all {
 		if cert.Username == client.Username {
-			log.Printf("unrevoke %v", client)
+			log.Printf("unrevoke %v", *client)
 
 			if (*client).Flag != "R" {
 				return errors.New(fmt.Sprintf("Certificate %s is not in revocated state (is %s)", client.Username, client.Flag))

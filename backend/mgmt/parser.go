@@ -38,11 +38,13 @@ type OpenVPNmgmt struct {
 }
 
 var (
-	regByteCount = regexp.MustCompile(`^>BYTECOUNT_CLI:([0-9]+),([0-9]+),([0-9]+)$`)
-	regCommand   = regexp.MustCompile("^>([A-Z_]+):")
-	regStatus3   = regexp.MustCompile("^TITLE\tOpenVPN\\s+[0-9]+\\.[0-9]+\\.[0-9]+\\s+")
-	regError     = regexp.MustCompile("^ERROR:\\s+(.*)")
-	regSuccess   = regexp.MustCompile("^SUCCESS:\\s+(.*)")
+	regByteCount         = regexp.MustCompile(`^>BYTECOUNT_CLI:([0-9]+),([0-9]+),([0-9]+)$`)
+	regCommand           = regexp.MustCompile("^>([A-Z_]+):")
+	regStatus3           = regexp.MustCompile("^TITLE\tOpenVPN\\s+[0-9]+\\.[0-9]+\\.[0-9]+\\s+")
+	regError             = regexp.MustCompile("^ERROR:\\s+(.*)")
+	regSuccess           = regexp.MustCompile("^SUCCESS:\\s+(.*)")
+	regClientEnv         = regexp.MustCompile("^>CLIENT:ENV,([^=]*)=(.*)")
+	regClientEstablished = regexp.MustCompile("^>CLIENT:ESTABLISHED,(.*)")
 )
 
 func (mgmt *OpenVPNmgmt) HandleMessages() {
@@ -237,8 +239,13 @@ func (mgmt *OpenVPNmgmt) processMgmtBuffer() int {
 				mgmt.buffer = make([]string, 0)
 				return 1
 			}
+		} else if startCommand[1] == "NOTIFY" {
+			log.Printf("notify %v", mgmt.buffer[0])
+			mgmt.buffer = make([]string, 0)
+			return 1
 		} else {
 			log.Printf("unrecognized command %v", startCommand)
+			return 1
 		}
 	} else if lastLine == "END" {
 		log.Printf("END of unrecognized packet '%v'", mgmt.buffer)
@@ -291,9 +298,6 @@ func (mgmt *OpenVPNmgmt) HandleBytecountUpdate(line string) {
 	}
 	log.Printf("Cant find client %d to update %d/%d", clientId, bytesSent, bytesReceive)
 }
-
-var regClientEnv = regexp.MustCompile("^>CLIENT:ENV,([^=]*)=(.*)")
-var regClientEstablished = regexp.MustCompile("^>CLIENT:ESTABLISHED,(.*)")
 
 func (mgmt *OpenVPNmgmt) handleNewClientEvent(lines []string) {
 	//log.Printf("CLIENT '%v'", lines)

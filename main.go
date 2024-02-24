@@ -95,10 +95,13 @@ type MessagePayload struct {
 
 func enableCors(w *http.ResponseWriter, r *http.Request) bool {
 	// TODO: manage whitelist of origins
-	(*w).Header().Set("Access-Control-Allow-Origin", (*r).Header.Get("Origin"))
-	(*w).Header().Set("Access-Control-Allow-Credentials", "true")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-	(*w).Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+	isCors := (*r).Method == "OPTIONS" || len((*r).Header.Get("Origin")) > 0
+	if isCors {
+		(*w).Header().Set("Access-Control-Allow-Origin", (*r).Header.Get("Origin"))
+		(*w).Header().Set("Access-Control-Allow-Credentials", "true")
+		(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		(*w).Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+	}
 	if (*r).Method == "OPTIONS" {
 		return true
 	}
@@ -108,6 +111,14 @@ func enableCors(w *http.ResponseWriter, r *http.Request) bool {
 func returnErrorMessage(w http.ResponseWriter, status int, err error) {
 	jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
 	http.Error(w, string(jsonRaw), status)
+}
+
+func returnJson(w http.ResponseWriter, v any) error {
+	jsonRaw, _ := json.Marshal(v)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write(jsonRaw)
+	return err
 }
 
 var app OvpnAdmin
@@ -150,7 +161,6 @@ func main() {
 		*jwtSecretFile,
 	)
 
-
 	oAdmin.registerMetrics()
 
 	if len(oAdmin.serverConf.Management) > 0 {
@@ -171,26 +181,15 @@ func main() {
 	staticDir, _ := fs.Sub(content, "frontend/static")
 	embedFs := http.FS(staticDir)
 	http.HandleFunc("/api/ws", oAdmin.websocket)
-	http.HandleFunc("/api/config", oAdmin.showConfig)
+	http.HandleFunc("/api/config", oAdmin.handleConfig)
 	http.HandleFunc("/api/config/settings/save", oAdmin.postServerConfig)
 	http.HandleFunc("/api/config/preferences/save", oAdmin.postPreferences)
-	http.HandleFunc("/api/config/admin/", oAdmin.saveAdminAccount)
+	http.HandleFunc("/api/config/admin/", oAdmin.handleAdminAccount)
+	http.HandleFunc("/api/config/api-key/", oAdmin.handleApiKey)
 	http.HandleFunc("/api/authenticate", oAdmin.authenticate)
 	http.HandleFunc("/api/logout", oAdmin.logout)
-	http.HandleFunc("/api/users/list", oAdmin.userListHandler)
-	http.HandleFunc("/api/user/create", oAdmin.userCreateHandler)
-	http.HandleFunc("/api/user/change-password", oAdmin.userChangePasswordHandler)
-	http.HandleFunc("/api/user/rotate", oAdmin.userRotateHandler)
-	http.HandleFunc("/api/user/kill", oAdmin.apiConnectionKill)
-	http.HandleFunc("/api/user/delete", oAdmin.userDeleteHandler)
-	http.HandleFunc("/api/user/revoke", oAdmin.userRevokeHandler)
-	http.HandleFunc("/api/user/unrevoke", oAdmin.userUnrevokeHandler)
-	http.HandleFunc("/api/user/config/show", oAdmin.userShowConfigHandler)
-	//http.HandleFunc("/api/user/disconnect", oAdmin.userDisconnectHandler)
-	//http.HandleFunc("/api/user/statistic", oAdmin.userStatisticHandler)
-	http.HandleFunc("/api/user/ccd", oAdmin.userShowCcdHandler)
-	http.HandleFunc("/api/user/ccd/apply", oAdmin.userApplyCcdHandler)
-	http.HandleFunc("/api/node/", oAdmin.handleReadNodeConfig)
+	http.HandleFunc("/api/user/", oAdmin.handleUserCommand)
+	http.HandleFunc("/api/node/", oAdmin.handleNodeCommand)
 
 	http.Handle(*metricsPath, promhttp.HandlerFor(oAdmin.promRegistry, promhttp.HandlerOpts{}))
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -223,6 +222,14 @@ func getAuthCookie(r *http.Request) string {
 	return ""
 }
 
+func getBasicAuth(r *http.Request) string {
+	username, password, ok := r.BasicAuth()
+	if ok && username == "api" {
+		return password
+	}
+	return ""
+}
+
 func (app *OvpnAdmin) triggerBroadcastUser(user *model.Device) {
 	if user == nil {
 		return
@@ -233,6 +240,10 @@ func (app *OvpnAdmin) triggerBroadcastUser(user *model.Device) {
 		}
 	}
 	app.updatedUsers = append(app.updatedUsers, user)
+}
+
+func apiKeyMapper(apiKey model.ApiKey) model.ConfigPublicApiKey {
+	return model.ConfigPublicApiKey{Id: apiKey.Id.String(), Comment: apiKey.Comment, Expires: apiKey.Expires.Format(time.RFC3339)}
 }
 
 //func (app *OvpnAdmin) handleHelloAction(conn *WsSafeConn, packet WebsocketAction, hello Hello) {

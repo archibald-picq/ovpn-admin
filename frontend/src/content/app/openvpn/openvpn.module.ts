@@ -38,6 +38,9 @@ import {SetupComponent} from './setup/setup.component';
 import {ChooseRoleComponent} from './setup/steps/choose-role.component';
 import {CreateAccountComponent} from './setup/steps/create-account.component';
 import {JoinMasterComponent} from './setup/steps/join-master.component';
+import {EditApiKeyComponent} from './modals/edit-api-key.component';
+import {ConfirmDeleteApiKeyComponent} from './modals/confirm-delete-api-key.component';
+import {ApiKeyService} from './services/api-key.service';
 
 @NgModule({
     declarations: [
@@ -51,6 +54,8 @@ import {JoinMasterComponent} from './setup/steps/join-master.component';
         OpenvpnSettingsPageComponent,
         OpenvpnPreferencesPageComponent,
         EditAdminAccountComponent,
+        EditApiKeyComponent,
+        ConfirmDeleteApiKeyComponent,
         ConfirmDeleteAdminAccountComponent,
         UploadPageComponent,
         LogPageComponent,
@@ -83,6 +88,7 @@ import {JoinMasterComponent} from './setup/steps/join-master.component';
         OpenvpnService,
         WebsocketService,
         AccountService,
+        ApiKeyService,
     ],
     schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })

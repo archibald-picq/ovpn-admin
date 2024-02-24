@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -33,8 +34,7 @@ func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&post)
 	if err != nil {
 		log.Printf("JSON.unmarshal error %v", err)
-		jsonError, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Cant decode body: %s", err)})
-		http.Error(w, string(jsonError), http.StatusUnprocessableEntity)
+		returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New(fmt.Sprintf("Cant decode body: %s", err)))
 		return
 	}
 	log.Printf("saving preferences %v", post)
@@ -44,6 +44,10 @@ func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
 	preferences.Preferences.CertificateDuration = post.CertificateDuration
 	preferences.Preferences.AuthNocache = post.AuthNoCache
 	preferences.Preferences.VerifyX509Name = post.VerifyX509Name
-	preference.SavePreferences(*ovpnConfigDir, preferences)
+	err = preference.SavePreferences(*ovpnConfigDir, preferences)
+	if err != nil {
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

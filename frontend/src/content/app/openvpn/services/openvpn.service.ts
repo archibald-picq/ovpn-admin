@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import {IClientCertificate, IConnection} from '../models/client-certificate.interface';
 import { ClientCertificate } from '../models/client-certificate.model';
 import {filter, map, tap} from 'rxjs/operators';
@@ -23,7 +23,7 @@ export class OpenvpnService {
     // console.warn('OPENVPN_API_URL', appConfigService.get().openvpn?.url);
   }
 
-  public loadConfig(): Promise<OpenvpnConfig> {
+  public async loadConfig(): Promise<OpenvpnConfig> {
     if (this.config) {
       return this.config;
     }
@@ -47,54 +47,33 @@ export class OpenvpnService {
     return this.config;
   }
 
-  public listClientCertificates(): Promise<IClientCertificate[]> {
-    return firstValueFrom(this.http.get<ClientCertificate[]>(this.OPENVPN_ADMIN_API+'/api/users/list', { observe: 'response'}).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map((res: any) => res.body as IClientCertificate[]),
-      map((items: any[]) => items.map(ClientCertificate.hydrate))
-    ));
+  public async listClientCertificates(): Promise<IClientCertificate[]> {
+    return firstValueFrom(this.http.get<ClientCertificate[]>(this.OPENVPN_ADMIN_API+'/api/user/')).then(
+      (items) => items.map(ClientCertificate.hydrate)
+    );
   }
 
-  public getNodeConfig(clientUsername: string): Promise<NodeConfig> {
-    return firstValueFrom(this.http.get<NodeConfig>(this.OPENVPN_ADMIN_API+'/api/node/' + clientUsername, { observe: 'response'}).pipe(
-      filter((response: HttpResponse<NodeConfig>) => response.ok),
-      map(res => res.body as NodeConfig),
-      map(NodeConfig.hydrate)
-    ));
+  public async getNodeConfig(clientUsername: string): Promise<NodeConfig> {
+    return firstValueFrom(this.http.get<NodeConfig>(this.OPENVPN_ADMIN_API+'/api/node/' + clientUsername)).then(
+      NodeConfig.hydrate
+    );
   }
 
-  public loadClientConfigDetails(clientUsername: string): Promise<ClientConfig> {
-    const params = (new HttpParams()).set('username', clientUsername);
-    return firstValueFrom(this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/ccd', {observe: 'response', params}).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map((res: any) => res.body as Record<string, any>),
-      map(ClientConfig.hydrate)
-    ));
+  public async loadClientConfigDetails(clientUsername: string): Promise<ClientConfig> {
+    return firstValueFrom(this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/'+clientUsername+'/ccd'))
+      .then(ClientConfig.hydrate);
   }
 
-  public createClientCertificat(definition: Record<string, string>): Promise<IClientCertificate> {
-    return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/create', definition,{
-      observe: 'response',
-    }).pipe(
-      filter((response: HttpResponse<IClientCertificate>) => response.ok),
-      map((res: any) => res.body as IClientCertificate),
-      map(ClientCertificate.hydrate),
-    ));
+  public async createClientCertificat(definition: Record<string, string>): Promise<IClientCertificate> {
+    return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/', definition)).then(
+      ClientCertificate.hydrate,
+    );
   }
 
-  public loadClientConfig(client: IClientCertificate): Promise<Blob> {
-    const body = 'username='+encodeURIComponent(client.username);
-    const headers = new HttpHeaders()
-      .set('Content-type', 'application/x-www-form-urlencoded');
-
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/config/show', body, {
-      headers,
-      observe: 'response',
+  public async loadClientConfig(client: IClientCertificate): Promise<Blob> {
+    return firstValueFrom(this.http.get(this.OPENVPN_ADMIN_API+'/api/user/' + client.username + '/conf', {
       responseType: 'blob',
-    }).pipe(
-      filter((response: HttpResponse<Blob>) => response.ok),
-      map((res: HttpResponse<Blob>) => res.body as Blob),
-    ));
+    }));
   }
 
   public async saveServerConfig(toSave: Record<string, any>): Promise<any> {
@@ -105,12 +84,8 @@ export class OpenvpnService {
     ));
   }
 
-  public async savePreferences(toSave: Record<string, any>): Promise<any> {
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/config/preferences/save', toSave, {
-      observe: 'response',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-    ));
+  public async savePreferences(toSave: Record<string, any>): Promise<void> {
+    return firstValueFrom(this.http.post<void>(this.OPENVPN_ADMIN_API+'/api/config/preferences/save', toSave));
   }
 
   public async saveClientConfig(client: IClientCertificate, model: ClientConfig): Promise<void> {
@@ -118,39 +93,20 @@ export class OpenvpnService {
       clientAddress: model.staticAddress ?? 'dynamic',
       customIRoutes: model.iRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
       customRoutes: model.pushRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
-      user: client.username,
     };
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/ccd/apply', body, {
-      observe: 'response',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-    )).then();
+    return firstValueFrom(this.http.put<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/ccd', body));
   }
 
-  public revokeCertificate(client: IClientCertificate): Promise<any> {
-    const body = 'username='+encodeURIComponent(client.username);
-    const headers = new HttpHeaders()
-      .set('Content-type', 'application/x-www-form-urlencoded');
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/revoke', body, {
-      headers,
-      observe: 'response',
-      responseType: 'text',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-    ));
+  public async revokeCertificate(client: IClientCertificate): Promise<void> {
+    return firstValueFrom(this.http.post<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/revoke', {}));
   }
 
-  public killConnection(client: IClientCertificate, conn: IConnection): Promise<void> {
+  public async killConnection(client: IClientCertificate, conn: IConnection): Promise<void> {
     const body = {
       clientId: conn.clientId,
     }
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/kill', body, {
-      // headers,
-      observe: 'response',
-      // responseType: 'text',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map((response) => {
+    return firstValueFrom(this.http.post<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/kill', body))
+      .then((response) => {
         console.warn('response', response);
         const p = client.connections.indexOf(conn);
         if (p !== -1) {
@@ -158,51 +114,22 @@ export class OpenvpnService {
         } else {
           console.warn('Cant find connection by reference', conn, client.connections);
         }
-        // if (response.body.msg === `User ${client.username} successfully unrevoked`) {
-        //     throwError(() => new Error('Invalid return value'));
-        // }
-      })
-    ));
+      });
   }
 
-  public unrevokeCertificate(client: IClientCertificate): Promise<any> {
-    const body = 'username='+encodeURIComponent(client.username);
-    const headers = new HttpHeaders()
-      .set('Content-type', 'application/x-www-form-urlencoded');
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/unrevoke', body, {
-      headers,
-      observe: 'response',
-      // responseType: 'text',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-    ));
+  public async unrevokeCertificate(client: IClientCertificate): Promise<any> {
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/unrevoke', {}));
   }
 
-  public deleteCertificate(client: IClientCertificate): Promise<any> {
-    const body = 'username='+encodeURIComponent(client.username);
-    const headers = new HttpHeaders()
-      .set('Content-type', 'application/x-www-form-urlencoded');
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/delete', body, {
-      headers,
-      observe: 'response',
-      responseType: 'text',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-    ));
+  public async deleteCertificate(client: IClientCertificate): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/'));
   }
 
-  public rotateCertificate(client: IClientCertificate): Promise<IClientCertificate> {
-    const body = 'username='+encodeURIComponent(client.username)+'&password=';
-    const headers = new HttpHeaders()
-      .set('Content-type', 'application/x-www-form-urlencoded');
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/rotate', body, {
-      headers,
-      observe: 'response',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-      map(() => client.clone())
-    ));
-    // return new Promise<IClientCertificate>((resolve) => resolve(client.clone()));
+  public async rotateCertificate(client: IClientCertificate): Promise<IClientCertificate> {
+    const body = {password: ''};
+    return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/' + client.username + '/rotate', body)).then(
+      () => client.clone()
+    );
   }
 
   public sorter(sort: Sort) {

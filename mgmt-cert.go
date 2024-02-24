@@ -84,16 +84,16 @@ func (app *OvpnAdmin) userRotate(username string, newPassword string) error {
 	return nil
 }
 
-func (app *OvpnAdmin) userDelete(username string) string {
+func (app *OvpnAdmin) userDelete(username string) error {
 	client := app.getDevice(username)
 	if client == nil {
-		return fmt.Sprintf("{\"msg\":\"User \"%s\" not found\"}", username)
+		return errors.New(fmt.Sprintf("User \"%s\" not found\"", username))
 	}
 
 	if err := openvpn.UserDelete(*easyrsaBinPath, *easyrsaDirPath, client.Certificate); err != nil {
-		return err.Error()
+		return err
 	}
 
 	app.updateCertificateStats()
-	return fmt.Sprintf("{\"msg\":\"User %s successfully deleted\"}", username)
+	return nil
 }

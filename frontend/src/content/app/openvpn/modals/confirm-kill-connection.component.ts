@@ -4,8 +4,10 @@ import { OpenvpnService } from '../services/openvpn.service';
 import {IClientCertificate, IConnection} from "../models/client-certificate.interface";
 
 export class KillConnectionOptions {
-    constructor(public readonly user: IClientCertificate, public readonly connection: IConnection) {
-    }
+    constructor(
+      public readonly user: IClientCertificate,
+      public readonly connection: IConnection,
+  ) {}
 }
 
 @Component({
@@ -31,7 +33,8 @@ export class ConfirmKillConnectionComponent {
             await this.openvpnService.killConnection(this.options.user, this.options.connection);
             this.modal.close(true);
         } catch (e) {
-            console.warn('service call failed');
+            console.warn('service call failed', e);
+            this.error = (e as any).error.message;
         }
         this.loading = false;
     }

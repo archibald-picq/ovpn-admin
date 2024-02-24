@@ -1,0 +1,26 @@
+<div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">{{this.original? 'Edit': 'Create'}} api key</h4>
+    <button [disabled]="loading" type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+</div>
+<div class="modal-body">
+    <form>
+        <div class="mb-3">
+            <label for="api-key-value">Key</label>
+            <input [disabled]="loading" id="api-key-value" name="key" class="form-control" [(ngModel)]="tuple.key" placeholder="azerty" autocomplete="off">
+        </div>
+        <div class="mb-3">
+            <label for="api-key-comment">Comment</label>
+            <input [disabled]="loading" id="api-key-comment" name="comment" class="form-control" [(ngModel)]="tuple.comment" placeholder="script install" autocomplete="off">
+        </div>
+        <div class="mb-3 ms-2">
+            <em>Please note the key as it will not shown later</em>
+        </div>
+    </form>
+</div>
+<div class="modal-footer flex-nowrap">
+    <div class="error">{{error}}</div>
+    <button [disabled]="loading" type="button" class="btn btn-outline-dark" (click)="save()">
+        <span *ngIf="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        <span class="sr-only">Save</span>
+    </button>
+</div>

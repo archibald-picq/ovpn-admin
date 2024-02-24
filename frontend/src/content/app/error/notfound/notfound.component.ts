@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import {ActivatedRouteSnapshot, RouterStateSnapshot} from '@angular/router';
 
 @Component({
     selector: 'ovpn-notfound',
@@ -6,4 +7,9 @@ import { Component } from '@angular/core';
 })
 export class NotfoundPageComponent {
     trucs = ['Hello', 'World'];
+    constructor(
+      public readonly route: ActivatedRouteSnapshot,
+      public readonly state: RouterStateSnapshot,
+    ) {
+    }
 }

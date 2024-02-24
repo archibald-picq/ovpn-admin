@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,7 +10,7 @@ import (
 	"rpiadm/backend/rpi"
 )
 
-func (app *OvpnAdmin) handleReadNodeConfig(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) handleNodeCommand(w http.ResponseWriter, r *http.Request) {
 	//log.Debug(r.RemoteAddr, " ", r.RequestURI)
 
 	if enableCors(&w, r) {
@@ -28,17 +28,16 @@ func (app *OvpnAdmin) handleReadNodeConfig(w http.ResponseWriter, r *http.Reques
 	if len(matches) > 0 {
 		payload, err := rpi.ReadNodeConfig(*ovpnConfigDir, matches[1])
 		if err != nil {
-			jsonRaw, _ := json.Marshal(MessagePayload{Message: fmt.Sprintf("Failed read config for user %s: %¨s", matches[1], err)})
-			http.Error(w, string(jsonRaw), http.StatusBadRequest)
+			returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("Failed read config for user %s: %¨s", matches[1], err)))
 			return
 		}
-		rawJson, _ := json.Marshal(payload)
-		//w.WriteHeader(http.StatusOK)
-		w.Write(rawJson)
+		err = returnJson(w, payload)
+		if err != nil {
+			log.Printf("error sending response")
+		}
 		return
 	} else {
-		jsonRaw, _ := json.Marshal(MessagePayload{Message: "Bad request"})
-		http.Error(w, string(jsonRaw), http.StatusBadRequest)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
 		return
 	}
 

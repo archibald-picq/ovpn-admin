@@ -86,6 +86,8 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
                     parent: this.injector,
                 }),
             }).result;
+            client.connections.splice(0, client.connections.length);
+            client.connectionStatus = '';
             this.applySorting();
         } catch (e) {
             console.warn('Cancel revoke client');

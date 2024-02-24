@@ -22,6 +22,7 @@ func LoadPreferences(
 	jwtSecretFile string,
 ) {
 	preference.Users = make([]model.Account, 0)
+	preference.ApiKeys = make([]model.ApiKey, 0)
 	preference.Preferences.ExplicitExitNotify = true // default config value, will be overwritten by Unmarshal
 
 	if _, err := os.Stat(ovpnConfigDir + "/config.json"); err == nil {

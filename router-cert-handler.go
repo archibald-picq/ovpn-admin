@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"rpiadm/backend/auth"
@@ -47,25 +46,20 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 	})
 	user := app.getDevice(userDefinition.Username)
 	log.Printf("created user %v over %d clients\n", user, len(app.clients))
-	w.WriteHeader(http.StatusOK)
-	jsonErr, _ := json.Marshal(user)
-	w.Write(jsonErr)
+	err = returnJson(w, user)
+	if err != nil {
+		log.Printf("error sending response")
+	}
 }
 
-func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request) {
-	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-
-	if enableCors(&w, r) {
-		return
-	}
+func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request, username string) {
 
 	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
-	_ = r.ParseForm()
-	err := app.userRevoke(r.FormValue("username"))
+	err := app.userRevoke(username)
 	//fmt.Fprintf(w, "%s", ret)
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
@@ -74,19 +68,15 @@ func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request, username string) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-
-	if enableCors(&w, r) {
-		return
-	}
 
 	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	_ = r.ParseForm()
-	err := app.userUnrevoke(r.FormValue("username"))
+
+	err := app.userUnrevoke(username)
 	if err != nil {
 		log.Printf("unrevoke error %s", err.Error())
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
@@ -95,26 +85,25 @@ func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (app *OvpnAdmin) userDeleteHandler(w http.ResponseWriter, r *http.Request) {
-	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-
-	if enableCors(&w, r) {
-		return
-	}
-
+func (app *OvpnAdmin) userDeleteHandler(w http.ResponseWriter, r *http.Request, username string) {
 	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	//if app.role == "slave" {
-	//	http.Error(w, `{"status":"error"}`, http.StatusLocked)
-	//	return
-	//}
-	_ = r.ParseForm()
-	fmt.Fprintf(w, "%s", app.userDelete(r.FormValue("username")))
+
+	err := app.userDelete(username)
+	if err != nil {
+		returnErrorMessage(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request) {
+type PasswordPayload struct {
+	Password string `json:"password"`
+}
+
+func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request, username string) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
 
 	if enableCors(&w, r) {
@@ -126,13 +115,52 @@ func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	_ = r.ParseForm()
-	username := r.FormValue("username")
-	err := app.userRotate(username, r.FormValue("password"))
+	var passwordPayload PasswordPayload
+	err := json.NewDecoder(r.Body).Decode(&passwordPayload)
+	if err != nil {
+		log.Printf(err.Error())
+		returnErrorMessage(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	err = app.userRotate(username, passwordPayload.Password)
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 	//fmt.Sprintf(`{"message":"User %s successfully rotated"}`, username)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (app *OvpnAdmin) userChangePasswordHandler(w http.ResponseWriter, r *http.Request, username string) {
+	//log.Info(r.RemoteAddr, " ", r.RequestURI)
+
+	if enableCors(&w, r) {
+		return
+	}
+
+	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	if !*authByPassword {
+		returnErrorMessage(w, http.StatusNotImplemented, errors.New("not implemented"))
+		return
+	}
+
+	var passwordPayload PasswordPayload
+	err := json.NewDecoder(r.Body).Decode(&passwordPayload)
+	if err != nil {
+		log.Printf(err.Error())
+		returnErrorMessage(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	err = app.userChangePassword(username, passwordPayload.Password)
+	if err != nil {
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

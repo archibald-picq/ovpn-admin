@@ -6,7 +6,6 @@ import (
 	"rpiadm/backend/openvpn"
 	"rpiadm/backend/rpi"
 	"strings"
-	"text/template"
 	"time"
 
 	"log"
@@ -143,7 +142,7 @@ func (app *OvpnAdmin) updateDeviceByCertificate(certificate *openvpn.Certificate
 			app.clients[idx].Certificate = certificate
 			app.clients[idx].Certificate.Flag = certificate.Flag
 			app.clients[idx].Certificate.DeletionDate = certificate.DeletionDate
-			log.Printf("update certificate", app.clients[idx].Certificate)
+			//log.Printf("update certificate", app.clients[idx].Certificate)
 			return
 		}
 	}
@@ -158,13 +157,18 @@ func (app *OvpnAdmin) updateDeviceByCertificate(certificate *openvpn.Certificate
 }
 
 func (app *OvpnAdmin) synchroConnections(conns []*openvpn.VpnConnection) {
+	//count := 0
 	for _, client := range app.clients {
+		if len(client.Connections) > 0 {
+			log.Printf("reset %d connections for %s", len(client.Connections), client.Username)
+		}
 		client.Connections = make([]*openvpn.VpnConnection, 0)
 	}
 	for _, conn := range conns {
 		var found = false
 		for _, client := range app.clients {
 			if client.Username == conn.CommonName {
+				log.Printf("apply connections for %s", client.Username)
 				client.Connections = append(client.Connections, conn)
 				found = true
 			}
@@ -185,25 +189,8 @@ func (app *OvpnAdmin) getDevice(username string) *model.Device {
 	return nil
 }
 
-func (app *OvpnAdmin) getClientConfigTemplate() *template.Template {
-	if *clientConfigTemplatePath != "" {
-		return template.Must(template.ParseFiles(*clientConfigTemplatePath))
-	} else {
-		clientConfigTpl, clientConfigTplErr := templates.ReadFile("templates/client.conf.tpl")
-		if clientConfigTplErr != nil {
-			log.Printf("clientConfigTpl not found in templates box")
-		}
-		return template.Must(template.New("client-config").Parse(string(clientConfigTpl)))
-	}
-}
-
 func (app *OvpnAdmin) connectToManagementInterface() {
-	go func() {
-		for {
-			time.Sleep(time.Duration(28) * time.Second)
-			app.mgmt.SendManagementCommand("status 3")
-		}
-	}()
+
 	go func() {
 		for {
 			time.Sleep(time.Duration(2) * time.Second)
@@ -216,6 +203,13 @@ func (app *OvpnAdmin) connectToManagementInterface() {
 				}
 				app.updatedUsers = make([]*model.Device, 0)
 			}
+		}
+	}()
+	go func() {
+		for {
+			time.Sleep(time.Duration(28) * time.Second)
+			log.Printf("send status 3")
+			app.mgmt.SendManagementCommand("status 3")
 		}
 	}()
 	for {
@@ -232,11 +226,12 @@ func (app *OvpnAdmin) connectToManagementInterface() {
 		app.mgmt.Conn = conn
 		go func() {
 			app.mgmt.SendManagementCommand("version")
+			log.Printf("send status 3")
 			app.mgmt.SendManagementCommand("status 3")
 			resp := app.mgmt.SendManagementCommandWaitResponse("bytecount 5")
 			log.Printf("register bytecount 5 returns: %s", resp)
-		}()
 
+		}()
 		app.mgmt.HandleMessages()
 	}
 

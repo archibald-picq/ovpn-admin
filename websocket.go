@@ -22,7 +22,7 @@ func (app *OvpnAdmin) checkWebsocketOrigin(r *http.Request) bool {
 	return true
 }
 func (app *OvpnAdmin) removeConnection(conn *websocket.Conn) {
-	log.Printf("Websocket client disconnected, removing connection %s", conn.RemoteAddr().String())
+	//log.Printf("Websocket client disconnected, removing connection %s", conn.RemoteAddr().String())
 	conn.Close()
 	var found *rpi.WsSafeConn
 	for i, c := range app.wsConnections {
@@ -35,7 +35,7 @@ func (app *OvpnAdmin) removeConnection(conn *websocket.Conn) {
 		log.Printf("Websocket client NOT found, can't remove from Rpic")
 		return
 	}
-	log.Printf("Websocket client found for removal with role %s", found.Role)
+	//log.Printf("Websocket client found for removal with role %s", found.Role)
 	if found.Role == "rpic" {
 		for _, client := range app.clients {
 			for j, rpic := range client.Rpic {
@@ -86,12 +86,12 @@ func (app *OvpnAdmin) websocket(w http.ResponseWriter, r *http.Request) {
 	wsSafe.XForwardedProto = xForwardedProto
 	wsSafe.UserAgent = userAgent
 	app.wsConnections = append(app.wsConnections, wsSafe)
-	log.Printf("connected, pool size: %d", len(app.wsConnections))
+	//log.Printf("connected, pool size: %d", len(app.wsConnections))
 
 	for {
 		_, message, err := c.ReadMessage()
 		if err != nil {
-			log.Println("read:", err)
+			//log.Println("read:", err)
 			break
 		}
 		wsSafe.Last = time.Now()
