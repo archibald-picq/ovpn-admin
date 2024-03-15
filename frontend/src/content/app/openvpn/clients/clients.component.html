@@ -25,6 +25,14 @@
                 <mat-icon>settings</mat-icon>
                 <span>Admin preferences</span>
             </button>
+            <button mat-menu-item (click)="downloadCsv()">
+                <mat-icon>download</mat-icon>
+                <span>Download CSV</span>
+            </button>
+<!--            <button mat-menu-item (click)="listCrl()">-->
+<!--                <mat-icon>download</mat-icon>-->
+<!--                <span>List CRL</span>-->
+<!--            </button>-->
             <button mat-menu-item [routerLink]="['./logs']">
                 <mat-icon>receipt</mat-icon>
                 <span>Logs</span>

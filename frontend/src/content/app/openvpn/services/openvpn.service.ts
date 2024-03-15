@@ -9,6 +9,7 @@ import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
 import { OpenvpnConfig } from '../models/openvpn-config.model';
 import { NodeConfig } from '../models/node-config.model';
+import {IRevokedCertificate} from '../models/revoked-certificate.interface';
 
 @Injectable()
 export class OpenvpnService {
@@ -59,10 +60,10 @@ export class OpenvpnService {
     );
   }
 
-  public async loadClientConfigDetails(clientUsername: string): Promise<ClientConfig> {
-    return firstValueFrom(this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/'+clientUsername+'/ccd'))
-      .then(ClientConfig.hydrate);
-  }
+  // public async loadClientConfigDetails(clientUsername: string): Promise<ClientConfig> {
+  //   return firstValueFrom(this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/'+clientUsername+'/ccd'))
+  //     .then(ClientConfig.hydrate);
+  // }
 
   public async createClientCertificat(definition: Record<string, string>): Promise<IClientCertificate> {
     return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/', definition)).then(
@@ -74,6 +75,10 @@ export class OpenvpnService {
     return firstValueFrom(this.http.get(this.OPENVPN_ADMIN_API+'/api/user/' + client.username + '/conf', {
       responseType: 'blob',
     }));
+  }
+
+  public async listCrl(): Promise<IRevokedCertificate> {
+    return firstValueFrom(this.http.get<IRevokedCertificate[]>(this.OPENVPN_ADMIN_API+'/api/openvpn/crl'));
   }
 
   public async saveServerConfig(toSave: Record<string, any>): Promise<any> {
@@ -90,9 +95,9 @@ export class OpenvpnService {
 
   public async saveClientConfig(client: IClientCertificate, model: ClientConfig): Promise<void> {
     const body = {
-      clientAddress: model.staticAddress ?? 'dynamic',
-      customIRoutes: model.iRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
-      customRoutes: model.pushRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
+      clientAddress: model.clientAddress ?? 'dynamic',
+      customIRoutes: model.customIRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
+      customRoutes: model.customRoutes.map((route) => ({address: route.address, netmask: route.netmask, description: route.description})),
     };
     return firstValueFrom(this.http.put<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/ccd', body));
   }

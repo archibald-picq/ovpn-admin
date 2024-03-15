@@ -1,13 +1,14 @@
 import {Route} from "./route.model";
+import {ICcd} from './client-certificate.interface';
 
-export class ClientConfig {
+export class ClientConfig implements ICcd {
     constructor(
-      public staticAddress: string,
-      public readonly pushRoutes: Route[],
-      public readonly iRoutes: Route[],
+      public clientAddress: string,
+      public readonly customRoutes: Route[],
+      public readonly customIRoutes: Route[],
     ) {}
 
-    public static hydrate(fromServer: Record<string, any>): ClientConfig {
+    public static hydrate(fromServer: ICcd): ClientConfig {
         return new ClientConfig(
           fromServer.clientAddress,
           fromServer.customRoutes?.map(Route.parse) ?? [],
@@ -17,9 +18,9 @@ export class ClientConfig {
 
     public clone(): ClientConfig {
         return new ClientConfig(
-          this.staticAddress,
-          this.pushRoutes.map((route) => route.clone()),
-          this.iRoutes.map((route) => route.clone()),
+          this.clientAddress,
+          this.customRoutes.map((route) => route.clone()),
+          this.customIRoutes.map((route) => route.clone()),
         );
     }
 }

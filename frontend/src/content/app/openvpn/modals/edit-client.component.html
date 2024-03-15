@@ -7,7 +7,7 @@
         <div class="mb-3">
             <label for="fixed-ip">Fixed IP</label>
             <div class="input-group">
-                <input [disabled]="loading" id="fixed-ip" class="form-control" name="staticAddress" [(ngModel)]="model.staticAddress">
+                <input [disabled]="loading" id="fixed-ip" class="form-control" name="staticAddress" [(ngModel)]="model.clientAddress">
             </div>
             <div class="routes">
                 <table>
@@ -21,7 +21,7 @@
                             <th>Description</th>
                             <th>Actions</th>
                         </tr>
-                        <tr *ngFor="let route of model.pushRoutes; let index = index">
+                        <tr *ngFor="let route of model.customRoutes; let index = index">
                             <td><input [disabled]="loading" class="form-control" name="address-{{index}}-pushroute" [(ngModel)]="route.address" /></td>
                             <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-pushroute" [(ngModel)]="route.netmask" /></td>
                             <td><input [disabled]="loading" class="form-control" name="description-{{index}}-pushroute" [(ngModel)]="route.description" /></td>
@@ -49,7 +49,7 @@
                             <th>Description</th>
                             <th class="actions">Actions</th>
                         </tr>
-                        <tr *ngFor="let route of model.iRoutes; let index = index">
+                        <tr *ngFor="let route of model.customIRoutes; let index = index">
                             <td><input [disabled]="loading" class="form-control" name="address-{{index}}-iroute" [(ngModel)]="route.address" /></td>
                             <td><input [disabled]="loading" class="form-control" name="netmask-{{index}}-iroute" [(ngModel)]="route.netmask" /></td>
                             <td><input [disabled]="loading" class="form-control" name="description-{{index}}-iroute" [(ngModel)]="route.description" /></td>

@@ -132,7 +132,7 @@ export class ClientCertificate implements IClientCertificate {
 		public connectionStatus: string,
 		public readonly connections: IConnection[],
 		public readonly rpic: WsRpicConnection[],
-		public readonly ccd?: ClientConfig,
+		public ccd?: ClientConfig,
 	) {
 
 	}
@@ -144,7 +144,7 @@ export class ClientCertificate implements IClientCertificate {
 			obj.connectionStatus,
 			obj.connections?.map(Connection.hydrate) ?? [],
 			obj.rpic?.map(WsRpicConnection.hydrate) ?? [],
-			obj.ccd,
+			obj.ccd ? ClientConfig.hydrate(obj.ccd) : undefined,
 		);
 	}
 

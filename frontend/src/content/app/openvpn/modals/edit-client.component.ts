@@ -4,9 +4,10 @@ import { IClientCertificate } from "../models/client-certificate.interface";
 import { OpenvpnService } from '../services/openvpn.service';
 import { ClientConfig } from '../models/client-config.model';
 import { Route } from '../models/route.model';
+import {ClientCertificate} from '../models/client-certificate.model';
 
 export class EditClientOptions {
-    constructor(public readonly client: IClientCertificate) {
+    constructor(public readonly client: ClientCertificate) {
     }
 }
 
@@ -35,37 +36,37 @@ export class EditClientComponent {
             this.model = new ClientConfig('', [], []);
         }
 
-        if (this.model.staticAddress === 'dynamic') {
-            this.model.staticAddress = '';
+        if (this.model.clientAddress === 'dynamic') {
+            this.model.clientAddress = '';
         }
         // console.warn('this.model.staticAddress', this.model.staticAddress);
     }
 
     public removePushRoute(route: Route): void {
-        const p = this.model.pushRoutes.indexOf(route);
+        const p = this.model.customRoutes.indexOf(route);
         if (p === -1) {
             console.warn('Error in page');
             return;
         }
-        this.model.pushRoutes.splice(p, 1);
+        this.model.customRoutes.splice(p, 1);
     }
 
     public removeIRoute(route: Route): void {
-        const p = this.model.iRoutes.indexOf(route);
+        const p = this.model.customIRoutes.indexOf(route);
         if (p === -1) {
             console.warn('Error in page');
             return;
         }
-        this.model.iRoutes.splice(p, 1);
+        this.model.customIRoutes.splice(p, 1);
     }
 
     public addPushRoute(): void {
-        this.model.pushRoutes.push(this.newPushRoute.clone());
+        this.model.customRoutes.push(this.newPushRoute.clone());
         this.newPushRoute.reset();
     }
 
     public addIRoute(): void {
-        this.model.iRoutes.push(this.newIRoute.clone());
+        this.model.customIRoutes.push(this.newIRoute.clone());
         this.newIRoute.reset();
     }
 

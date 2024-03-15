@@ -23,6 +23,7 @@ import {
 import {WebsocketService} from "../services/websocket.service";
 import {ClientCertificate} from "../models/client-certificate.model";
 import {ConfirmKillConnectionComponent, KillConnectionOptions} from "../modals/confirm-kill-connection.component";
+import {CsvService} from '../services/csv.service';
 
 @Component({
     selector: 'bus-openvpn-clients',
@@ -30,9 +31,9 @@ import {ConfirmKillConnectionComponent, KillConnectionOptions} from "../modals/c
     styleUrls: ['./clients.component.scss'],
 })
 export class OpenvpnClientsComponent implements OnInit, OnDestroy {
-    public clients: IClientCertificate[] = [];
+    public clients: ClientCertificate[] = [];
     public displayedColumns: string[] = ['username', /* 'accountStatus', */ 'connections', 'speed-upload-download', 'upload-download', 'expirationDate', 'actions'];
-    public dataSource = new MatTableDataSource<IClientCertificate>();
+    public dataSource = new MatTableDataSource<ClientCertificate>();
     public hideRevoked = !!localStorage.getItem('hideRevoked');
     private sort?: Sort;
     public minSpeedThreshold = 1024; // don't show speed lower thant 1kb/s
@@ -51,6 +52,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         private readonly injector: Injector,
         private readonly openvpnService: OpenvpnService,
         private readonly websocketService: WebsocketService,
+        private readonly csvService: CsvService,
     ) {
         this.clients = this.activatedRoute.snapshot.data.clients;
         this.applySorting();
@@ -73,7 +75,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         this.websocketService.unbind('users', this.usersCallback);
     }
 
-    public async revokeClientCertificate(client: IClientCertificate): Promise<void> {
+    public async revokeClientCertificate(client: ClientCertificate): Promise<void> {
         try {
             console.warn('revoke client certificate', client);
             await this.modalService.open(ConfirmRevokeClientCertificateComponent, {
@@ -94,7 +96,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         }
     }
 
-    public async deleteClientCertificate(client: IClientCertificate): Promise<void> {
+    public async deleteClientCertificate(client: ClientCertificate): Promise<void> {
         try {
             console.warn('delete client certificate', client);
             await this.modalService.open(ConfirmDeleteClientCertificateComponent, {
@@ -168,12 +170,12 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         }
     }
 
-    public async editClient(client: IClientCertificate): Promise<void> {
+    public async editClient(client: ClientCertificate): Promise<void> {
         console.warn('edit client', client);
         try {
-            if (!client.ccd) {
-                client.ccd = await this.openvpnService.loadClientConfigDetails(client.username);
-            }
+            // if (!client.ccd) {
+            //     client.ccd = await this.openvpnService.loadClientConfigDetails(client.username);
+            // }
             await this.modalService.open(EditClientComponent, {
                 size: 'lg',
                 centered: true,
@@ -185,7 +187,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
             console.warn('client updated');
             this.applySorting();
         } catch (e) {
-            console.warn('Cancel edit client');
+            console.warn('Cancel edit client', e);
         }
     }
 
@@ -265,6 +267,22 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
     }
     public cleanEntity(entity: string): string {
         return entity.replace(/^\//, '').replace(/\//g, "\n");
+    }
+
+    public downloadCsv(): void {
+        // console.warn('download csv');
+        // const clientConfigFile = await this.openvpnService.loadClientConfig(client);
+        // console.warn('client list', this.clients);
+
+        const str = this.csvService.build(this.clients);
+        // console.warn('str', str);
+        saveAs(new Blob([str.join("\n")]), 'export.csv');
+    }
+
+    public async listCrl(): Promise<void> {
+        // console.warn('download csv');
+        const crls = await this.openvpnService.listCrl();
+        console.warn('crls', crls);
     }
 
     private mergeLists(clients: IClientCertificate[], data: any) {

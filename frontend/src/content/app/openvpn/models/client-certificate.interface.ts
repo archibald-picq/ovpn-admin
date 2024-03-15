@@ -1,5 +1,6 @@
 import { ClientConfig } from './client-config.model';
 import {WsRpicConnection} from './client-certificate.model';
+import {Route} from './route.model';
 
 export interface INode {
     address: string;
@@ -40,13 +41,19 @@ export interface IConnection {
     nodes: INode[];
 }
 
+export interface ICcd {
+    clientAddress: string;
+    customRoutes: Route[];
+    customIRoutes: Route[];
+}
+
 export interface IClientCertificate {
     username: string;
     certificate: ICertificate|undefined;
     connectionStatus: string;
     connections: IConnection[];
     rpic: WsRpicConnection[];
-    ccd?: ClientConfig;
+    ccd?: ICcd;
 
     clone(): IClientCertificate;
     merge(newClient: IClientCertificate): void;

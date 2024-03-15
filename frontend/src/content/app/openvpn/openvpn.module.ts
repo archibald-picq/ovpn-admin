@@ -41,6 +41,7 @@ import {JoinMasterComponent} from './setup/steps/join-master.component';
 import {EditApiKeyComponent} from './modals/edit-api-key.component';
 import {ConfirmDeleteApiKeyComponent} from './modals/confirm-delete-api-key.component';
 import {ApiKeyService} from './services/api-key.service';
+import {CsvService} from './services/csv.service';
 
 @NgModule({
     declarations: [
@@ -89,6 +90,7 @@ import {ApiKeyService} from './services/api-key.service';
         WebsocketService,
         AccountService,
         ApiKeyService,
+        CsvService,
     ],
     schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
