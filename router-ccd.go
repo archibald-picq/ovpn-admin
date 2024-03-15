@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"rpiadm/backend/auth"
 	"rpiadm/backend/openvpn"
@@ -17,13 +16,15 @@ func extractNetmask(cidr string) string {
 	return parts[1]
 }
 
-func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request, user string) {
-	//if enableCors(&w, r) {
-	//	return
-	//}
-
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request, username string) {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		returnErrorMessage(w, http.StatusForbidden, errors.New("request forbidden"))
+		return
+	}
+
+	device := app.getDevice(username)
+	if device == nil {
+		returnErrorMessage(w, http.StatusNotFound, errors.New("device not found"))
 		return
 	}
 
@@ -48,7 +49,18 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 
 	ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
 	openvpnNetwork := convertNetworkMaskCidr(app.serverConf.Server)
-	err = openvpn.UpdateCcd(*easyrsaDirPath, ccdDir, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd, user)
+	existingCcd := make([]*openvpn.Ccd, 0)
+	for _, client := range app.clients {
+		if client.Ccd != nil && client.Username != username {
+			existingCcd = append(existingCcd, client.Ccd)
+		}
+	}
+	err = openvpn.UpdateCcd(ccdDir, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd, username, existingCcd)
+	// TODO: handle other options not exposed to the api
+	device.Ccd.ClientAddress = ccd.ClientAddress
+	device.Ccd.CustomRoutes = ccd.CustomRoutes
+	device.Ccd.CustomIRoutes = ccd.CustomIRoutes
+	app.triggerBroadcastUser(device)
 
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
@@ -57,15 +69,22 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (app *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Request, username string) {
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
-		returnErrorMessage(w, http.StatusForbidden, errors.New("forbidden"))
-		return
-	}
-
-	ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
-	err := returnJson(w, openvpn.ParseCcd(ccdDir, username))
-	if err != nil {
-		log.Printf("error sending response")
-	}
-}
+//func (app *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Request, username string) {
+//	if !auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)) {
+//		returnErrorMessage(w, http.StatusForbidden, errors.New("forbidden"))
+//		return
+//	}
+//
+//	device := app.getDevice(username)
+//	if device == nil {
+//		returnErrorMessage(w, http.StatusNotFound, errors.New("device not found"))
+//		return
+//	}
+//
+//	//ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
+//	//ccd := openvpn.ParseCcd(ccdDir, username)
+//	err := returnJson(w, device.Ccd)
+//	if err != nil {
+//		log.Printf("error sending response")
+//	}
+//}

@@ -101,16 +101,47 @@ func (app *OvpnAdmin) exportPublicPreferences() *model.ConfigPublicPreferences {
 	return preferences
 }
 
-func (app *OvpnAdmin) handleConfig(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) handleConfigCommand(w http.ResponseWriter, r *http.Request) {
+	log.Printf("config %s, %s", r.Method, r.URL.Path)
 	if enableCors(&w, r) {
 		return
 	}
+
+	if r.URL.Path == "/api/config" && r.Method == "GET" {
+		app.showUserConfig(w, r)
+		return
+	}
+
+	if r.URL.Path == "/api/config/settings/save" {
+		app.postServerConfig(w, r)
+		return
+	}
+
+	if r.URL.Path == "/api/config/preferences/save" && r.Method == "POST" {
+		app.postPreferences(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/config/admin/") {
+		app.handleAdminAccount(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/config/api-key/") {
+		app.handleApiKey(w, r)
+		return
+	}
+
+	returnErrorMessage(w, http.StatusNotFound, errors.New("path not found"))
+}
+
+func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 
 	//log.Printf("config %v", app.serverConf)
 	configPublic := new(model.ConfigPublic)
 	configPublic.Openvpn.Url = ""
 
-	ok, jwtUsername := auth.JwtUsername(app.applicationPreferences.JwtData, getAuthCookie(r))
+	ok, jwtUsername := auth.JwtUsername(app.applicationPreferences.JwtData, r)
 	if ok {
 		configPublic.User = auth.GetUserProfile(&app.applicationPreferences, jwtUsername)
 		configPublic.Openvpn.Settings = app.exportPublicSettings()
@@ -137,11 +168,7 @@ func (app *OvpnAdmin) restartServer() error {
 
 func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 
-	if enableCors(&w, r) {
-		return
-	}
-
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		returnErrorMessage(w, http.StatusForbidden, errors.New("Access denied"))
 		return
 	}

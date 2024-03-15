@@ -9,14 +9,14 @@ import (
 	"text/template"
 )
 
-func (app *OvpnAdmin) buildClientConf(w http.ResponseWriter, r *http.Request, username string) {
+func (app *OvpnAdmin) buildClientOvpnConfigFile(w http.ResponseWriter, r *http.Request, username string) {
 	//for name, values := range r.Header {
 	//	for _, value := range values {
 	//		fmt.Printf("%s: %s\n", name, value)
 	//	}
 	//	//log.Printf("header %v", values)
 	//}
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		credentials := getBasicAuth(r)
 		if apiKey := auth.HasValidApiKey(app.applicationPreferences.ApiKeys, credentials); apiKey == nil {
 			if len(credentials) != 0 {

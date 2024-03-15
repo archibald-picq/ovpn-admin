@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
+	"net/http"
 )
 
 type Roles struct {
@@ -12,6 +13,19 @@ type Roles struct {
 type Claims struct {
 	jwt.StandardClaims
 	Roles Roles `json:"roles"`
+}
+
+func getAuthCookie(r *http.Request) string {
+	for _, c := range r.Cookies() {
+		if c.Name == "auth" {
+			return c.Value
+		}
+	}
+	return ""
+}
+
+func HasReadRole(jwtData []byte, r *http.Request) bool {
+	return JwtHasReadRole(jwtData, getAuthCookie(r))
 }
 
 func JwtHasReadRole(jwtData []byte, auth string) bool {
@@ -65,7 +79,8 @@ func JwtHasReadRole(jwtData []byte, auth string) bool {
 	return false
 }
 
-func JwtUsername(jwtData []byte, auth string) (bool, string) {
+func JwtUsername(jwtData []byte, r *http.Request) (bool, string) {
+	auth := getAuthCookie(r)
 	if len(auth) <= 0 {
 		return false, ""
 	}

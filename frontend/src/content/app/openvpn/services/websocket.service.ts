@@ -36,7 +36,7 @@ export class WebsocketService {
             if (this.server?.readyState === 1) {
                 this.server.send(JSON.stringify({action: 'register', data: {stream: streamName}}));
             } else {
-                console.warn('not connected to register stream', streamName);
+                console.warn('not yet connected to register stream "'+streamName+'"');
             }
         }
         this.streams[streamName].push(callback);
@@ -80,7 +80,7 @@ export class WebsocketService {
         }
         this.shouldReconnect = true;
 
-        const url = (this.url || this.getLocalUrl()).replace(/^http/, 'ws')+'/api/ws';
+        const url = this.getUrl();
         console.warn('connect to ovpn-admin ws at', url);
         // console.warn('WS url', url);
         this.server = new WebSocket(url, this.protocol);
@@ -110,9 +110,8 @@ export class WebsocketService {
         try {
             // console.warn('message.data: ', typeof message.data, message.data);
             obj = JSON.parse(message.data);
-        }
-        catch(e: any) {
-            console.warn('Unparsable payload "'+message+'": ', e.message);
+        } catch (e: any) {
+            console.warn('Unparsable payload "' + message + '": ', e.message);
             return;
         }
         // console.info('obj', obj);
@@ -152,7 +151,7 @@ export class WebsocketService {
     }
 
     private onopen() {
-        // console.warn('opended');
+        console.warn('connected to', this.getUrl());
         // Object.values(this.streams).forEach((stream) => {
         //     stream.status = 'opened';
         // });
@@ -204,6 +203,10 @@ export class WebsocketService {
 
     private send(obj: {}) {
         this.server?.send(JSON.stringify(obj));
+    }
+
+    private getUrl(): string {
+        return (this.url ? this.url : this.getLocalUrl()).replace(/^http/, 'ws')+'/api/ws';
     }
 
     private getLocalUrl(): string {

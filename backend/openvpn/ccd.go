@@ -118,18 +118,19 @@ func RenderIndexTxt(data []*Certificate) []byte {
 	return []byte(indexTxt)
 }
 
-func ParseCcd(ccdDir string, username string) Ccd {
+func ParseCcd(ccdDir string, username string) *Ccd {
+	if !shell.FileExist(ccdDir + "/" + username) {
+		return nil
+	}
+	txtLinesArray := strings.Split(shell.ReadFile(ccdDir+"/"+username), "\n")
+	if len(txtLinesArray) == 0 {
+		return nil
+	}
+
 	ccd := Ccd{}
 	ccd.ClientAddress = "dynamic"
 	ccd.CustomRoutes = []Route{}
 	ccd.CustomIRoutes = []Route{}
-
-	var txtLinesArray []string
-
-	//log.Warnf("reading ccd \"%s\"", *ccdDir + "/" + username)
-	if shell.FileExist(ccdDir + "/" + username) {
-		txtLinesArray = strings.Split(shell.ReadFile(ccdDir+"/"+username), "\n")
-	}
 
 	for _, v := range txtLinesArray {
 		parts := strings.SplitN(v, "#", 2)
@@ -157,12 +158,12 @@ func ParseCcd(ccdDir string, username string) Ccd {
 					Description: strings.Trim(description, " "),
 				})
 			} else {
-				log.Printf("ignored ccd line in \"%s\": \"%s\"", username, v)
+				log.Printf("ignored ccd line for \"%s\": \"%s\"", username, v)
 			}
 		}
 	}
 
-	return ccd
+	return &ccd
 }
 
 func BuildCcd(ccd Ccd, serverMask string) []byte {
@@ -192,8 +193,8 @@ func BuildCcd(ccd Ccd, serverMask string) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
-func UpdateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, serverMask string, ccd Ccd, username string) error {
-	err := ValidateCcd(easyDirPath, ccdDir, openvpnNetwork, ccd, username)
+func UpdateCcd(ccdDir string, openvpnNetwork string, serverMask string, ccd Ccd, username string, existingCcd []*Ccd) error {
+	err := ValidateCcd(openvpnNetwork, ccd, existingCcd)
 	if err != nil {
 		return err
 	}
@@ -205,15 +206,15 @@ func UpdateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, serverM
 	return nil
 }
 
-func ValidateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, ccd Ccd, username string) error {
-	certs := IndexTxtParserCertificate(shell.ReadFile(easyDirPath + "/pki/index.txt"))
+func ValidateCcd(openvpnNetwork string, ccd Ccd, existingCcd []*Ccd) error {
 	if ccd.ClientAddress != "dynamic" && len(ccd.ClientAddress) > 0 {
 		_, ovpnNet, err := net.ParseCIDR(openvpnNetwork)
 		if err != nil {
 			return err
 		}
 
-		if !checkStaticAddressIsFree(ccdDir, certs, ccd.ClientAddress, username) {
+		log.Printf("check clientAddress is free %v", ccd.ClientAddress)
+		if !checkStaticAddressIsFree(ccd.ClientAddress, existingCcd) {
 			return errors.New(fmt.Sprintf("ClientAddress \"%s\" already assigned to another user", ccd.ClientAddress))
 		}
 
@@ -239,13 +240,10 @@ func ValidateCcd(easyDirPath string, ccdDir string, openvpnNetwork string, ccd C
 	return nil
 }
 
-func checkStaticAddressIsFree(ccdDir string, certs []*Certificate, staticAddress string, username string) bool {
-	for _, client := range certs {
-		if client.Username != username {
-			ccd := ParseCcd(ccdDir, client.Username)
-			if ccd.ClientAddress == staticAddress {
-				return false
-			}
+func checkStaticAddressIsFree(staticAddress string, existingCcd []*Ccd) bool {
+	for _, existing := range existingCcd {
+		if existing.ClientAddress == staticAddress {
+			return false
 		}
 	}
 	return true

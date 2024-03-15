@@ -18,8 +18,7 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
-
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		returnErrorMessage(w, http.StatusUnauthorized, errors.New("User not authorized to create certificate"))
 		return
 	}
@@ -54,7 +53,7 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 
 func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request, username string) {
 
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -71,7 +70,7 @@ func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request, 
 func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request, username string) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
 
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -86,7 +85,7 @@ func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *OvpnAdmin) userDeleteHandler(w http.ResponseWriter, r *http.Request, username string) {
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -110,7 +109,7 @@ func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -139,7 +138,7 @@ func (app *OvpnAdmin) userChangePasswordHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}

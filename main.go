@@ -121,6 +121,13 @@ func returnJson(w http.ResponseWriter, v any) error {
 	return err
 }
 
+func returnText(w http.ResponseWriter, v string) error {
+	w.Header().Set("Content-Type", "application/text")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write([]byte(v))
+	return err
+}
+
 var app OvpnAdmin
 
 func main() {
@@ -170,9 +177,9 @@ func main() {
 	upgrader.CheckOrigin = oAdmin.checkWebsocketOrigin
 	upgrader.Subprotocols = []string{"ovpn"}
 	// initial device load
-	for _, cert := range openvpn.IndexTxtParserCertificate(shell.ReadFile(*easyrsaDirPath + "/pki/index.txt")) {
+	for _, cert := range openvpn.IndexTxtParserCertificate(*easyrsaDirPath + "/pki") {
 		if cert.Username != oAdmin.serverConf.MasterCn {
-			oAdmin.updateDeviceByCertificate(cert)
+			oAdmin.createOrUpdateDeviceByCertificate(cert)
 		}
 	}
 	oAdmin.triggerUpdateChan = make(chan *model.Device)
@@ -180,15 +187,19 @@ func main() {
 
 	staticDir, _ := fs.Sub(content, "frontend/static")
 	embedFs := http.FS(staticDir)
-	http.HandleFunc("/api/ws", oAdmin.websocket)
-	http.HandleFunc("/api/config", oAdmin.handleConfig)
-	http.HandleFunc("/api/config/settings/save", oAdmin.postServerConfig)
-	http.HandleFunc("/api/config/preferences/save", oAdmin.postPreferences)
-	http.HandleFunc("/api/config/admin/", oAdmin.handleAdminAccount)
-	http.HandleFunc("/api/config/api-key/", oAdmin.handleApiKey)
+	http.HandleFunc("/api/ws", oAdmin.handleWebsocketCommand)
 	http.HandleFunc("/api/authenticate", oAdmin.authenticate)
 	http.HandleFunc("/api/logout", oAdmin.logout)
+	http.HandleFunc("/api/config", oAdmin.handleConfigCommand)
+	http.HandleFunc("/api/config/", oAdmin.handleConfigCommand)
+	http.HandleFunc("/api/openvpn", oAdmin.handleOpenvpnCommand)
+	http.HandleFunc("/api/openvpn/", oAdmin.handleOpenvpnCommand)
+	//http.HandleFunc("/api/config/preferences/save", oAdmin.postPreferences)
+	//http.HandleFunc("/api/config/admin/", oAdmin.handleAdminAccount)
+	//http.HandleFunc("/api/config/api-key/", oAdmin.handleApiKey)
+	http.HandleFunc("/api/user", oAdmin.handleUserCommand)
 	http.HandleFunc("/api/user/", oAdmin.handleUserCommand)
+	http.HandleFunc("/api/node", oAdmin.handleNodeCommand)
 	http.HandleFunc("/api/node/", oAdmin.handleNodeCommand)
 
 	http.Handle(*metricsPath, promhttp.HandlerFor(oAdmin.promRegistry, promhttp.HandlerOpts{}))
@@ -211,15 +222,6 @@ func (app *OvpnAdmin) catchAll(embedFs http.FileSystem, w http.ResponseWriter, r
 
 	httpFS := http.FileServer(embedFs)
 	httpFS.ServeHTTP(w, r)
-}
-
-func getAuthCookie(r *http.Request) string {
-	for _, c := range r.Cookies() {
-		if c.Name == "auth" {
-			return c.Value
-		}
-	}
-	return ""
 }
 
 func getBasicAuth(r *http.Request) string {

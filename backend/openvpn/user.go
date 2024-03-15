@@ -76,7 +76,7 @@ func RevokeCertificate(
 }
 
 func UserDelete(easyrsaBinPath string, easyrsaDirPath string, certificate *Certificate) error {
-	all := IndexTxtParserCertificate(shell.ReadFile(easyrsaDirPath + "/pki/index.txt"))
+	all := IndexTxtParserCertificate(easyrsaDirPath + "/pki")
 	for _, u := range all {
 		if u.Username == certificate.Username {
 			uniqHash := strings.Replace(uuid.New().String(), "-", "", -1)
@@ -105,8 +105,8 @@ func chmodFix(easyrsaDirPath string) {
 	}
 }
 
-func UserUnrevoke(easyrsaBinPath, easyrsaDirPath string, authByPassword bool, authDatabase string, client *Certificate) error {
-	all := IndexTxtParserCertificate(shell.ReadFile(easyrsaDirPath + "/pki/index.txt"))
+func UserUnrevoke(easyrsaBinPath, pkiPath string, easyrsaDirPath string, authByPassword bool, authDatabase string, client *Certificate) error {
+	all := IndexTxtParserCertificate(pkiPath)
 	for idx, cert := range all {
 		if cert.Username == client.Username {
 			log.Printf("unrevoke %v", *client)
@@ -137,8 +137,8 @@ func UserUnrevoke(easyrsaBinPath, easyrsaDirPath string, authByPassword bool, au
 	return errors.New("certificate not found")
 }
 
-func UserRotate(easyrsaBinPath string, easyrsaDirPath string, authByPassword bool, authDatabase string, username string, newPassword string, certificate *Certificate) error {
-	all := IndexTxtParserCertificate(shell.ReadFile(easyrsaDirPath + "/pki/index.txt"))
+func UserRotate(easyrsaBinPath string, pkiPath string, easyrsaDirPath string, authByPassword bool, authDatabase string, username string, newPassword string, certificate *Certificate) error {
+	all := IndexTxtParserCertificate(pkiPath)
 	for _, cert := range all {
 		if cert.Username == certificate.Username {
 

@@ -18,7 +18,7 @@ func (app *OvpnAdmin) apiConnectionKill(w http.ResponseWriter, r *http.Request, 
 	//	return
 	//}
 
-	if hasReadRole := auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)); !hasReadRole {
+	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}

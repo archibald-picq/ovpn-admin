@@ -58,7 +58,7 @@ type OvpnConfig struct {
 	tunIpv6                    bool
 	ecdhCurve                  string // prime256v1
 	TlsCrypt                   string // tls-crypt.key
-	crlVerify                  string // crl.pem
+	CrlVerify                  string // crl.pem
 	Auth                       string // SHA256
 	Cipher                     string // AES-128-GCM
 	dataCiphers                string // AES-128-GCM
@@ -202,7 +202,7 @@ func parseServerConfLine(config *OvpnConfig, line string, commented bool) {
 	case key == "tls-crypt":
 		config.TlsCrypt = getValueWithoutComment(line)
 	case key == "crl-verify":
-		config.crlVerify = getValueWithoutComment(line)
+		config.CrlVerify = getValueWithoutComment(line)
 	case key == "auth":
 		config.Auth = getValueWithoutComment(line)
 	case key == "cipher":
@@ -476,9 +476,9 @@ func BuildConfig(config OvpnConfig) []byte {
 	if len(config.TlsCrypt) > 0 {
 		lines = append(lines, fmt.Sprintf("tls-crypt %s", config.TlsCrypt))
 	}
-	if len(config.crlVerify) > 0 {
-		if _, err := os.Stat(config.crlVerify); err == nil {
-			lines = append(lines, fmt.Sprintf("crl-verify %s", config.crlVerify))
+	if len(config.CrlVerify) > 0 {
+		if _, err := os.Stat(config.CrlVerify); err == nil {
+			lines = append(lines, fmt.Sprintf("crl-verify %s", config.CrlVerify))
 		}
 	}
 	if len(config.Auth) > 0 {

@@ -14,10 +14,6 @@ import (
 func (app *OvpnAdmin) handleApiKey(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s\n", r.RemoteAddr, r.RequestURI)
 
-	if enableCors(&w, r) {
-		return
-	}
-
 	log.Printf("%s api key %s", r.Method, r.URL)
 	regId := regexp.MustCompile("^/api/config/api-key/(.*)$")
 

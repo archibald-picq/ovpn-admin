@@ -5,6 +5,7 @@ import (
 	"rpiadm/backend/model"
 	"rpiadm/backend/openvpn"
 	"rpiadm/backend/rpi"
+	"rpiadm/backend/shell"
 	"strings"
 	"time"
 
@@ -114,7 +115,7 @@ func (app *OvpnAdmin) updateCertificateStats() {
 
 			ovpnClientCertificateExpire.WithLabelValues(line.Certificate.Identity).Set(float64((parseDateToUnix(stringDateFormat, line.Certificate.ExpirationDate) - apochNow) / 3600 / 24))
 
-			app.updateDeviceByCertificate(line.Certificate)
+			app.createOrUpdateDeviceByCertificate(line.Certificate)
 
 		} else {
 			ovpnServerCertExpire.Set(float64((parseDateToUnix(stringDateFormat, line.Certificate.ExpirationDate) - apochNow) / 3600 / 24))
@@ -136,7 +137,7 @@ func (app *OvpnAdmin) updateCertificateStats() {
 	ovpnUniqClientsConnected.Set(float64(connectedUniqUsers))
 }
 
-func (app *OvpnAdmin) updateDeviceByCertificate(certificate *openvpn.Certificate) {
+func (app *OvpnAdmin) createOrUpdateDeviceByCertificate(certificate *openvpn.Certificate) {
 	for idx, existing := range app.clients {
 		if existing.Username == certificate.Username {
 			app.clients[idx].Certificate = certificate
@@ -146,6 +147,13 @@ func (app *OvpnAdmin) updateDeviceByCertificate(certificate *openvpn.Certificate
 			return
 		}
 	}
+	app.createDeviceByCertificate(certificate)
+}
+
+func (app *OvpnAdmin) createDeviceByCertificate(certificate *openvpn.Certificate) {
+	ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
+	ccd := openvpn.ParseCcd(ccdDir, certificate.Username)
+
 	app.clients = append(app.clients, &model.Device{
 		Username:         certificate.Username,
 		ConnectionStatus: "",
@@ -153,27 +161,29 @@ func (app *OvpnAdmin) updateDeviceByCertificate(certificate *openvpn.Certificate
 		RpiState:         nil,
 		Connections:      make([]*openvpn.VpnConnection, 0),
 		Rpic:             make([]*rpi.RpiConnection, 0),
+		Ccd:              ccd,
 	})
 }
 
 func (app *OvpnAdmin) synchroConnections(conns []*openvpn.VpnConnection) {
-	//count := 0
+	// reset all connection, so we only have last "status 3" actives connections
 	for _, client := range app.clients {
-		if len(client.Connections) > 0 {
-			log.Printf("reset %d connections for %s", len(client.Connections), client.Username)
-		}
+		//if len(client.Connections) > 0 {
+		//	log.Printf("reset %d connections for %s", len(client.Connections), client.Username)
+		//}
 		client.Connections = make([]*openvpn.VpnConnection, 0)
 	}
 	for _, conn := range conns {
 		var found = false
 		for _, client := range app.clients {
 			if client.Username == conn.CommonName {
-				log.Printf("apply connections for %s", client.Username)
+				//log.Printf("apply connections for %s", client.Username)
 				client.Connections = append(client.Connections, conn)
 				found = true
 			}
 		}
-		if !found {
+		if !found && conn.CommonName != "UNDEF" {
+			// TODO: log the IP wanting to connect
 			log.Printf("Can't find certificate for connection %s from %s", conn.CommonName, conn.RealAddress)
 		}
 	}
@@ -208,7 +218,7 @@ func (app *OvpnAdmin) connectToManagementInterface() {
 	go func() {
 		for {
 			time.Sleep(time.Duration(28) * time.Second)
-			log.Printf("send status 3")
+			//log.Printf("send status 3")
 			app.mgmt.SendManagementCommand("status 3")
 		}
 	}()
@@ -226,7 +236,7 @@ func (app *OvpnAdmin) connectToManagementInterface() {
 		app.mgmt.Conn = conn
 		go func() {
 			app.mgmt.SendManagementCommand("version")
-			log.Printf("send status 3")
+			//log.Printf("send status 3")
 			app.mgmt.SendManagementCommand("status 3")
 			resp := app.mgmt.SendManagementCommandWaitResponse("bytecount 5")
 			log.Printf("register bytecount 5 returns: %s", resp)

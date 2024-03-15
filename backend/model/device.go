@@ -12,4 +12,5 @@ type Device struct {
 	RpiState         *rpi.RpiState            `json:"rpiState,omitempty"`
 	Connections      []*openvpn.VpnConnection `json:"connections"`
 	Rpic             []*rpi.RpiConnection     `json:"rpic"`
+	Ccd              *openvpn.Ccd             `json:"ccd"`
 }

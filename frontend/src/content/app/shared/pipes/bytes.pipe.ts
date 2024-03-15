@@ -5,7 +5,7 @@ import { Pipe, PipeTransform } from '@angular/core';
 })
 export class BytesPipe implements PipeTransform {
 
-  public transform(bytes: number, si: false, dp=1): string {
+  public transform(bytes: number, si: boolean, dp= 1): string {
     const thresh = si ? 1000 : 1024;
 
     if (Math.abs(bytes) < thresh) {

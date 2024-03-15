@@ -31,7 +31,7 @@ func (app *OvpnAdmin) userRevoke(username string) error {
 
 	client.Certificate.Flag = "R"
 	client.Certificate.RevocationDate = time.Now().Format(time.RFC3339)
-	app.updateDeviceByCertificate(client.Certificate)
+	app.createOrUpdateDeviceByCertificate(client.Certificate)
 	app.updateCertificateStats()
 
 	if client != nil {
@@ -53,14 +53,14 @@ func (app *OvpnAdmin) userUnrevoke(username string) error {
 		return errors.New(fmt.Sprintf("User \"%s\" not found", username))
 	}
 
-	err := openvpn.UserUnrevoke(*easyrsaBinPath, *easyrsaDirPath, *authByPassword, *authDatabase, client.Certificate)
+	err := openvpn.UserUnrevoke(*easyrsaBinPath, *easyrsaDirPath+"/pki", *easyrsaDirPath, *authByPassword, *authDatabase, client.Certificate)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Fail to unrevoke certificat for \"%s\": ", err.Error()))
 	}
 
 	client.Certificate.Flag = "V"
 	client.Certificate.RevocationDate = ""
-	app.updateDeviceByCertificate(client.Certificate)
+	app.createOrUpdateDeviceByCertificate(client.Certificate)
 	app.updateCertificateStats()
 	return nil
 }
@@ -72,6 +72,7 @@ func (app *OvpnAdmin) userRotate(username string, newPassword string) error {
 	}
 	openvpn.UserRotate(
 		*easyrsaBinPath,
+		*easyrsaDirPath+"/pki",
 		*easyrsaDirPath,
 		*authByPassword,
 		*authDatabase,

@@ -16,7 +16,7 @@ type AuthenticatePayload struct {
 }
 
 func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
-	ok, _ := auth.JwtUsername(app.applicationPreferences.JwtData, getAuthCookie(r))
+	ok, _ := auth.JwtUsername(app.applicationPreferences.JwtData, r)
 	if ok {
 		returnErrorMessage(w, http.StatusForbidden, errors.New("already authenticated"))
 		return

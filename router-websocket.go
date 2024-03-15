@@ -63,7 +63,7 @@ func removeRpi(s []*rpi.RpiConnection, i int) []*rpi.RpiConnection {
 	//s[i] = s[len(s)-1]
 	//return s[:len(s)-1]
 }
-func (app *OvpnAdmin) websocket(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) handleWebsocketCommand(w http.ResponseWriter, r *http.Request) {
 	//for k, v := range r.Header {
 	//	log.Printf( "Header field %q, Value %q\n", k, v)
 	//}
@@ -96,9 +96,9 @@ func (app *OvpnAdmin) websocket(w http.ResponseWriter, r *http.Request) {
 		}
 		wsSafe.Last = time.Now()
 		//switch messageType {
-		//case websocket.TextMessage:
+		//case handleWebsocketCommand.TextMessage:
 		//	log.Printf("recv (text): %s", bytes.TrimRight(message, "\n"))
-		//case websocket.BinaryMessage:
+		//case handleWebsocketCommand.BinaryMessage:
 		//	log.Printf("recv (binary): %s", message)
 		//}
 		app.handleWebsocketMessage(wsSafe, message)
@@ -140,7 +140,7 @@ func (app *OvpnAdmin) handleWebsocketMessage(conn *rpi.WsSafeConn, message []byt
 	//	app.handleHelloAction(conn, packet, *a)
 
 	default:
-		log.Printf("Unrecognized websocket action '%s'", packet.Action)
+		log.Printf("Unrecognized handleWebsocketCommand action '%s'", packet.Action)
 	}
 }
 
