@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"rpiadm/backend/auth"
 	"rpiadm/backend/openvpn"
-	"rpiadm/backend/shell"
 	"strings"
 )
 
@@ -40,6 +39,20 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	newCcd, err := app.applyCcd(device.Username, ccd)
+	if err != nil {
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	device.Ccd = newCcd
+	app.triggerBroadcastUser(device)
+	w.WriteHeader(http.StatusNoContent)
+}
+func (app *OvpnAdmin) removeCcd(commonName string) {
+	openvpn.RemoveCcd(app.serverConf, commonName)
+}
+
+func (app *OvpnAdmin) applyCcd(commonName string, ccd openvpn.Ccd) (*openvpn.Ccd, error) {
 	for i, _ := range ccd.CustomRoutes {
 		ccd.CustomRoutes[i].Description = strings.Trim(ccd.CustomRoutes[i].Description, " ")
 	}
@@ -47,26 +60,19 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 		ccd.CustomIRoutes[i].Description = strings.Trim(ccd.CustomIRoutes[i].Description, " ")
 	}
 
-	ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
-	openvpnNetwork := convertNetworkMaskCidr(app.serverConf.Server)
+	openvpnNetwork := openvpn.ConvertNetworkMaskCidr(app.serverConf.Server)
 	existingCcd := make([]*openvpn.Ccd, 0)
 	for _, client := range app.clients {
-		if client.Ccd != nil && client.Username != username {
+		if client.Ccd != nil && client.Username != commonName {
 			existingCcd = append(existingCcd, client.Ccd)
 		}
 	}
-	err = openvpn.UpdateCcd(ccdDir, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd, username, existingCcd)
-	// TODO: handle other options not exposed to the api
-	device.Ccd.ClientAddress = ccd.ClientAddress
-	device.Ccd.CustomRoutes = ccd.CustomRoutes
-	device.Ccd.CustomIRoutes = ccd.CustomIRoutes
-	app.triggerBroadcastUser(device)
-
+	err := openvpn.UpdateCcd(app.serverConf, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd, commonName, existingCcd)
 	if err != nil {
-		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
-		return
+		return nil, err
 	}
-	w.WriteHeader(http.StatusNoContent)
+	// TODO: handle other options not exposed to the api
+	return &ccd, nil
 }
 
 //func (app *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Request, username string) {

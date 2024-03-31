@@ -287,7 +287,7 @@ func (mgmt *OpenVPNmgmt) HandleBytecountUpdate(line string) {
 			//log.Infof("duration between sample", duration)
 			c.SpeedBytesSent = (bytesSent - c.BytesSent) * 1000 / duration
 			c.SpeedBytesReceived = (bytesReceive - c.BytesReceived) * 1000 / duration
-			//log.Infof("duration [%s] between sample %d, => %d, %d", u.Username, duration, c.SpeedBytesSent, c.SpeedBytesReceived)
+			//log.Infof("duration [%s] between sample %d, => %d, %d", u.CommonName, duration, c.SpeedBytesSent, c.SpeedBytesReceived)
 		}
 		c.BytesSent = bytesSent
 		c.BytesReceived = bytesReceive

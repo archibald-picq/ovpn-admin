@@ -269,7 +269,7 @@ func (app *OvpnAdmin) handleWebsocketAuth(conn *rpi.WsSafeConn, packet cmd.Webso
 	if conn.Ws == nil {
 		return
 	}
-	//log.Errorf("Try to log as %s", data.Username)
+	//log.Errorf("Try to log as %s", data.CommonName)
 	device := app.getDevice(data.Name)
 	if device == nil {
 		log.Printf("Can't find device %s\n", data.Name)

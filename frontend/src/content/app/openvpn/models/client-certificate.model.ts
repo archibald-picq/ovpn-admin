@@ -137,7 +137,7 @@ export class ClientCertificate implements IClientCertificate {
 
 	}
 
-	public static hydrate(obj: IClientCertificate): IClientCertificate {
+	public static hydrate(obj: IClientCertificate): ClientCertificate {
 		return new ClientCertificate(
 			obj.username,
 			obj.certificate ? Certificate.hydrate(obj.certificate) : undefined,

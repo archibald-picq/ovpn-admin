@@ -5,7 +5,6 @@ import (
 	"rpiadm/backend/model"
 	"rpiadm/backend/openvpn"
 	"rpiadm/backend/rpi"
-	"rpiadm/backend/shell"
 	"strings"
 	"time"
 
@@ -59,10 +58,9 @@ func (app *OvpnAdmin) addClientConnection(client *openvpn.VpnConnection) {
 
 	updatedUsers := []*model.Device{device}
 	app.broadcast(WebsocketPacket{Stream: "user.update", Data: updatedUsers})
-	//log.Warnf("updating single user %s", user.Username)
+	//log.Warnf("updating single user %s", user.CommonName)
 	app.broadcast(WebsocketPacket{Stream: "user.update." + device.Username, Data: updatedUsers[0]})
 	app.broadcast(WebsocketPacket{Stream: "user.update." + device.Username + ".connections", Data: updatedUsers[0].Connections})
-	//oAdmin.activeConnections = append(oAdmin.activeConnections, client)
 }
 
 func (app *OvpnAdmin) getUserConnection(user string, clientId int64) (*model.Device, *openvpn.VpnConnection) {
@@ -81,7 +79,7 @@ func (app *OvpnAdmin) getUserConnection(user string, clientId int64) (*model.Dev
 func (app *OvpnAdmin) getConnection(clientId int64) (*model.Device, *openvpn.VpnConnection) {
 	//log.Printf("search connection %d in %d clients", clientId, len(app.clients))
 	for _, u := range app.clients {
-		//log.Printf(" - client %s", u.Username)
+		//log.Printf(" - client %s", u.CommonName)
 		for _, c := range u.Connections {
 			//log.Printf("   - conn %d", c.ClientId)
 			if c.ClientId == clientId {
@@ -143,7 +141,7 @@ func (app *OvpnAdmin) createOrUpdateDeviceByCertificate(certificate *openvpn.Cer
 			app.clients[idx].Certificate = certificate
 			app.clients[idx].Certificate.Flag = certificate.Flag
 			app.clients[idx].Certificate.DeletionDate = certificate.DeletionDate
-			//log.Printf("update certificate", app.clients[idx].Certificate)
+			log.Printf("update certificate", app.clients[idx].Certificate)
 			return
 		}
 	}
@@ -151,8 +149,7 @@ func (app *OvpnAdmin) createOrUpdateDeviceByCertificate(certificate *openvpn.Cer
 }
 
 func (app *OvpnAdmin) createDeviceByCertificate(certificate *openvpn.Certificate) {
-	ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
-	ccd := openvpn.ParseCcd(ccdDir, certificate.Username)
+	ccd := openvpn.ParseCcd(app.serverConf, certificate.Username)
 
 	app.clients = append(app.clients, &model.Device{
 		Username:         certificate.Username,
@@ -169,7 +166,7 @@ func (app *OvpnAdmin) synchroConnections(conns []*openvpn.VpnConnection) {
 	// reset all connection, so we only have last "status 3" actives connections
 	for _, client := range app.clients {
 		//if len(client.Connections) > 0 {
-		//	log.Printf("reset %d connections for %s", len(client.Connections), client.Username)
+		//	log.Printf("reset %d connections for %s", len(client.Connections), client.CommonName)
 		//}
 		client.Connections = make([]*openvpn.VpnConnection, 0)
 	}
@@ -177,7 +174,7 @@ func (app *OvpnAdmin) synchroConnections(conns []*openvpn.VpnConnection) {
 		var found = false
 		for _, client := range app.clients {
 			if client.Username == conn.CommonName {
-				//log.Printf("apply connections for %s", client.Username)
+				//log.Printf("apply connections for %s", client.CommonName)
 				client.Connections = append(client.Connections, conn)
 				found = true
 			}
@@ -207,7 +204,7 @@ func (app *OvpnAdmin) connectToManagementInterface() {
 			if len(app.updatedUsers) > 0 {
 				app.broadcast(WebsocketPacket{Stream: "user.update", Data: app.updatedUsers})
 				for i := range app.updatedUsers {
-					//log.Warnf("updating single user %s", app.updatedUsers[i].Username)
+					//log.Warnf("updating single user %s", app.updatedUsers[i].CommonName)
 					app.broadcast(WebsocketPacket{Stream: "user.update." + app.updatedUsers[i].Username, Data: app.updatedUsers[i]})
 					app.broadcast(WebsocketPacket{Stream: "user.update." + app.updatedUsers[i].Username + ".connections", Data: app.updatedUsers[i].Connections})
 				}

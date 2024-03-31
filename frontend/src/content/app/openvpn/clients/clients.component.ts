@@ -11,7 +11,7 @@ import {
 } from '../modals/confirm-revoke-client-certificate.component';
 import { OpenvpnService } from '../services/openvpn.service';
 import { saveAs } from 'file-saver';
-import { CreateClientCertificateComponent } from '../modals/create-client-certificate.component';
+import {CreateClientCertificateComponent, EditCertificatInfo} from '../modals/create-client-certificate.component';
 import {
     ConfirmDeleteClientCertificateComponent,
     DeleteClientOptions
@@ -228,6 +228,13 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         try {
             const newClient = await this.modalService.open(CreateClientCertificateComponent, {
                 centered: true,
+                injector: Injector.create({
+                    providers:[{
+                        provide: EditCertificatInfo,
+                        useValue: new EditCertificatInfo(undefined, 'save'),
+                    }],
+                    parent: this.injector,
+                }),
             }).result;
             console.warn('client updated', newClient);
             this.clients.push(newClient);
@@ -269,7 +276,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         return entity.replace(/^\//, '').replace(/\//g, "\n");
     }
 
-    public downloadCsv(): void {
+    public buildCsv(): void {
         // console.warn('download csv');
         // const clientConfigFile = await this.openvpnService.loadClientConfig(client);
         // console.warn('client list', this.clients);

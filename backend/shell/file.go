@@ -18,6 +18,10 @@ func ReadFile(path string) string {
 	return string(content)
 }
 
+func DeleteFile(path string) error {
+	return os.Remove(path)
+}
+
 func FileExist(path string) bool {
 	var _, err = os.Stat(path)
 

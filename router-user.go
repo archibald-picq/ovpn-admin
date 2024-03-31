@@ -71,12 +71,6 @@ func (app *OvpnAdmin) handleUserCommand(w http.ResponseWriter, r *http.Request) 
 }
 
 func (app *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request) {
-	//log.Info(r.RemoteAddr, " ", r.RequestURI)
-
-	if enableCors(&w, r) {
-		return
-	}
-
 	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return

@@ -1,0 +1,62 @@
+:host {
+  display: block;
+  margin: 20px 20px 90px;
+}
+
+.container {
+  margin: 10px;
+}
+
+.is-unknown {
+  background: #eaeaea;
+}
+
+.is-ready {
+  background: #40b50026;
+}
+
+.is-invalid {
+  background: #fd803d45;
+}
+
+.is-pending {
+  background: blue;
+}
+
+.is-error {
+  background: #ff834a63;
+}
+
+.button-wrapper {
+  position: fixed;
+  bottom: 0;
+  background: #fff;
+  display: block;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  box-shadow: 0 0 15px rgb(0 0 0 / 11%);
+  text-align: center;
+  min-height: 70px;
+
+  .error-container {
+
+  }
+  .buttons {
+    position: absolute;
+    top: 15px;
+    bottom: 15px;
+    left: 15px;
+    right: 15px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .next-buttons {
+
+  }
+  .back-buttons {
+
+  }
+}

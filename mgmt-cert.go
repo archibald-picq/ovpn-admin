@@ -24,7 +24,7 @@ func (app *OvpnAdmin) userRevoke(username string) error {
 		return errors.New(fmt.Sprintf("User \"%s\" not found", username))
 	}
 
-	err := openvpn.RevokeCertificate(*easyrsaBinPath, *easyrsaDirPath, *authByPassword, *authDatabase, client.Certificate)
+	err := openvpn.RevokeCertificate(app.easyrsa, *authByPassword, *authDatabase, client.Certificate)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Fail to revoke certificat for \"%s\": ", err.Error()))
 	}
@@ -53,7 +53,7 @@ func (app *OvpnAdmin) userUnrevoke(username string) error {
 		return errors.New(fmt.Sprintf("User \"%s\" not found", username))
 	}
 
-	err := openvpn.UserUnrevoke(*easyrsaBinPath, *easyrsaDirPath+"/pki", *easyrsaDirPath, *authByPassword, *authDatabase, client.Certificate)
+	err := openvpn.UserUnrevoke(app.easyrsa, *authByPassword, *authDatabase, client.Certificate)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Fail to unrevoke certificat for \"%s\": ", err.Error()))
 	}
@@ -71,9 +71,7 @@ func (app *OvpnAdmin) userRotate(username string, newPassword string) error {
 		return errors.New(fmt.Sprintf("User \"%s\" not found\"", username))
 	}
 	openvpn.UserRotate(
-		*easyrsaBinPath,
-		*easyrsaDirPath+"/pki",
-		*easyrsaDirPath,
+		app.easyrsa,
 		*authByPassword,
 		*authDatabase,
 		username,
@@ -91,7 +89,7 @@ func (app *OvpnAdmin) userDelete(username string) error {
 		return errors.New(fmt.Sprintf("User \"%s\" not found\"", username))
 	}
 
-	if err := openvpn.UserDelete(*easyrsaBinPath, *easyrsaDirPath, client.Certificate); err != nil {
+	if err := openvpn.UserDelete(app.easyrsa, client.Certificate); err != nil {
 		return err
 	}
 

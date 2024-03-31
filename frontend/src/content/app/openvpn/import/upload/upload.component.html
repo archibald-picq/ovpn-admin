@@ -1,0 +1,26 @@
+<div class="mx-3">
+  <div>
+    <a [routerLink]="['../']">&laquo; Certificates list</a>
+  </div>
+  <div class="d-flex flex-row">
+    <h1 class="flex-grow-1">Import file</h1>
+    <div></div>
+  </div>
+</div>
+<form>
+  <div class="m-3 drop-zone" busFileInputDnd (fileDropped)="processFile($event)">
+    <input
+        id="file"
+        type="file"
+        class="input-file"
+        #file
+        [accept]="acceptMimeType"
+        (change)="processFile($event.target.files)"
+        [disabled]="loading"
+    />
+    <div class="visual">
+      <div class="icon">⇣</div>
+      <div>Clic to browse or drop a CSV file here</div>
+    </div>
+  </div>
+</form>

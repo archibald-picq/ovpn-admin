@@ -15,6 +15,9 @@ import {SETUP_ROUTES} from './setup/setup.route';
 import {IsConfigured} from './shared/resolver/is-configured.resolver';
 import {IsNotConfigured} from './shared/resolver/is-not-configured.resolver';
 import {SetupComponent} from './setup/setup.component';
+import {ImportComponent} from './import/import.component';
+import {ImportUploadComponent} from './import/upload/upload.component';
+import {ImportCreateComponent} from './import/create/create.component';
 
 @Injectable({ providedIn: 'root' })
 class ConfigResolve implements Resolve<OpenvpnConfig> {
@@ -84,6 +87,23 @@ export const OPENVPN_ROUTES: Route[] = [{
         {
             path: 'upload',
             component: UploadPageComponent,
+        },
+        {
+            path: 'import',
+            component: ImportComponent,
+            children: [
+                {
+                    path: '',
+                    component: ImportUploadComponent,
+                },
+                {
+                    path: 'create',
+                    component: ImportCreateComponent,
+                    resolve: {
+                        clients: ClientsResolve,
+                    },
+                },
+            ]
         },
         {
             path: 'logs',

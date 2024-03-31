@@ -25,7 +25,11 @@
                 <mat-icon>settings</mat-icon>
                 <span>Admin preferences</span>
             </button>
-            <button mat-menu-item (click)="downloadCsv()">
+            <button mat-menu-item [routerLink]="['./import']">
+                <mat-icon>upload</mat-icon>
+                <span>Upload CSV</span>
+            </button>
+            <button mat-menu-item (click)="buildCsv()">
                 <mat-icon>download</mat-icon>
                 <span>Download CSV</span>
             </button>

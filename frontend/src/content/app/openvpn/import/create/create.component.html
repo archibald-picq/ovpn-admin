@@ -1,0 +1,116 @@
+<table mat-table [dataSource]="dataSource" matSort (matSortChange)="sortData($event)" style="width: 100%" class="mat-elevation-z8">
+  <ng-container matColumnDef="creationStatus">
+    <th mat-header-cell *matHeaderCellDef mat-sort-header="status">Status</th>
+    <td mat-cell *matCellDef="let element">
+      <span [title]="element.lastError">
+        {{element.creationStatus}}
+      </span>
+    </td>
+  </ng-container>
+  <ng-container matColumnDef="commonName">
+    <th mat-header-cell *matHeaderCellDef mat-sort-header="commonName">Common&nbsp;Name</th>
+    <td mat-cell *matCellDef="let element">
+      <div>{{element.commonName}}</div>
+    </td>
+  </ng-container>
+  <ng-container matColumnDef="email">
+    <th mat-header-cell *matHeaderCellDef mat-sort-header="email">Email</th>
+    <td mat-cell *matCellDef="let element"> {{element.email}} </td>
+  </ng-container>
+  <ng-container matColumnDef="identity">
+    <th mat-header-cell *matHeaderCellDef mat-sort-header="identity">Identity</th>
+    <td mat-cell *matCellDef="let element">
+      <span>
+        <span *ngIf="element.country"><span>C=</span><td>{{element.country}}</td></span>
+        <span *ngIf="element.province"><span>ST=</span><span>{{element.province}}</span></span>
+        <span *ngIf="element.city"><span>L=</span><span>{{element.city}}</span></span>
+        <span *ngIf="element.organisation"><span>O=</span><span>{{element.organisation}}</span></span>
+        <span *ngIf="element.organisationUnit"><span>OU=</span><span>{{element.organisationUnit}}</span></span>
+      </span>
+    </td>
+  </ng-container>
+  <ng-container matColumnDef="staticAddress">
+    <th mat-header-cell *matHeaderCellDef mat-sort-header="staticAddress">Static address</th>
+    <td mat-cell *matCellDef="let element" class="px-1 text-nowrap">
+      <ng-container *ngIf="element.staticAddress">{{element.staticAddress}}</ng-container>
+      <ng-container *ngIf="element.creationStatus === 'exists'"
+          [ngTemplateOutlet]="existingIp"
+          [ngTemplateOutletContext]="{existing: findExisting(element), element: element}">
+      </ng-container>
+    </td>
+  </ng-container>
+<!--  <ng-container matColumnDef="expirationDate">-->
+<!--    <th mat-header-cell *matHeaderCellDef mat-sort-header="expirationDate">Expiration Date</th>-->
+<!--    <td mat-cell *matCellDef="let element" class="px-1"> {{element.expirationDate | date:'yyyy/MM/dd HH:mm:ss'}} </td>-->
+<!--  </ng-container>-->
+  <ng-container matColumnDef="actions">
+    <th mat-header-cell *matHeaderCellDef mat-sort-header="actions">Actions</th>
+    <td mat-cell *matCellDef="let element">
+<!--      <button mat-icon-button [disabled]="element.revocationDate" (click)="downloadOpenvpnConfig(element)">-->
+<!--        <mat-icon>download</mat-icon>-->
+<!--      </button>-->
+
+      <button mat-icon-button [disabled]="element.processing || element.creationStatus !== 'exists'" (click)="downloadOpenvpnConfig(element)">
+        <mat-icon>download</mat-icon>
+      </button>
+      <button mat-icon-button [matMenuTriggerFor]="menu">
+        <mat-icon>more_horiz</mat-icon>
+      </button>
+
+      <mat-menu #menu="matMenu">
+        <button mat-menu-item [disabled]="element.processing || element.creationStatus === 'exists'" (click)="setSkip(element)" *ngIf="!element.skip">
+          <mat-icon>cancel</mat-icon>
+          <span>skip</span>
+        </button>
+        <button mat-menu-item [disabled]="element.processing || element.creationStatus === 'exists'" (click)="editClient(element)">
+          <mat-icon>settings_ethernet</mat-icon>
+          <span>edit</span>
+        </button>
+        <button mat-menu-item [disabled]="element.processing || element.creationStatus !== 'ready'" (click)="createClient(element)">
+          <mat-icon>add_circle_outline</mat-icon>
+          <span>create</span>
+        </button>
+
+        <button mat-menu-item [disabled]="element.processing || element.creationStatus === 'exists'" (click)="setProcess(element)" *ngIf="element.skip">
+          <mat-icon>cancel</mat-icon>
+          <span>process</span>
+        </button>
+<!--        <button mat-menu-item *ngIf="element.revocationDate" (click)="unrevokeClientCertificate(element)">-->
+<!--          <mat-icon>redo</mat-icon>-->
+<!--          <span>unrevoke</span>-->
+<!--        </button>-->
+<!--        <button mat-menu-item *ngIf="element.revocationDate" (click)="deleteClientCertificate(element)">-->
+<!--          <mat-icon>delete</mat-icon>-->
+<!--          <span>delete</span>-->
+<!--        </button>-->
+<!--        <button mat-menu-item [disabled]="element.revocationDate" (click)="rotateClientCertificate(element)">-->
+<!--          <mat-icon>autorenew</mat-icon>-->
+<!--          <span>rotate</span>-->
+<!--        </button>-->
+      </mat-menu>
+    </td>
+  </ng-container>
+
+  <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+  <tr mat-row *matRowDef="let row; columns: displayedColumns;" [ngClass]="{'is-unknown': isUnknown(row), 'is-ready': isReady(row), 'is-invalid': isInvalid(row), 'is-pending': isPending(row), 'is-error': isError(row)}"></tr>
+
+</table>
+<div class="button-wrapper">
+  <div class="error-container">
+    <div class="error">{{error}}</div>
+  </div>
+  <div class="buttons">
+    <div class="back-buttons">
+      <button class="btn btn-outline-secondary" type="button" (click)="cancel($event)">Back</button>
+    </div>
+    <div class="next-buttons">
+      <button class="btn btn-primary" [disabled]="loading || !hasPendingChanges()" (click)="save()">Create all</button>
+    </div>
+  </div>
+</div>
+
+<ng-template #existingIp let-existing="existing" let-element="element">
+  <ng-container *ngIf="existing.ccd && existing.ccd.clientAddress !== 'dynamic'">
+    <div *ngIf="existing.ccd.clientAddress !== 'dynamic' && existing.ccd.clientAddress !== element.staticAddress">existing: {{existing.ccd?.clientAddress}}</div>
+  </ng-container>
+</ng-template>

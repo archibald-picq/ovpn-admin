@@ -5,12 +5,12 @@ import {IConnection} from '../models/client-certificate.interface';
 
 @Injectable()
 export class CsvService {
-  public build(clients: ClientCertificate[], separator = ';'): string[] {
+  public build(clients: ClientCertificate[], separator = ','): string[] {
     console.warn('clients', clients);
 
     const lines = [
       this.buildCsvLine(separator, [
-        'common_name',
+        'commonName',
         'country',
         'province',
         'city',
@@ -23,7 +23,6 @@ export class CsvService {
         'staticAddress',
         'customRoutes',
         'customIRoutes',
-        'connection',
       ]),
       ... clients.map(client => this.buildCsvLine(separator, [
         client.username,

@@ -42,6 +42,9 @@ import {EditApiKeyComponent} from './modals/edit-api-key.component';
 import {ConfirmDeleteApiKeyComponent} from './modals/confirm-delete-api-key.component';
 import {ApiKeyService} from './services/api-key.service';
 import {CsvService} from './services/csv.service';
+import {ImportUploadComponent} from './import/upload/upload.component';
+import {ImportComponent} from './import/import.component';
+import {ImportCreateComponent} from './import/create/create.component';
 
 @NgModule({
     declarations: [
@@ -59,6 +62,9 @@ import {CsvService} from './services/csv.service';
         ConfirmDeleteApiKeyComponent,
         ConfirmDeleteAdminAccountComponent,
         UploadPageComponent,
+        ImportComponent,
+        ImportUploadComponent,
+        ImportCreateComponent,
         LogPageComponent,
         ConfirmKillConnectionComponent,
         ConfigPageComponent,

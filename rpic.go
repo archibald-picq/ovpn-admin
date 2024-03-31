@@ -31,7 +31,7 @@ func (app *OvpnAdmin) autoUpdate() {
 		select {
 		case c := <-app.triggerUpdateChan:
 			if c != nil {
-				//log.Printf("update stat for specific device %s", c.Username)
+				//log.Printf("update stat for specific device %s", c.CommonName)
 				app.updateState(intervalCheck, c)
 			} else {
 				//log.Printf("update stat for all devices")
@@ -77,7 +77,7 @@ func (app *OvpnAdmin) calcNextTick(intervalCheck time.Duration) time.Duration {
 			//if expireAt < nextCheck {
 			//	nextCheck = expireAt
 			//}
-			//log.Printf(" - client %s, exires in %f seconds\n", client.Username, expireAt.Seconds())
+			//log.Printf(" - client %s, exires in %f seconds\n", client.CommonName, expireAt.Seconds())
 			if now.After(lastCheck.Add(expireAt)) {
 				log.Printf(" - client %s, expired %f seconds ago\n", client.Username, now.Sub(lastCheck.Add(expireAt)).Seconds())
 				return time.Duration(1 * time.Second)
@@ -97,7 +97,7 @@ func (app *OvpnAdmin) updateState(intervalCheck time.Duration, user *model.Devic
 		return
 	}
 	rpic := user.Rpic[0]
-	//log.Printf("check if %s as updated", user.Username)
+	//log.Printf("check if %s as updated", user.CommonName)
 	if user.RpiState == nil {
 		user.RpiState = new(rpi.RpiState)
 	}

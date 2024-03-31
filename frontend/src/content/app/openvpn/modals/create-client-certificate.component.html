@@ -3,10 +3,13 @@
     <button [disabled]="loading" type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
 </div>
 <div class="modal-body">
+    <div class="hint" *ngIf="showHint">
+        If you have many certificates to create, try the <a (click)="modal.dismiss()" [routerLink]="['./import']">mass import</a> feature.
+    </div>
     <form>
         <div class="mb-3">
             <label for="create-certificate-username">Common Name</label>
-            <input [disabled]="loading" id="create-certificate-username" name="username" class="form-control" [(ngModel)]="username" placeholder="homer">
+            <input [disabled]="loading" id="create-certificate-username" name="username" class="form-control" [(ngModel)]="commonName" placeholder="homer">
         </div>
         <div class="mb-3">
             <label for="create-certificate-organisation-email">Email</label>

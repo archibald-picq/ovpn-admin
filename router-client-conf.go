@@ -47,7 +47,7 @@ func (app *OvpnAdmin) buildClientOvpnConfigFile(w http.ResponseWriter, r *http.R
 		app.outboundIp.String(),
 		app.serverConf.MasterCn,
 		*serverConfFile,
-		*easyrsaDirPath,
+		app.easyrsa.EasyrsaDirPath,
 		app.getClientConfigTemplate(),
 		*authByPassword,
 		username,

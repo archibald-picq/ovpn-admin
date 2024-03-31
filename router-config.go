@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/seancfoley/ipaddress-go/ipaddr"
 	"log"
 	"net"
 	"net/http"
@@ -34,15 +33,6 @@ type ServerSavePayload struct {
 	DnsIpv6                    string          `json:"dnsIpv6"`
 }
 
-func convertNetworkMaskCidr(addrMask string) string {
-	parts := strings.Fields(addrMask)
-	if len(parts) <= 1 {
-		return ""
-	}
-	pref := ipaddr.NewIPAddressString(parts[1]).GetAddress().GetBlockMaskPrefixLen(true)
-	return fmt.Sprintf("%s/%d", parts[0], pref.Len())
-}
-
 func convertCidrNetworkMask(cidr string) string {
 	ipv4Addr, ipv4Net, _ := net.ParseCIDR(cidr)
 	mask := fmt.Sprintf("%d.%d.%d.%d", ipv4Net.Mask[0], ipv4Net.Mask[1], ipv4Net.Mask[2], ipv4Net.Mask[3])
@@ -52,7 +42,7 @@ func convertCidrNetworkMask(cidr string) string {
 func (app *OvpnAdmin) exportPublicSettings() *model.ConfigPublicSettings {
 	//log.Println("exporting settings %v", app.serverConf)
 	var settings = new(model.ConfigPublicSettings)
-	settings.Server = convertNetworkMaskCidr(app.serverConf.Server)
+	settings.Server = openvpn.ConvertNetworkMaskCidr(app.serverConf.Server)
 	settings.ForceGatewayIpv4 = app.serverConf.ForceGatewayIpv4
 	settings.ForceGatewayIpv4ExceptDhcp = app.serverConf.ForceGatewayIpv4ExceptDhcp
 	settings.ForceGatewayIpv4ExceptDns = app.serverConf.ForceGatewayIpv4ExceptDns

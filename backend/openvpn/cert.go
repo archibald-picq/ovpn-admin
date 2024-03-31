@@ -36,7 +36,7 @@ type RevokedCert struct {
 
 type UserDefinition struct {
 	//Account
-	Username         string `json:"username"`
+	CommonName       string `json:"commonName"`
 	Password         string `json:"password"`
 	Email            string `json:"email"`
 	Country          string `json:"country"`
@@ -44,6 +44,7 @@ type UserDefinition struct {
 	City             string `json:"city"`
 	Organisation     string `json:"organisation"`
 	OrganisationUnit string `json:"organisationUnit"`
+	Ccd              *Ccd   `json:"ccd"`
 }
 
 type Route struct {
@@ -118,7 +119,7 @@ func CreateClientCertificate(identity string, flag string, expirationDate string
 	cert.DeletionDate = extractDeletionDate(identity)
 	if len(cert.DeletionDate) > 0 {
 
-		//log.Printf("mark '%s' as DELETED at: %s\n", line.Username, line.DeletionDate)
+		//log.Printf("mark '%s' as DELETED at: %s\n", line.CommonName, line.DeletionDate)
 		cert.Flag = "D"
 	}
 	return cert
@@ -223,8 +224,8 @@ func validateUsername(username string) bool {
 	return validUsername.MatchString(username)
 }
 
-func checkUserActiveExist(pkiPath string, username string) bool {
-	for _, u := range IndexTxtParserCertificate(pkiPath) {
+func checkUserActiveExist(easyrsa Easyrsa, username string) bool {
+	for _, u := range IndexTxtParserCertificate(easyrsa) {
 		if u.Username == username && u.Flag == "V" {
 			return true
 		}
@@ -240,14 +241,14 @@ func ValidatePassword(password string) error {
 	}
 }
 
-func UserCreateCertificate(easyrsaDirPath string, easyrsaBinPath string, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
+func UserCreateCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
 
-	if !validateUsername(definition.Username) {
-		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.Username, usernameRegexp))
+	if !validateUsername(definition.CommonName) {
+		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
 	}
 
-	if checkUserActiveExist(easyrsaDirPath+"/pki", definition.Username) {
-		return nil, errors.New(fmt.Sprintf("User \"%s\" already exists", definition.Username))
+	if checkUserActiveExist(easyrsa, definition.CommonName) {
+		return nil, errors.New(fmt.Sprintf("User \"%s\" already exists", definition.CommonName))
 	}
 
 	if authByPassword && ValidatePassword(definition.Password) == nil {
@@ -266,15 +267,15 @@ func UserCreateCertificate(easyrsaDirPath string, easyrsaBinPath string, authByP
 			"--dn-mode=org "+
 			"--batch "+
 			"build-client-full %s nopass 1>/dev/null",
-		shellescape.Quote(easyrsaDirPath),
+		shellescape.Quote(easyrsa.EasyrsaDirPath),
 		shellescape.Quote(definition.Country),
 		shellescape.Quote(definition.Province),
 		shellescape.Quote(definition.City),
 		shellescape.Quote(definition.Organisation),
 		shellescape.Quote(definition.OrganisationUnit),
 		shellescape.Quote(definition.Email),
-		shellescape.Quote(easyrsaBinPath),
-		shellescape.Quote(definition.Username),
+		shellescape.Quote(easyrsa.EasyrsaBinPath),
+		shellescape.Quote(definition.CommonName),
 	)
 
 	o, err := shell.RunBash(cmd)
@@ -286,17 +287,17 @@ func UserCreateCertificate(easyrsaDirPath string, easyrsaBinPath string, authByP
 	log.Printf("cert generated %s", o)
 
 	if authByPassword {
-		o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.Username, definition.Password))
+		o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.CommonName, definition.Password))
 		if err != nil {
 			return nil, errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
 		}
-		log.Printf("create password for %s: %s", definition.Username, o)
+		log.Printf("create password for %s: %s", definition.CommonName, o)
 	}
 
-	log.Printf("Certificate for user %s issued", definition.Username)
+	log.Printf("Certificate for user %s issued", definition.CommonName)
 
-	for _, cert := range IndexTxtParserCertificate(easyrsaDirPath + "/pki") {
-		if cert.Username == definition.Username {
+	for _, cert := range IndexTxtParserCertificate(easyrsa) {
+		if cert.Username == definition.CommonName {
 			return cert, nil
 		}
 	}
@@ -304,7 +305,7 @@ func UserCreateCertificate(easyrsaDirPath string, easyrsaBinPath string, authByP
 	return nil, errors.New("cant find just created certificate")
 	//return &Certificate{
 	//	//Identity         string `json:"identity"`
-	//	Username:         definition.Username,
+	//	CommonName:         definition.CommonName,
 	//	Country:          definition.Country,
 	//	Province:         definition.Province,
 	//	City:             definition.City,
@@ -319,29 +320,6 @@ func UserCreateCertificate(easyrsaDirPath string, easyrsaBinPath string, authByP
 	//	//Filename         string `json:"filename"`
 	//	//AccountStatus    string `json:"accountStatus"`
 	//}, nil
-}
-
-func IndexTxtParserCertificate(pkiPath string) []*Certificate {
-	txt := shell.ReadFile(pkiPath + "/index.txt")
-	var indexTxt = make([]*Certificate, 0)
-
-	txtLinesArray := strings.Split(txt, "\n")
-	for _, v := range txtLinesArray {
-		str := strings.Fields(v)
-		if len(str) <= 0 {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(str[0], "V"):
-			identity := strings.Join(str[4:], " ")
-			indexTxt = append(indexTxt, CreateClientCertificate(identity, "V", str[1], nil, str[2], str[3]))
-		case strings.HasPrefix(str[0], "R"):
-			identity := strings.Join(str[5:], " ")
-			indexTxt = append(indexTxt, CreateClientCertificate(identity, "R", str[1], &str[2], str[3], str[4]))
-		}
-	}
-
-	return indexTxt
 }
 
 func GetCommonNameFromCertificate(path string) *x509.Certificate {
@@ -547,13 +525,13 @@ func genClientCert(privKey, caPrivKey *rsa.PrivateKey, ca *x509.Certificate, cn 
 //	return
 //}
 
-func RebuildClientRevocationList(easyrsaBinPath string, easyrsaDirPath string) {
+func RebuildClientRevocationList(easyrsa Easyrsa) {
 	log.Printf("rebuild CRL")
-	_, err := shell.RunBash(fmt.Sprintf("cd %s && %s gen-crl", easyrsaDirPath, easyrsaBinPath))
+	_, err := shell.RunBash(fmt.Sprintf("cd %s && %s gen-crl", easyrsa.EasyrsaDirPath, easyrsa.EasyrsaBinPath))
 	if err != nil {
 		log.Printf("fail to rebuild crl", err)
 	}
-	chmodFix(easyrsaDirPath)
+	chmodFix(easyrsa.EasyrsaDirPath)
 }
 
 var (
@@ -610,42 +588,42 @@ func GetCrlList(crlFile string, certs []*Certificate) ([]*RevokedCert, error) {
 	return crls, nil
 }
 
-func RestoreCertBySerial(easyrsaDirPath string, serial string, cn string) error {
+func RestoreCertBySerial(easyrsa Easyrsa, serial string, cn string) error {
 	if len(cn) == 0 {
 		return errors.New("certificate name is empty")
 	}
 	copyCertFile(
-		easyrsaDirPath,
+		easyrsa.EasyrsaDirPath,
 		fmt.Sprintf("/pki/revoked/certs_by_serial/%s.crt", serial),
 		fmt.Sprintf("/pki/issued/%s.crt", cn),
 	)
 
 	copyCertFile(
-		easyrsaDirPath,
+		easyrsa.EasyrsaDirPath,
 		fmt.Sprintf("/pki/revoked/certs_by_serial/%s.crt", serial),
 		fmt.Sprintf("/pki/certs_by_serial/%s.pem", serial),
 	)
 
 	copyCertFile(
-		easyrsaDirPath,
+		easyrsa.EasyrsaDirPath,
 		fmt.Sprintf("/pki/revoked/private_by_serial/%s.key", serial),
 		fmt.Sprintf("/pki/private/%s.key", cn),
 	)
 
 	copyCertFile(
-		easyrsaDirPath,
+		easyrsa.EasyrsaDirPath,
 		fmt.Sprintf("/pki/revoked/reqs_by_serial/%s.req", serial),
 		fmt.Sprintf("/pki/reqs/%s.req", cn),
 	)
 
-	if fExistsPki(easyrsaDirPath, fmt.Sprintf("/pki/issued/%s.crt", cn)) && fExistsPki(easyrsaDirPath, fmt.Sprintf("/pki/certs_by_serial/%s.pem", serial)) {
-		os.Remove(easyrsaDirPath + fmt.Sprintf("/pki/revoked/certs_by_serial/%s.crt", serial))
+	if fExistsPki(easyrsa.EasyrsaDirPath, fmt.Sprintf("/pki/issued/%s.crt", cn)) && fExistsPki(easyrsa.EasyrsaDirPath, fmt.Sprintf("/pki/certs_by_serial/%s.pem", serial)) {
+		os.Remove(easyrsa.EasyrsaDirPath + fmt.Sprintf("/pki/revoked/certs_by_serial/%s.crt", serial))
 	}
-	if fExistsPki(easyrsaDirPath, fmt.Sprintf("/pki/private/%s.key", cn)) {
-		os.Remove(easyrsaDirPath + fmt.Sprintf("/pki/revoked/private_by_serial/%s.key", serial))
+	if fExistsPki(easyrsa.EasyrsaDirPath, fmt.Sprintf("/pki/private/%s.key", cn)) {
+		os.Remove(easyrsa.EasyrsaDirPath + fmt.Sprintf("/pki/revoked/private_by_serial/%s.key", serial))
 	}
-	if fExistsPki(easyrsaDirPath, fmt.Sprintf("/pki/reqs/%s.req", cn)) {
-		os.Remove(easyrsaDirPath + fmt.Sprintf("/pki/revoked/reqs_by_serial/%s.req", serial))
+	if fExistsPki(easyrsa.EasyrsaDirPath, fmt.Sprintf("/pki/reqs/%s.req", cn)) {
+		os.Remove(easyrsa.EasyrsaDirPath + fmt.Sprintf("/pki/revoked/reqs_by_serial/%s.req", serial))
 	}
 	return nil
 }

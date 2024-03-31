@@ -35,11 +35,9 @@ var (
 	serverRestartCommand = kingpin.Flag("restart.cmd", "Command to restart the server").Default("systemctl restart openvpn@server.service").Envar("OPENVPN_RESTART_CMD").String()
 	listenHost           = kingpin.Flag("listen.host", "host for ovpn-admin").Default("0.0.0.0").Envar("OVPN_LISTEN_HOST").String()
 	listenPort           = kingpin.Flag("listen.port", "port for ovpn-admin").Default("8042").Envar("OVPN_LISTEN_PORT").String()
-	masterHost           = kingpin.Flag("master.host", "URL for the master server").Default("http://127.0.0.1").Envar("OVPN_MASTER_HOST").String()
 	masterSyncToken      = kingpin.Flag("master.sync-token", "master host data sync security token").Default("VerySecureToken").Envar("OVPN_MASTER_TOKEN").PlaceHolder("TOKEN").String()
 	//openvpnNetwork       = kingpin.Flag("ovpn.network", "NETWORK/MASK_PREFIX for OpenVPN server").Default("").Envar("OVPN_NETWORK").String()
 	openvpnServer  = kingpin.Flag("ovpn.server", "HOST:PORT:PROTOCOL for OpenVPN server; can have multiple values").Default("").Envar("OVPN_SERVER").PlaceHolder("HOST:PORT:PROTOCOL").Strings()
-	mgmtAddress    = kingpin.Flag("mgmt", "ALIAS=HOST:PORT for OpenVPN server mgmt interface; can have multiple values").Default("").Envar("OPENVPN_MANAGEMENT").String()
 	metricsPath    = kingpin.Flag("metrics.path", "URL path for exposing collected metrics").Default("/metrics").Envar("OVPN_METRICS_PATH").String()
 	easyrsaBinPath = kingpin.Flag("easyrsa.bin", "path to easyrsa dir").Default("/usr/share/easy-rsa/easyrsa").Envar("EASYRSA_BIN").String()
 	easyrsaDirPath = kingpin.Flag("easyrsa.path", "path to easyrsa config").Default("/etc/openvpn/easyrsa").Envar("EASYRSA_DIR").String()
@@ -51,17 +49,6 @@ var (
 	ovpnConfigDir            = kingpin.Flag("config.dir", "Configuration files dir").Default("/etc/openvpn/admin").Envar("CONFIG_DIR").String()
 
 	upgrader = websocket.Upgrader{} // use default options
-	//logLevels = map[string]log.Level{
-	//	"trace": log.TraceLevel,
-	//	"debug": log.DebugLevel,
-	//	"info":  log.InfoLevel,
-	//	"warn":  log.WarnLevel,
-	//	"error": log.ErrorLevel,
-	//}
-	//logFormats = map[string]log.Formatter{
-	//	"text": &log.TextFormatter{},
-	//	"json": &log.JSONFormatter{},
-	//}
 )
 var version string
 
@@ -80,13 +67,13 @@ type OvpnAdmin struct {
 	clients                []*model.Device
 	triggerUpdateChan      chan *model.Device
 	promRegistry           *prometheus.Registry
-	//mgmtInterface          string
 	createUserMutex        *sync.Mutex
 	updatedUsers           []*model.Device
 	applicationPreferences model.ApplicationConfig
 	wsConnections          []*rpi.WsSafeConn
 	outboundIp             net.IP
 	mgmt                   mgmt.OpenVPNmgmt
+	easyrsa                openvpn.Easyrsa
 }
 
 type MessagePayload struct {
@@ -146,6 +133,8 @@ func main() {
 	//oAdmin.mgmtInterface = *mgmtAddress
 	oAdmin.outboundIp = shell.GetOutboundIP()
 	oAdmin.clients = make([]*model.Device, 0)
+	oAdmin.easyrsa.EasyrsaBinPath = *easyrsaBinPath
+	oAdmin.easyrsa.EasyrsaDirPath = *easyrsaDirPath
 
 	oAdmin.mgmt.GetConnection = oAdmin.getConnection
 	oAdmin.mgmt.GetUserConnection = oAdmin.getUserConnection
@@ -159,7 +148,10 @@ func main() {
 		oAdmin.broadcast(WebsocketPacket{Stream: "read", Data: line})
 	}
 
-	openvpn.ParseServerConf(&oAdmin.serverConf, *serverConfFile)
+	oAdmin.serverConf = *openvpn.ParseServerConf(*serverConfFile)
+	oAdmin.serverConf.CcdDir = shell.AbsolutizePath(*serverConfFile, oAdmin.serverConf.ClientConfigDir)
+	log.Printf("ccd dir %s", oAdmin.serverConf.CcdDir)
+
 	//log.Printf("loaded config %v", oAdmin.serverConf)
 
 	preference.LoadPreferences(
@@ -177,7 +169,7 @@ func main() {
 	upgrader.CheckOrigin = oAdmin.checkWebsocketOrigin
 	upgrader.Subprotocols = []string{"ovpn"}
 	// initial device load
-	for _, cert := range openvpn.IndexTxtParserCertificate(*easyrsaDirPath + "/pki") {
+	for _, cert := range openvpn.IndexTxtParserCertificate(oAdmin.easyrsa) {
 		if cert.Username != oAdmin.serverConf.MasterCn {
 			oAdmin.createOrUpdateDeviceByCertificate(cert)
 		}

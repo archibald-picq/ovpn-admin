@@ -38,7 +38,7 @@ func (app *OvpnAdmin) listCrl(w http.ResponseWriter) {
 	//log.Printf("load crl %s", crlPath)
 	certs := make([]*openvpn.Certificate, 0)
 	for _, client := range app.clients {
-		//log.Printf("existing cert %s, serial: %s", client.Certificate.Username, client.Certificate.SerialNumber)
+		//log.Printf("existing cert %s, serial: %s", client.Certificate.CommonName, client.Certificate.SerialNumber)
 		certs = append(certs, client.Certificate)
 	}
 	crlList, err := openvpn.GetCrlList(crlPath, certs)

@@ -28,6 +28,10 @@ func HasReadRole(jwtData []byte, r *http.Request) bool {
 	return JwtHasReadRole(jwtData, getAuthCookie(r))
 }
 
+func HasWriteRole(jwtData []byte, r *http.Request) bool {
+	return JwtHasReadRole(jwtData, getAuthCookie(r))
+}
+
 func JwtHasReadRole(jwtData []byte, auth string) bool {
 	if len(auth) <= 0 {
 		return false

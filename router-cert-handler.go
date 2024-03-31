@@ -12,38 +12,49 @@ import (
 )
 
 func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) {
-	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
-
-	if enableCors(&w, r) {
+	if !auth.HasWriteRole(app.applicationPreferences.JwtData, r) {
+		returnErrorMessage(w, http.StatusUnauthorized, errors.New("user not authorized to create certificate"))
 		return
 	}
 
-	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
-		returnErrorMessage(w, http.StatusUnauthorized, errors.New("User not authorized to create certificate"))
-		return
-	}
 	var userDefinition openvpn.UserDefinition
 	err := json.NewDecoder(r.Body).Decode(&userDefinition)
 	if err != nil {
-		returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("Cant parse JSON"))
+		returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("cant parse JSON in body"))
 		return
 	}
-	log.Printf("create user with %v\n", userDefinition)
-	certificate, err := openvpn.UserCreateCertificate(*easyrsaDirPath, *easyrsaBinPath, *authByPassword, *authDatabase, userDefinition)
 
+	if openvpn.ExistCcd(app.serverConf, userDefinition.CommonName) {
+		returnErrorMessage(w, http.StatusPreconditionFailed, errors.New("conflicting existing files"))
+		return
+	}
+	var newCcd *openvpn.Ccd
+	if userDefinition.Ccd != nil {
+		newCcd, err = app.applyCcd(userDefinition.CommonName, *userDefinition.Ccd)
+		if err != nil {
+			returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("cant setup CCD"))
+			return
+		}
+	}
+
+	log.Printf("create user with %v\n", userDefinition)
+	certificate, err := openvpn.UserCreateCertificate(app.easyrsa, *authByPassword, *authDatabase, userDefinition)
 	if err != nil {
+		app.removeCcd(userDefinition.CommonName)
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	app.clients = append(app.clients, &model.Device{
-		Username:         userDefinition.Username,
+
+	user := &model.Device{
+		Username:         userDefinition.CommonName,
 		ConnectionStatus: "",
 		Certificate:      certificate,
 		RpiState:         nil,
 		Connections:      make([]*openvpn.VpnConnection, 0),
 		Rpic:             make([]*rpi.RpiConnection, 0),
-	})
-	user := app.getDevice(userDefinition.Username)
+		Ccd:              newCcd,
+	}
+	app.clients = append(app.clients, user)
 	log.Printf("created user %v over %d clients\n", user, len(app.clients))
 	err = returnJson(w, user)
 	if err != nil {

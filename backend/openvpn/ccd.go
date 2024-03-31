@@ -35,7 +35,7 @@ type OpenvpnClientConfig struct {
 	TlsCipher          string
 }
 
-func BuildIndexLine(cert *Certificate) string {
+func buildIndexLine(cert *Certificate) string {
 	indexTxt := ""
 	///C=FR/ST=Meurthe-et-Moselle/L=Nancy/O=Architech/OU=ROOT-CA/CN=paris/emailAddress=archibald.picq@gmail.com
 	identity := ""
@@ -102,27 +102,29 @@ func BuildIndexLine(cert *Certificate) string {
 	return indexTxt
 }
 
-//func RenderIndexTxtDevice(data []*model.Device) []byte {
-//	indexTxt := ""
-//	for _, device := range data {
-//		indexTxt += BuildIndexLine(device.Certificate)
-//	}
-//	return []byte(indexTxt)
-//}
+func ExistCcd(serverConf OvpnConfig, commonName string) bool {
+	return shell.FileExist(serverConf.CcdDir + "/" + commonName)
+}
+func RemoveCcd(serverConf OvpnConfig, commonName string) {
+	err := shell.DeleteFile(serverConf.CcdDir + "/" + commonName)
+	if err != nil {
+		log.Printf("deleteFile error: %v", err)
+	}
+}
 
 func RenderIndexTxt(data []*Certificate) []byte {
 	indexTxt := ""
 	for _, cert := range data {
-		indexTxt += BuildIndexLine(cert)
+		indexTxt += buildIndexLine(cert)
 	}
 	return []byte(indexTxt)
 }
 
-func ParseCcd(ccdDir string, username string) *Ccd {
-	if !shell.FileExist(ccdDir + "/" + username) {
+func ParseCcd(serverConf OvpnConfig, username string) *Ccd {
+	if !shell.FileExist(serverConf.CcdDir + "/" + username) {
 		return nil
 	}
-	txtLinesArray := strings.Split(shell.ReadFile(ccdDir+"/"+username), "\n")
+	txtLinesArray := strings.Split(shell.ReadFile(serverConf.CcdDir+"/"+username), "\n")
 	if len(txtLinesArray) == 0 {
 		return nil
 	}
@@ -193,12 +195,12 @@ func BuildCcd(ccd Ccd, serverMask string) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
-func UpdateCcd(ccdDir string, openvpnNetwork string, serverMask string, ccd Ccd, username string, existingCcd []*Ccd) error {
+func UpdateCcd(serverConf OvpnConfig, openvpnNetwork string, serverMask string, ccd Ccd, username string, existingCcd []*Ccd) error {
 	err := ValidateCcd(openvpnNetwork, ccd, existingCcd)
 	if err != nil {
 		return err
 	}
-	err = shell.WriteFile(ccdDir+"/"+username, BuildCcd(ccd, serverMask))
+	err = shell.WriteFile(serverConf.CcdDir+"/"+username, BuildCcd(ccd, serverMask))
 	if err != nil {
 		log.Printf("modifyCcd: fWrite(): %v", err)
 		return err

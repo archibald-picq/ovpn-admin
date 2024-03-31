@@ -76,6 +76,7 @@ type OvpnConfig struct {
 	// "tun-ipv6"
 	// "routes-ipv6 2000::/3"
 	// "redirect-gateway ipv6"
+	CcdDir string
 }
 
 var regIp = regexp.MustCompile("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")
@@ -84,10 +85,11 @@ func isIpv4(addr string) bool {
 	return regIp.MatchString(addr)
 }
 
-func ParseServerConf(config *OvpnConfig, file string) {
+func ParseServerConf(file string) *OvpnConfig {
+	config := new(OvpnConfig)
 	if !shell.FileExist(file) {
 		log.Printf("OpenVPN server not configured")
-		return
+		return nil
 	}
 	lines := strings.Split(shell.ReadFile(file), "\n")
 
@@ -114,6 +116,7 @@ func ParseServerConf(config *OvpnConfig, file string) {
 			//ovpnServerCaCertExpire.Set(float64((cert.NotAfter.Unix() - time.Now().Unix()) / 3600 / 24))
 		}
 	}
+	return config
 }
 
 func parseServerConfLine(config *OvpnConfig, line string, commented bool) {

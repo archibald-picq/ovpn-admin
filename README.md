@@ -1,8 +1,10 @@
 # ovpn-admin
 
-Simple web UI to manage OpenVPN users, their certificates & routes in Linux. While backend is written in Go, frontend is based on Vue.js.
+Simple web UI to manage OpenVPN users, their certificates & routes in Linux. While backend is written in Go, frontend is based on Angular
 
 Originally created in [Flant](https://flant.com/) for internal needs & used for years, then updated to be more modern and [publicly released](https://blog.flant.com/introducing-ovpn-admin-web-interface-for-openvpn/) in March'21. Your contributions are welcome!
+
+Curently maintainted by [Archibald](archibald.picq@gmail.com).
 
 ***DISCLAIMER!** This project was created for experienced users (system administrators) and private (e.g., protected by network policies) environments only. Thus, it is not implemented with security in mind (e.g., it doesn't strictly check all parameters passed by users, etc.). It also relies heavily on files and fails if required files aren't available.*
 
