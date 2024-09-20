@@ -1,14 +1,15 @@
+import {CertificatInfo} from '../../models/certificat-info.model';
 
-export class CreateCertificateBatchInfo {
+export class CreateCertificateBatchInfo implements CertificatInfo {
   public commonName = '';
-  public email = '';
-  public country = '';
-  public province = '';
-  public city = '';
-  public organisation = '';
-  public organisationUnit = '';
+  public email? = '';
+  public country? = '';
+  public province? = '';
+  public city? = '';
+  public organisation? = '';
+  public organisationUnit? = '';
   public staticAddress = '';
-  public creationStatus?: 'ready' | 'exists' | 'invalid' | 'pending' | 'error';
+  public creationStatus?: 'ready' | 'exists' | 'invalid' | 'conflict-fixable' | 'conflict-rotate' | 'pending' | 'error';
   public lastError?: string;
   public skip = false;
   public processing = false;

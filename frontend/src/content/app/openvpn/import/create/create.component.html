@@ -1,3 +1,15 @@
+<div class="bloc-head">
+  <div class="bloc-nav">
+    <a [routerLink]="['../../']">&laquo; Client list</a>
+    <a [routerLink]="['../']">&laquo; Import file</a>
+    <h1>Import</h1>
+  </div>
+  <div class="next-buttons">
+    <button class="btn btn-danger" [disabled]="loading || !hasRotatableCertificates()" (click)="rotate()">Rotate all</button>
+    <button class="btn btn-secondary" [disabled]="loading || !hasUpdatableCertificates()" (click)="update()">Update all</button>
+    <button class="btn btn-primary" [disabled]="loading || !hasCreatableCertificates()" (click)="save()">Create all</button>
+  </div>
+</div>
 <table mat-table [dataSource]="dataSource" matSort (matSortChange)="sortData($event)" style="width: 100%" class="mat-elevation-z8">
   <ng-container matColumnDef="creationStatus">
     <th mat-header-cell *matHeaderCellDef mat-sort-header="status">Status</th>
@@ -20,20 +32,28 @@
   <ng-container matColumnDef="identity">
     <th mat-header-cell *matHeaderCellDef mat-sort-header="identity">Identity</th>
     <td mat-cell *matCellDef="let element">
-      <span>
-        <span *ngIf="element.country"><span>C=</span><td>{{element.country}}</td></span>
-        <span *ngIf="element.province"><span>ST=</span><span>{{element.province}}</span></span>
-        <span *ngIf="element.city"><span>L=</span><span>{{element.city}}</span></span>
-        <span *ngIf="element.organisation"><span>O=</span><span>{{element.organisation}}</span></span>
-        <span *ngIf="element.organisationUnit"><span>OU=</span><span>{{element.organisationUnit}}</span></span>
-      </span>
+      <div [class]="{'identity-import': element.creationStatus === 'conflict-fixable', 'identity-ready': element.creationStatus === 'ready'}">
+        <div class="identity" [title]="titleIdentity(element)">
+          <span class="info">
+            <span *ngIf="element.country"><span>C=</span><td>{{element.country}}</td></span>
+            <span *ngIf="element.province"><span>ST=</span><span>{{element.province}}</span></span>
+            <span *ngIf="element.city"><span>L=</span><span>{{element.city}}</span></span>
+            <span *ngIf="element.organisation"><span>O=</span><span>{{element.organisation}}</span></span>
+            <span *ngIf="element.organisationUnit"><span>OU=</span><span>{{element.organisationUnit}}</span></span>
+          </span>
+        </div>
+      </div>
+      <ng-container *ngIf="element.creationStatus === 'exists' || element.creationStatus === 'conflict-fixable'"
+          [ngTemplateOutlet]="existingIdentity"
+          [ngTemplateOutletContext]="{existing: findExisting(element), element: element}">
+      </ng-container>
     </td>
   </ng-container>
   <ng-container matColumnDef="staticAddress">
     <th mat-header-cell *matHeaderCellDef mat-sort-header="staticAddress">Static address</th>
     <td mat-cell *matCellDef="let element" class="px-1 text-nowrap">
       <ng-container *ngIf="element.staticAddress">{{element.staticAddress}}</ng-container>
-      <ng-container *ngIf="element.creationStatus === 'exists'"
+      <ng-container *ngIf="element.creationStatus === 'exists' || element.creationStatus === 'conflict-fixable'"
           [ngTemplateOutlet]="existingIp"
           [ngTemplateOutletContext]="{existing: findExisting(element), element: element}">
       </ng-container>
@@ -95,22 +115,35 @@
   <tr mat-row *matRowDef="let row; columns: displayedColumns;" [ngClass]="{'is-unknown': isUnknown(row), 'is-ready': isReady(row), 'is-invalid': isInvalid(row), 'is-pending': isPending(row), 'is-error': isError(row)}"></tr>
 
 </table>
-<div class="button-wrapper">
-  <div class="error-container">
-    <div class="error">{{error}}</div>
-  </div>
-  <div class="buttons">
-    <div class="back-buttons">
-      <button class="btn btn-outline-secondary" type="button" (click)="cancel($event)">Back</button>
-    </div>
-    <div class="next-buttons">
-      <button class="btn btn-primary" [disabled]="loading || !hasPendingChanges()" (click)="save()">Create all</button>
-    </div>
-  </div>
-</div>
+<!--<div class="button-wrapper">-->
+<!--  <div class="error-container">-->
+<!--    <div class="error">{{error}}</div>-->
+<!--  </div>-->
+<!--  <div class="buttons">-->
+<!--    <div class="back-buttons">-->
+<!--      <button class="btn btn-outline-secondary" type="button" (click)="cancel($event)">Back</button>-->
+<!--    </div>-->
+
+<!--  </div>-->
+<!--</div>-->
 
 <ng-template #existingIp let-existing="existing" let-element="element">
   <ng-container *ngIf="existing.ccd && existing.ccd.clientAddress !== 'dynamic'">
     <div *ngIf="existing.ccd.clientAddress !== 'dynamic' && existing.ccd.clientAddress !== element.staticAddress">existing: {{existing.ccd?.clientAddress}}</div>
   </ng-container>
+</ng-template>
+
+<ng-template #existingIdentity let-existing="existing" let-element="element">
+  <div class="identity-exists" *ngIf="!identityEquals(element, existing.certificate)">
+    <div class="identity" [title]="titleIdentity(existing.certificate)">
+      <span>existing:</span>
+      <span class="info">
+        <span *ngIf="existing.certificate.country"><span>C=</span><td>{{existing.certificate.country}}</td></span>
+        <span *ngIf="existing.certificate.province"><span>ST=</span><span>{{existing.certificate.province}}</span></span>
+        <span *ngIf="existing.certificate.city"><span>L=</span><span>{{existing.certificate.city}}</span></span>
+        <span *ngIf="existing.certificate.organisation"><span>O=</span><span>{{existing.certificate.organisation}}</span></span>
+        <span *ngIf="existing.certificate.organisationUnit"><span>OU=</span><span>{{existing.certificate.organisationUnit}}</span></span>
+      </span>
+    </div>
+  </div>
 </ng-template>

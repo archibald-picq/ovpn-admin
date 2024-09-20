@@ -8,14 +8,15 @@ import {OpenvpnService} from '../../services/openvpn.service';
 import {saveAs} from 'file-saver';
 import {OpenvpnComponent} from '../../openvpn.component';
 import {Settings} from '../../models/openvpn-config.model';
-import {EditClientComponent, EditClientOptions} from '../../modals/edit-client.component';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {
-  CertificatInfo,
   CreateClientCertificateComponent,
   EditCertificatInfo
 } from '../../modals/create-client-certificate.component';
 import {ICcd} from '../../models/client-certificate.interface';
+import {BaseCertificate} from '../../models/certificate-base.interface';
+import {ClientConfig} from '../../models/client-config.model';
+import {CertificatInfo} from '../../models/certificat-info.model';
 
 @Component({
   selector: 'bus-import-create',
@@ -116,8 +117,8 @@ export class ImportCreateComponent {
       };
     } else if (sort.active === 'email') {
       return (p1: CreateCertificateBatchInfo, p2: CreateCertificateBatchInfo) => {
-        const a = p1.email;
-        const b = p2.email;
+        const a = p1.email ?? '';
+        const b = p2.email ?? '';
         return a < b? rev1: (a > b? rev2: 0);
       };
     } else if (sort.active === 'staticAddress') {
@@ -160,8 +161,15 @@ export class ImportCreateComponent {
     try {
       const existing = this.clients.find(c => c.username === row.commonName);
       if (existing) {
+
+        if ((row.lastError = this.validateInfoFixable(row)) !== undefined) {
+          row.creationStatus = 'conflict-fixable';
+          return;
+        }
+
         row.creationStatus = 'exists';
         row.lastError = 'Already exists';
+
         return;
       }
       const willExist = mayCreateProblem.find(c => c.commonName === row.commonName);
@@ -175,6 +183,7 @@ export class ImportCreateComponent {
         row.creationStatus = 'invalid';
         return;
       }
+
       row.creationStatus = 'ready';
       mayCreateProblem.push(row);
     } catch (e) {
@@ -208,20 +217,70 @@ export class ImportCreateComponent {
 
   public async save(): Promise<void> {
     for (let i = 0; i < this.list.length; i++) {
-      const create = this.list[i];
+      const batchInfo = this.list[i];
 
       try {
-        await this.saveCertificat(create);
+        await this.createCertificate(batchInfo);
         this.updateAllStatus();
       } catch (e) {
         console.warn('Error', e);
       }
     }
-
   }
 
-  public hasPendingChanges(): boolean {
+  public async rotate(): Promise<void> {
+    for (let i = 0; i < this.list.length; i++) {
+      const batchInfo = this.list[i];
+      if (batchInfo.creationStatus !== 'conflict-rotate') {
+        continue;
+      }
+
+      try {
+        const existing = this.clients.find(c => c.username === batchInfo.commonName);
+        if (!existing) {
+          console.warn('Cant find existing client yet with \'conflict-fixable\' status');
+          continue;
+        }
+        await this.openvpnService.rotateCertificate(batchInfo.commonName, batchInfo);
+        this.updateAllStatus();
+      } catch (e) {
+        console.warn('Error', e);
+      }
+    }
+  }
+
+  public async update(): Promise<void> {
+    for (let i = 0; i < this.list.length; i++) {
+      const batchInfo = this.list[i];
+      if (batchInfo.creationStatus !== 'conflict-fixable') {
+        continue;
+      }
+
+      try {
+        const existing = this.clients.find(c => c.username === batchInfo.commonName);
+        if (!existing) {
+          console.warn('Cant find existing client yet with \'conflict-fixable\' status');
+          continue;
+        }
+        const clientConfig: ClientConfig = new ClientConfig(batchInfo.staticAddress, existing.ccd?.customRoutes ?? [], existing.ccd?.customIRoutes ?? []);
+        await this.openvpnService.saveClientConfig(existing, clientConfig);
+        existing.ccd = clientConfig;
+        this.updateAllStatus();
+      } catch (e) {
+        console.warn('Error', e);
+      }
+    }
+  }
+
+  public hasCreatableCertificates(): boolean {
     return !!this.list.find(create => !create.skip && create.creationStatus === 'ready');
+  }
+
+  public hasRotatableCertificates(): boolean {
+    return !!this.list.find(create => !create.skip && create.creationStatus === 'conflict-rotate');
+  }
+  public hasUpdatableCertificates(): boolean {
+    return !!this.list.find(create => !create.skip && create.creationStatus === 'conflict-fixable');
   }
 
   public setSkip(row: CreateCertificateBatchInfo): void {
@@ -233,7 +292,7 @@ export class ImportCreateComponent {
   }
 
   public async createClient(client: CreateCertificateBatchInfo): Promise<void> {
-    await this.saveCertificat(client);
+    await this.createCertificate(client);
     this.updateAllStatus();
   }
 
@@ -271,11 +330,35 @@ export class ImportCreateComponent {
     }
   }
 
+  public identityEquals(row: BaseCertificate, certificate: BaseCertificate): boolean {
+    // return BaseCertificate.equals();
+    return row.email === certificate.email &&
+      row.country === certificate?.country &&
+      row.province === certificate?.province &&
+      row.city === certificate?.city &&
+      row.organisation === certificate?.organisation &&
+      row.organisationUnit === certificate?.organisationUnit;
+  }
+
+  public titleIdentity(p1: BaseCertificate): string {
+    return this.concatWs(' ', p1.country, p1.province, p1.city, p1.organisation, p1.organisationUnit) ?? '';
+  }
+
+  private validateInfoFixable(row: CreateCertificateBatchInfo): string | undefined {
+    const existing = this.clients.find(c => c.username === row.commonName);
+    if (existing && row.staticAddress) {
+      if (existing.ccd?.clientAddress !== row.staticAddress) {
+        return 'static address does not match: ' + existing.ccd?.clientAddress + ' => ' + row.staticAddress;
+      }
+    }
+    return undefined;
+  }
+
   private validateInfo(row: CreateCertificateBatchInfo, mayCreateProblem: CreateCertificateBatchInfo[]): string | undefined {
     if (!row.commonName.match(/^([a-zA-Z0-9_.\-@])+$/)) {
       return 'commonName invalid';
     }
-    if (!row.email.length) {
+    if (!row.email?.length) {
       return 'email required';
     }
 
@@ -297,7 +380,7 @@ export class ImportCreateComponent {
     return undefined;
   }
 
-  private async saveCertificat(info: CreateCertificateBatchInfo) {
+  private async createCertificate(info: CreateCertificateBatchInfo) {
     if (info.skip) {
       console.warn('skip create =>', info);
       return;

@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"rpiadm/backend/auth"
@@ -19,22 +17,15 @@ type ConfigPublicPreferencesPost struct {
 }
 
 func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
-	//log.Info(r.RemoteAddr, " ", r.RequestURI)
-	if enableCors(&w, r) {
-		return
-	}
-
-	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
+	if !auth.HasWriteRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 	var post ConfigPublicPreferencesPost
-	log.Printf("saving preferences %v", r.Body)
-
 	err := json.NewDecoder(r.Body).Decode(&post)
 	if err != nil {
 		log.Printf("JSON.unmarshal error %v", err)
-		returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New(fmt.Sprintf("Cant decode body: %s", err)))
+		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 	log.Printf("saving preferences %v", post)

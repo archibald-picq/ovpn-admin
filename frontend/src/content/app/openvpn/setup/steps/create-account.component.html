@@ -1,6 +1,9 @@
 
 <div class="page">
-  <div>setup openvpn for the first time</div>
+  <h1>Admin account</h1>
+  <div class="hint">
+    Create an account on this server to configure more services
+  </div>
 
   <form (ngSubmit)="save()">
     <div class="mb-3">
@@ -20,6 +23,7 @@
       <input [disabled]="loading" id="admin-password-confirm" type="password" name="passwordConfirm" class="form-control" [(ngModel)]="passwordConfirm" placeholder="********">
     </div>
     <div class="mb-3 d-flex">
+      <a [routerLink]="['../../']">cancel</a>
       <div class="flex-grow-1">{{error}}</div>
       <input type="submit" value="Save">
     </div>

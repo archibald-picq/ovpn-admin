@@ -1,0 +1,44 @@
+h1 {
+  text-align: center;
+}
+
+.hint {
+  margin-bottom: 15px;
+}
+
+.page {
+  margin: auto;
+  max-width: 600px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.check-progress {
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title {
+  font-weight: bold;
+}
+
+.details {
+  font-style: italic;
+}
+
+.sub-form {
+  width: 50%;
+  margin-left: 50px;
+}
+
+.error {
+  color: red;
+  padding-left: 5px;
+  border-left: 1px solid red;
+}

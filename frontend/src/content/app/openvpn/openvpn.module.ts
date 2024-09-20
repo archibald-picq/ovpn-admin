@@ -45,6 +45,8 @@ import {CsvService} from './services/csv.service';
 import {ImportUploadComponent} from './import/upload/upload.component';
 import {ImportComponent} from './import/import.component';
 import {ImportCreateComponent} from './import/create/create.component';
+import {CreateServerComponent} from './setup/steps/create-server.component';
+import {CertificateFormComponent} from './components/certificate-form.component';
 
 @NgModule({
     declarations: [
@@ -75,6 +77,8 @@ import {ImportCreateComponent} from './import/create/create.component';
         ChooseRoleComponent,
         CreateAccountComponent,
         JoinMasterComponent,
+        CreateServerComponent,
+        CertificateFormComponent,
     ],
     imports: [
         RouterModule.forChild(OPENVPN_ROUTES),

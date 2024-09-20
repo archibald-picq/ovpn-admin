@@ -1,12 +1,7 @@
 import {ICcd} from './client-certificate.interface';
+import {BaseCertificate} from './certificate-base.interface';
 
-export interface CreateCertificateDefinition {
+export interface CreateCertificateDefinition extends BaseCertificate {
   commonName: string;
-  email: string;
-  country: string;
-  province: string;
-  city: string;
-  organisation: string;
-  organisationUnit: string;
   ccd?: ICcd;
 }

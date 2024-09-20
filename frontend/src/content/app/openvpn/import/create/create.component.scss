@@ -3,6 +3,19 @@
   margin: 20px 20px 90px;
 }
 
+.bloc-head {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 10px;
+
+  .next-buttons {
+
+  }
+}
+
+
 .container {
   margin: 10px;
 }
@@ -58,5 +71,30 @@
   }
   .back-buttons {
 
+  }
+}
+
+.identity {
+  font-size: 0.8em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.identity-ready {
+  .identity .info {
+  }
+}
+
+.identity-import {
+  .identity .info {
+    color: red;
+  }
+}
+
+.identity-exists {
+  .identity .info {
+    text-decoration: line-through;
   }
 }

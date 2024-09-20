@@ -15,41 +15,37 @@ func extractNetmask(cidr string) string {
 	return parts[1]
 }
 
-func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request, username string) {
+func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request, username string) (int, error) {
 	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
-		returnErrorMessage(w, http.StatusForbidden, errors.New("request forbidden"))
-		return
+		return http.StatusForbidden, errors.New("request forbidden")
 	}
 
 	device := app.getDevice(username)
 	if device == nil {
-		returnErrorMessage(w, http.StatusNotFound, errors.New("device not found"))
-		return
+		return http.StatusNotFound, errors.New("device not found")
 	}
 
 	if r.Body == nil {
-		returnErrorMessage(w, http.StatusBadRequest, errors.New("please send a request body"))
-		return
+		return http.StatusBadRequest, errors.New("please send a request body")
 	}
 
 	var ccd openvpn.Ccd
 	err := json.NewDecoder(r.Body).Decode(&ccd)
 	if err != nil {
-		returnErrorMessage(w, http.StatusInternalServerError, errors.New("can't parse JSON body"))
-		return
+		return http.StatusInternalServerError, errors.New("can't parse JSON body")
 	}
 
 	newCcd, err := app.applyCcd(device.Username, ccd)
 	if err != nil {
-		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
-		return
+		return http.StatusUnprocessableEntity, err
 	}
 	device.Ccd = newCcd
 	app.triggerBroadcastUser(device)
 	w.WriteHeader(http.StatusNoContent)
+	return 0, nil
 }
 func (app *OvpnAdmin) removeCcd(commonName string) {
-	openvpn.RemoveCcd(app.serverConf, commonName)
+	openvpn.RemoveCcd(*serverConfFile, app.serverConf, commonName)
 }
 
 func (app *OvpnAdmin) applyCcd(commonName string, ccd openvpn.Ccd) (*openvpn.Ccd, error) {
@@ -67,30 +63,10 @@ func (app *OvpnAdmin) applyCcd(commonName string, ccd openvpn.Ccd) (*openvpn.Ccd
 			existingCcd = append(existingCcd, client.Ccd)
 		}
 	}
-	err := openvpn.UpdateCcd(app.serverConf, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd, commonName, existingCcd)
+	err := openvpn.UpdateCcd(*serverConfFile, app.serverConf, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd, commonName, existingCcd)
 	if err != nil {
 		return nil, err
 	}
-	// TODO: handle other options not exposed to the api
+	// TODO: handle other options not exposed by the api
 	return &ccd, nil
 }
-
-//func (app *OvpnAdmin) userShowCcdHandler(w http.ResponseWriter, r *http.Request, username string) {
-//	if !auth.JwtHasReadRole(app.applicationPreferences.JwtData, getAuthCookie(r)) {
-//		returnErrorMessage(w, http.StatusForbidden, errors.New("forbidden"))
-//		return
-//	}
-//
-//	device := app.getDevice(username)
-//	if device == nil {
-//		returnErrorMessage(w, http.StatusNotFound, errors.New("device not found"))
-//		return
-//	}
-//
-//	//ccdDir := shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
-//	//ccd := openvpn.ParseCcd(ccdDir, username)
-//	err := returnJson(w, device.Ccd)
-//	if err != nil {
-//		log.Printf("error sending response")
-//	}
-//}

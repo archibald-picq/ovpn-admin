@@ -2,19 +2,15 @@ import {Component} from "@angular/core";
 import {NgbActiveModal} from "@ng-bootstrap/ng-bootstrap";
 import { OpenvpnService } from '../services/openvpn.service';
 import { IClientCertificate } from '../models/client-certificate.interface';
+import {CertificatInfo} from '../models/certificat-info.model';
 //
-export interface CertificatInfo {
-    commonName: string;
-    email: string;
-    country: string;
-    province: string;
-    city: string;
-    organisation: string;
-    organisationUnit: string;
-}
 
 export class EditCertificatInfo {
-    constructor(public readonly info: CertificatInfo | undefined, public readonly editMode: 'save' | 'return') {
+    constructor(
+      public readonly info: CertificatInfo | undefined,
+      public readonly editMode: 'save' | 'return',
+      public readonly title: string = 'Create certificate',
+  ) {
     }
 }
 
@@ -24,16 +20,11 @@ export class EditCertificatInfo {
     styleUrls: ['./create-client-certificate.component.scss'],
 })
 export class CreateClientCertificateComponent {
-    public commonName = '';
-    public email = '';
-    public country = '';
-    public province = '';
-    public city = '';
-    public organisation = '';
-    public organisationUnit = '';
+    public certificate: CertificatInfo = {commonName: ''};
     public error = '';
     public loading = false;
     public showHint = true;
+    public popupTitle = 'Create certificate';
 
     constructor(
         private readonly openvpnService: OpenvpnService,
@@ -41,16 +32,19 @@ export class CreateClientCertificateComponent {
         private readonly options: EditCertificatInfo,
     ) {
         if (options.info) {
-            this.commonName = options.info.commonName;
-            this.email = options.info.email;
-            this.country = options.info.country;
-            this.province = options.info.province;
-            this.city = options.info.city;
-            this.organisation = options.info.organisation;
-            this.organisationUnit = options.info.organisationUnit;
+            this.certificate.commonName = options.info.commonName;
+            this.certificate.email = options.info.email;
+            this.certificate.country = options.info.country;
+            this.certificate.province = options.info.province;
+            this.certificate.city = options.info.city;
+            this.certificate.organisation = options.info.organisation;
+            this.certificate.organisationUnit = options.info.organisationUnit;
         }
-        if (this.options.editMode === 'return') {
+        if (options.editMode === 'return') {
             this.showHint = false;
+        }
+        if (options.title) {
+            this.popupTitle = options.title;
         }
     }
 
@@ -59,15 +53,7 @@ export class CreateClientCertificateComponent {
             try {
                 this.loading = true;
                 this.error = '';
-                const client: IClientCertificate = await this.openvpnService.createClientCertificat({
-                    commonName: this.commonName,
-                    email: this.email,
-                    country: this.country,
-                    province: this.province,
-                    city: this.city,
-                    organisation: this.organisation,
-                    organisationUnit: this.organisationUnit,
-                });
+                const client: IClientCertificate = await this.openvpnService.createClientCertificat(this.certificate);
                 console.warn('client created', client);
                 this.modal.close(client);
             } catch (e: any) {
@@ -76,15 +62,7 @@ export class CreateClientCertificateComponent {
             }
             this.loading = false;
         } else {
-            this.modal.close({
-                commonName: this.commonName,
-                email: this.email,
-                city: this.city,
-                country: this.country,
-                province: this.province,
-                organisation: this.organisation,
-                organisationUnit: this.organisationUnit,
-            } as CertificatInfo);
+            this.modal.close(this.certificate);
         }
     }
 

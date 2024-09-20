@@ -7,7 +7,7 @@ type ConfigPublicSettings struct {
 	ForceGatewayIpv4           bool            `json:"forceGatewayIpv4"`
 	ForceGatewayIpv4ExceptDhcp bool            `json:"forceGatewayIpv4ExceptDhcp"`
 	ForceGatewayIpv4ExceptDns  bool            `json:"forceGatewayIpv4ExceptDns"`
-	ServerIpv6                 string          `json:"serverIpv6"`
+	ServerIpv6                 *string         `json:"serverIpv6"`
 	ForceGatewayIpv6           bool            `json:"forceGatewayIpv6"`
 	ClientToClient             bool            `json:"clientToClient"`
 	DuplicateCn                bool            `json:"duplicateCn"`
@@ -19,8 +19,8 @@ type ConfigPublicSettings struct {
 	RoutesPush                 []openvpn.Route `json:"routesPush"`
 	Pushs                      []openvpn.Push  `json:"pushs"`
 	PushRoutes                 []string        `json:"pushRoutes"`
-	DnsIpv4                    string          `json:"dnsIpv4"`
-	DnsIpv6                    string          `json:"dnsIpv6"`
+	DnsIpv4                    *string         `json:"dnsIpv4"`
+	DnsIpv6                    *string         `json:"dnsIpv6"`
 }
 
 type ConfigPublicPreferences struct {
@@ -50,6 +50,7 @@ type ConfigPublicOpenvpn struct {
 	Settings     *ConfigPublicSettings    `json:"settings,omitempty"`
 	Preferences  *ConfigPublicPreferences `json:"preferences,omitempty"`
 	Unconfigured *bool                    `json:"unconfigured,omitempty"`
+	ServerSetup  *openvpn.ServerConfigVpn `json:"serverSetup,omitempty"`
 }
 
 type ConfigPublic struct {

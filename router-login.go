@@ -47,7 +47,11 @@ func (app *OvpnAdmin) authenticate(w http.ResponseWriter, r *http.Request) {
 		Expires:  expirationTime,
 		HttpOnly: true,
 		Path:     "/",
+		//SameSite:    "None",
+		//Secure:      true,
+		//Partitioned: true,
 	})
+	//; SameSite=None; Secure; Partitioned
 	err = returnJson(w, auth.GetUserProfile(&app.applicationPreferences, authPayload.Username))
 	if err != nil {
 		log.Printf("error sending response")

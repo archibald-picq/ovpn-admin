@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alessio/shellescape"
 	"log"
 	"net"
 	"net/http"
@@ -19,7 +20,7 @@ type ServerSavePayload struct {
 	ForceGatewayIpv4           bool            `json:"forceGatewayIpv4"`
 	ForceGatewayIpv4ExceptDhcp bool            `json:"forceGatewayIpv4ExceptDhcp"`
 	ForceGatewayIpv4ExceptDns  bool            `json:"forceGatewayIpv4ExceptDns"`
-	ServerIpv6                 string          `json:"serverIpv6"`
+	ServerIpv6                 *string         `json:"serverIpv6"`
 	ForceGatewayIpv6           bool            `json:"forceGatewayIpv6"`
 	ClientToClient             bool            `json:"clientToClient"`
 	DuplicateCn                bool            `json:"duplicateCn"`
@@ -29,8 +30,8 @@ type ServerSavePayload struct {
 	TunMtu                     int             `json:"tunMtu"`
 	Routes                     []openvpn.Route `json:"routes"`
 	RoutesPush                 []openvpn.Route `json:"routesPush"`
-	DnsIpv4                    string          `json:"dnsIpv4"`
-	DnsIpv6                    string          `json:"dnsIpv6"`
+	DnsIpv4                    *string         `json:"dnsIpv4"`
+	DnsIpv6                    *string         `json:"dnsIpv6"`
 }
 
 func convertCidrNetworkMask(cidr string) string {
@@ -40,6 +41,9 @@ func convertCidrNetworkMask(cidr string) string {
 }
 
 func (app *OvpnAdmin) exportPublicSettings() *model.ConfigPublicSettings {
+	if app.serverConf == nil {
+		return nil
+	}
 	//log.Println("exporting settings %v", app.serverConf)
 	var settings = new(model.ConfigPublicSettings)
 	settings.Server = openvpn.ConvertNetworkMaskCidr(app.serverConf.Server)
@@ -66,10 +70,18 @@ func (app *OvpnAdmin) exportPublicSettings() *model.ConfigPublicSettings {
 	return settings
 }
 
+func (app *OvpnAdmin) buildDefaultAddress() string {
+	if app.serverConf != nil {
+		return fmt.Sprintf("%s:%d", app.outboundIp, app.serverConf.Port)
+	} else {
+		return fmt.Sprintf("%s:1194", app.outboundIp)
+	}
+}
+
 func (app *OvpnAdmin) exportPublicPreferences() *model.ConfigPublicPreferences {
 	var preferences = new(model.ConfigPublicPreferences)
 	preferences.Address = app.applicationPreferences.Preferences.Address
-	preferences.DefaultAddress = fmt.Sprintf("%s:%d", app.outboundIp, app.serverConf.Port)
+	preferences.DefaultAddress = app.buildDefaultAddress()
 	preferences.CertificateDuration = 3600 * 24 * 365 * 10 // 10 years
 	preferences.ExplicitExitNotify = app.applicationPreferences.Preferences.ExplicitExitNotify
 	preferences.AuthNoCache = app.applicationPreferences.Preferences.AuthNocache
@@ -126,6 +138,7 @@ func (app *OvpnAdmin) handleConfigCommand(w http.ResponseWriter, r *http.Request
 }
 
 func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
+	b := true
 
 	//log.Printf("config %v", app.serverConf)
 	configPublic := new(model.ConfigPublic)
@@ -138,9 +151,25 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 		configPublic.Openvpn.Preferences = app.exportPublicPreferences()
 	}
 
+	// first user: allow create admin account
 	if len(app.applicationPreferences.Users) == 0 {
-		b := true
 		configPublic.Openvpn.Unconfigured = &b
+	}
+
+	if configPublic.Openvpn.Settings == nil {
+		var serverSetup openvpn.ServerConfigVpn
+		serverSetup.ServiceName = "server"
+		serverSetup.PkiPath = app.easyrsa.EasyrsaDirPath + "/pki"
+		if openvpn.IndexTxtExists(app.easyrsa) {
+			count := countCertInIndex()
+			serverSetup.PkiInit = &count
+		}
+		serverSetup.DhPem = openvpn.DhPemExists(app.easyrsa)
+		serverSetup.CaCert = openvpn.ReadCaCertIfExists(app.easyrsa)
+		serverSetup.ServerCert = openvpn.ReadPkiCertIfExists(app.easyrsa, serverSetup.ServiceName)
+
+		//*configPublic.Openvpn.Instances = append(*configPublic.Openvpn.Instances, firstServer)
+		configPublic.Openvpn.ServerSetup = &serverSetup
 	}
 
 	err := returnJson(w, configPublic)
@@ -151,8 +180,15 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 	//fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
 }
 
-func (app *OvpnAdmin) restartServer() error {
-	_, err := shell.RunBash(*serverRestartCommand)
+func countCertInIndex() int {
+	certs := openvpn.IndexTxtParserCertificate(app.easyrsa)
+	return len(certs)
+}
+
+func (app *OvpnAdmin) restartServer(configName string) error {
+	cmd := fmt.Sprintf("systemctl restart openvpn@%s.service", shellescape.Quote(configName))
+	log.Printf("cmd %s", cmd)
+	_, err := shell.RunBash(cmd)
 	return err
 }
 
@@ -187,8 +223,16 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var conf openvpn.OvpnConfig
+
+	if app.serverConf != nil {
+		conf = *app.serverConf
+	} else {
+		conf = *openvpn.InitServerConf()
+		log.Printf("conf: %v", conf)
+	}
+
 	// store in temporary object
-	conf := app.serverConf
 	conf.Server = convertCidrNetworkMask(savePayload.Server)
 	conf.ForceGatewayIpv4 = savePayload.ForceGatewayIpv4
 	conf.ForceGatewayIpv4ExceptDhcp = savePayload.ForceGatewayIpv4ExceptDhcp
@@ -208,12 +252,19 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 
 	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
 
-	// make a backup of the original OpenVPN config file
-	err = shell.FileCopy(*serverConfFile, backupFile)
-	if err != nil {
-		returnErrorMessage(w, http.StatusBadRequest, errors.New("Can't backup config file"))
-		return
+	if shell.FileExist(*serverConfFile) {
+		// make a backup of the original OpenVPN config file
+		err = shell.FileCopy(*serverConfFile, backupFile)
+		if err != nil {
+			returnErrorMessage(w, http.StatusBadRequest, errors.New("can't backup config file"))
+			return
+		}
+	} else {
+		log.Printf("initial server")
 	}
+
+	log.Printf("ensure ccd dir exists")
+	openvpn.CreateCcd(*serverConfFile, &conf)
 
 	// write a temporary config file over the original one
 	err = shell.WriteFile(*serverConfFile, openvpn.BuildConfig(conf))
@@ -223,32 +274,39 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.restartServer()
+	err = app.restartServer("server")
 	if err != nil {
 		// rollback config and restart server on error
-		shell.FileCopy(backupFile, *serverConfFile)
-		err = app.restartServer()
+		if shell.FileExist(backupFile) {
+			shell.FileCopy(backupFile, *serverConfFile)
+			err = app.restartServer("server")
+			shell.DeleteFile(backupFile)
+		}
 		returnErrorMessage(w, http.StatusBadRequest, errors.New("restarted"))
 		return
 	}
 
 	// store the working config in memory
-	app.serverConf.Server = conf.Server
-	app.serverConf.ForceGatewayIpv4 = conf.ForceGatewayIpv4
-	app.serverConf.ForceGatewayIpv4ExceptDhcp = conf.ForceGatewayIpv4ExceptDhcp
-	app.serverConf.ForceGatewayIpv4ExceptDns = conf.ForceGatewayIpv4ExceptDns
-	app.serverConf.ServerIpv6 = conf.ServerIpv6
-	app.serverConf.ForceGatewayIpv6 = conf.ForceGatewayIpv6
-	app.serverConf.CompLzo = conf.CompLzo
-	app.serverConf.ClientToClient = conf.ClientToClient
-	app.serverConf.DuplicateCn = conf.DuplicateCn
-	app.serverConf.Auth = conf.Auth
-	app.serverConf.EnableMtu = conf.EnableMtu
-	app.serverConf.TunMtu = conf.TunMtu
-	app.serverConf.DnsIpv4 = conf.DnsIpv4
-	app.serverConf.DnsIpv6 = conf.DnsIpv6
-	app.serverConf.Routes = conf.Routes
-	app.serverConf.RoutesPush = conf.RoutesPush
+	if app.serverConf == nil {
+		app.serverConf = &conf
+	} else {
+		app.serverConf.Server = conf.Server
+		app.serverConf.ForceGatewayIpv4 = conf.ForceGatewayIpv4
+		app.serverConf.ForceGatewayIpv4ExceptDhcp = conf.ForceGatewayIpv4ExceptDhcp
+		app.serverConf.ForceGatewayIpv4ExceptDns = conf.ForceGatewayIpv4ExceptDns
+		app.serverConf.ServerIpv6 = conf.ServerIpv6
+		app.serverConf.ForceGatewayIpv6 = conf.ForceGatewayIpv6
+		app.serverConf.CompLzo = conf.CompLzo
+		app.serverConf.ClientToClient = conf.ClientToClient
+		app.serverConf.DuplicateCn = conf.DuplicateCn
+		app.serverConf.Auth = conf.Auth
+		app.serverConf.EnableMtu = conf.EnableMtu
+		app.serverConf.TunMtu = conf.TunMtu
+		app.serverConf.DnsIpv4 = conf.DnsIpv4
+		app.serverConf.DnsIpv6 = conf.DnsIpv6
+		app.serverConf.Routes = conf.Routes
+		app.serverConf.RoutesPush = conf.RoutesPush
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }

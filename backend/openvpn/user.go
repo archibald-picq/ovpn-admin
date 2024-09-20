@@ -136,10 +136,10 @@ func UserUnrevoke(easyrsa Easyrsa, authByPassword bool, authDatabase string, cli
 	return errors.New("certificate not found")
 }
 
-func UserRotate(easyrsa Easyrsa, authByPassword bool, authDatabase string, username string, newPassword string, certificate *Certificate) error {
+func UserRotate(easyrsa Easyrsa, authByPassword bool, authDatabase string, username string, newDefinition *UserDefinition) error {
 	all := IndexTxtParserCertificate(easyrsa)
 	for _, cert := range all {
-		if cert.Username == certificate.Username {
+		if cert.Username == username {
 
 			if cert.Flag != "V" {
 				return errors.New(fmt.Sprintf("Certificate \"%s\" is already revoked", cert.Username))
@@ -149,29 +149,49 @@ func UserRotate(easyrsa Easyrsa, authByPassword bool, authDatabase string, usern
 				return errors.New(fmt.Sprintf("Error revoking certificate \"%s\"", err))
 			}
 
-			_, err = UserCreateCertificate(easyrsa, authByPassword, authDatabase, UserDefinition{
-				CommonName:       cert.Username,
-				Password:         newPassword,
-				City:             cert.City,
-				Province:         cert.Province,
-				Country:          cert.Country,
-				Organisation:     cert.Organisation,
-				OrganisationUnit: cert.OrganisationUnit,
-				Email:            cert.Email,
-			})
+			if newDefinition == nil {
+				newDefinition = new(UserDefinition)
+				newDefinition.City = cert.City
+				newDefinition.Province = cert.Province
+				newDefinition.Country = cert.Country
+				newDefinition.Organisation = cert.Organisation
+				newDefinition.OrganisationUnit = cert.OrganisationUnit
+				newDefinition.Email = cert.Email
+			}
+			newDefinition.CommonName = username
+			newDefinition.Password = ""
+
+			newCert, err := CreateClientCertificate(easyrsa, authByPassword, authDatabase, *newDefinition)
 			if err != nil {
 				return errors.New(fmt.Sprintf("Fail to create certificate for \"%s\": %s", cert.Username, err))
 			}
 
 			if authByPassword {
-				shell.RunBash(fmt.Sprintf("openvpn-user change-password --db.path %s --user %s --password %s", authDatabase, username, newPassword))
+				shell.RunBash(fmt.Sprintf("openvpn-user change-password --db.path %s --user %s --password %s", authDatabase, username, newDefinition.Password))
 			}
+			cert.City = newCert.City
+			cert.Province = newCert.Province
+			cert.Country = newCert.Country
+			cert.Organisation = newCert.Organisation
+			cert.OrganisationUnit = newCert.OrganisationUnit
+			cert.Email = newCert.Email
+			cert.ExpirationDate = newCert.ExpirationDate
+			cert.SerialNumber = newCert.SerialNumber
+			cert.Flag = newCert.Flag
+			cert.Filename = newCert.Filename
 
-			shell.WriteFile(easyrsa.EasyrsaDirPath+"/pki/index.txt", RenderIndexTxt(all))
+			writeIndex(easyrsa, all)
 			RebuildClientRevocationList(easyrsa)
 			chmodFix(easyrsa.EasyrsaDirPath)
 			return nil
 		}
 	}
 	return errors.New("certificate not found")
+}
+
+func writeIndex(easyrsa Easyrsa, data []*Certificate) {
+	err := shell.WriteFile(easyrsa.EasyrsaDirPath+"/pki/index.txt", RenderIndexTxt(data))
+	if err != nil {
+		log.Printf("fail to write index.txt %s", err)
+	}
 }

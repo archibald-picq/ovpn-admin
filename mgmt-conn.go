@@ -149,7 +149,8 @@ func (app *OvpnAdmin) createOrUpdateDeviceByCertificate(certificate *openvpn.Cer
 }
 
 func (app *OvpnAdmin) createDeviceByCertificate(certificate *openvpn.Certificate) {
-	ccd := openvpn.ParseCcd(app.serverConf, certificate.Username)
+	//log.Printf("      -> create cert '%s'", certificate.Username)
+	ccd := openvpn.ParseCcd(*serverConfFile, app.serverConf, certificate.Username)
 
 	app.clients = append(app.clients, &model.Device{
 		Username:         certificate.Username,

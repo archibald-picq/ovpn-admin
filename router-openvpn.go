@@ -25,6 +25,24 @@ func (app *OvpnAdmin) handleOpenvpnCommand(w http.ResponseWriter, r *http.Reques
 		app.listCrl(w)
 		return
 	}
+	if r.URL.Path == "/api/openvpn/gen-dh" && r.Method == "POST" {
+		err := openvpn.CreateDhFile(app.easyrsa)
+		if err != nil {
+			returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+			return
+		}
+		return
+	}
+
+	if r.URL.Path == "/api/openvpn/init-pki" && r.Method == "POST" {
+		err := openvpn.InitPki(app.easyrsa)
+		if err != nil {
+			returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+			return
+		}
+		return
+	}
+
 	returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
 }
 

@@ -11,7 +11,7 @@ import (
 
 func RenderClientConfig(
 	servers []string,
-	config OvpnConfig,
+	config *OvpnConfig,
 	explicitExitNotify bool,
 	authNocache bool,
 	address string,

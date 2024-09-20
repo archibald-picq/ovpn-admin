@@ -34,7 +34,10 @@ func (app *OvpnAdmin) handleUserCommand(w http.ResponseWriter, r *http.Request) 
 
 	if r.Method == "PUT" {
 		if cmd == "ccd" {
-			app.userApplyCcdHandler(w, r, username)
+			retCode, e := app.userApplyCcdHandler(w, r, username)
+			if e != nil {
+				returnErrorMessage(w, retCode, e)
+			}
 			return
 		}
 	} else if r.Method == "GET" {

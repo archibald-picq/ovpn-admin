@@ -1,0 +1,100 @@
+
+<div class="page">
+  <h1>Configure OpenVPN server</h1>
+  <div class="hint">
+
+  </div>
+
+  <form (ngSubmit)="save()">
+    <div class="form-group mb-2 d-flex">
+      <div class="flex-grow-1">
+        <div class="title">PKI</div>
+        <div class="details">{{setup.pkiPath}}</div>
+        <div class="error" *ngIf="pkiInit.error">{{pkiInit.error}}</div>
+      </div>
+      <div class="check-progress">
+        <mat-icon *ngIf="pkiInit.loading">sync</mat-icon>
+        <mat-icon *ngIf="!pkiInit.loading">{{pkiInit.exists ? 'check_box': 'check_box_outline_blank'}}</mat-icon>
+      </div>
+    </div>
+    <div class="form-group mb-2 d-flex">
+      <div class="flex-grow-1">
+        <div class="title">Authority Certificate</div>
+        <div class="details">
+          <div class="exists" *ngIf="authorityCertificate.commonName">{{authorityCertificate.commonName}}</div>
+          <div class="inexists" *ngIf="!authorityCertificate.commonName">unset</div>
+        </div>
+        <div class="error" *ngIf="authorityCertificate.error">{{authorityCertificate.error}}</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary btn-sm" id="certificate-authority" aria-describedby="certificate authority" (click)="editAuthCert($event)" [disabled]="loading">edit</button>
+      </div>
+      <div class="check-progress">
+        <mat-icon *ngIf="authorityCertificate.loading">sync</mat-icon>
+        <mat-icon *ngIf="!authorityCertificate.loading">{{authorityCertificate.exists ? 'check_box': 'check_box_outline_blank'}}</mat-icon>
+      </div>
+    </div>
+    <div class="form-group mb-2 d-flex">
+      <div class="flex-grow-1">
+        <div class="title">Server Certificate</div>
+        <div class="details">
+          <div class="exists" *ngIf="serverCertificate.commonName">{{serverCertificate.commonName}}</div>
+          <div class="inexists" *ngIf="!serverCertificate.commonName">unset</div>
+        </div>
+        <div class="error" *ngIf="serverCertificate.error">{{serverCertificate.error}}</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary btn-sm" id="server-certificate" aria-describedby="certificate authority" (click)="editServerCert($event)" [disabled]="loading">edit</button>
+      </div>
+      <div class="check-progress">
+        <mat-icon *ngIf="serverCertificate.loading">sync</mat-icon>
+        <mat-icon *ngIf="!serverCertificate.loading">{{serverCertificate.exists ? 'check_box': 'check_box_outline_blank' }}</mat-icon>
+      </div>
+    </div>
+    <div class="form-group mb-2 d-flex">
+      <div class="flex-grow-1">
+        <div class="title">Diffie-Hellman</div>
+        <div class="details">
+          {{setup.dhPem ? 'Random 2048 bits key': 'not yet generated'}}
+        </div>
+        <div class="error" *ngIf="dhPem.error">{{dhPem.error}}</div>
+      </div>
+      <div class="check-progress">
+        <mat-icon *ngIf="dhPem.loading">sync</mat-icon>
+        <mat-icon *ngIf="!dhPem.loading">{{setup.dhPem ? 'check_box': 'check_box_outline_blank' }}</mat-icon>
+      </div>
+    </div>
+
+    <div class="form-group mb-2 d-flex">
+      <div class="flex-grow-1">
+        <div class="title">VPN server instance</div>
+        <div class="sub-form">
+          <div>
+            <label for="network-ipv4">
+              IP v4 Network
+            </label>
+            <input class="form-control" id="network-ipv4" name="network" aria-describedby="network" [(ngModel)]="systemdService.network" [disabled]="loading">
+          </div>
+          <div>
+            <label for="listen-port">
+              Listen port
+            </label>
+            <input class="form-control" id="listen-port" name="port" aria-describedby="listen-port" [(ngModel)]="systemdService.port" [disabled]="loading">
+          </div>
+        </div>
+        <div class="error" *ngIf="systemdService.error">{{systemdService.error}}</div>
+      </div>
+      <div class="check-progress">
+        <mat-icon *ngIf="systemdService.loading">sync</mat-icon>
+        <mat-icon *ngIf="!systemdService.loading">{{systemdService.state === 'started' ? 'check_box': 'check_box_outline_blank' }}</mat-icon>
+      </div>
+    </div>
+    <div class="mb-3 d-flex">
+      <div class="flex-grow-1">
+        <div *ngIf="systemdService.loading">Starting server</div>
+        <div *ngIf="error">{{error}}</div>
+      </div>
+      <input type="submit" value="Save">
+    </div>
+  </form>
+</div>

@@ -17,8 +17,8 @@ export class AccountService {
   }
 
 
-  public async createAdminAccount(params: AccountEditDTO): Promise<User> {
-    return firstValueFrom(this.http.post<User>(this.OPENVPN_ADMIN_API+'/api/config/admin/', params)).then(User.hydrate);
+  public async createAdminAccount(params: AccountEditDTO): Promise<void> {
+    return firstValueFrom(this.http.post<void>(this.OPENVPN_ADMIN_API+'/api/config/admin/', params));
   }
 
   public async updateAdminAccount(username: string, params: Record<string, any>): Promise<void> {

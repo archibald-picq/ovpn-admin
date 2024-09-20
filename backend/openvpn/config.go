@@ -22,27 +22,27 @@ type Push struct {
 type OvpnConfig struct {
 	Server                     string // 10.8.0.0 255.255.255.0
 	MasterCn                   string
-	ForceGatewayIpv4           bool   // push "redirect-gateway def1 bypass-dhcp"
-	ForceGatewayIpv4ExceptDhcp bool   // push "redirect-gateway def1 bypass-dhcp"
-	ForceGatewayIpv4ExceptDns  bool   // push "redirect-gateway def1 bypass-dns"
-	Port                       int    // 1194
-	proto                      string // udp udp6
-	dev                        string // tun tap
-	EnableMtu                  bool   // tru/false
-	TunMtu                     int    // 60000
-	DnsIpv4                    string // 10.8.0.1
-	DnsIpv6                    string // fd42:42:42:42::1
-	Fragment                   int    // 0
-	user                       string // nobody
-	group                      string // nogroup
-	Mssfix                     int    // 0
-	Management                 string // localhost 7505
-	ca                         string // ca.crt
-	Cert                       string // Server.crt
-	key                        string // Server.key
-	dh                         string // dh2048.pem none
-	ifconfigPoolPersist        string // ipp.txt
-	keepalive                  string // 10 120
+	ForceGatewayIpv4           bool    // push "redirect-gateway def1 bypass-dhcp"
+	ForceGatewayIpv4ExceptDhcp bool    // push "redirect-gateway def1 bypass-dhcp"
+	ForceGatewayIpv4ExceptDns  bool    // push "redirect-gateway def1 bypass-dns"
+	Port                       int     // 1194
+	proto                      string  // udp udp6
+	dev                        string  // tun tap
+	EnableMtu                  bool    // tru/false
+	TunMtu                     int     // 60000
+	DnsIpv4                    *string // 10.8.0.1
+	DnsIpv6                    *string // fd42:42:42:42::1
+	Fragment                   int     // 0
+	user                       string  // nobody
+	group                      string  // nogroup
+	Mssfix                     int     // 0
+	Management                 string  // localhost 7505
+	ca                         string  // ca.crt
+	Cert                       string  // Server.crt
+	key                        string  // Server.key
+	dh                         string  // dh2048.pem none
+	ifconfigPoolPersist        string  // ipp.txt
+	keepalive                  string  // 10 120
 	CompLzo                    bool
 	allowCompression           bool
 	persistKey                 bool
@@ -52,9 +52,9 @@ type OvpnConfig struct {
 	ClientConfigDir            string // ccd
 	ClientToClient             bool
 	DuplicateCn                bool
-	topology                   string // subnet
-	ServerIpv6                 string // fd42:42:42:42::/112
-	ForceGatewayIpv6           bool   // push "redirect-gateway ipv6"
+	topology                   string  // subnet
+	ServerIpv6                 *string // fd42:42:42:42::/112
+	ForceGatewayIpv6           bool    // push "redirect-gateway ipv6"
 	tunIpv6                    bool
 	ecdhCurve                  string // prime256v1
 	TlsCrypt                   string // tls-crypt.key
@@ -76,7 +76,6 @@ type OvpnConfig struct {
 	// "tun-ipv6"
 	// "routes-ipv6 2000::/3"
 	// "redirect-gateway ipv6"
-	CcdDir string
 }
 
 var regIp = regexp.MustCompile("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")
@@ -85,17 +84,23 @@ func isIpv4(addr string) bool {
 	return regIp.MatchString(addr)
 }
 
+//	func setDefaults(config *OvpnConfig) {
+//		config.ClientConfigDir = "ccd"
+//
+// }
 func ParseServerConf(file string) *OvpnConfig {
 	config := new(OvpnConfig)
+	config.TunMtu = -1
+	config.Fragment = -1
+	config.Mssfix = -1
+
 	if !shell.FileExist(file) {
-		log.Printf("OpenVPN server not configured")
+		log.Printf("OpenVPN server not configured at '%s', starting with defaults", file)
+		//setDefaults(config)
 		return nil
 	}
 	lines := strings.Split(shell.ReadFile(file), "\n")
 
-	config.TunMtu = -1
-	config.Fragment = -1
-	config.Mssfix = -1
 	for _, line := range lines {
 		line = strings.TrimLeft(line, " ")
 		if len(line) == 0 {
@@ -110,12 +115,13 @@ func ParseServerConf(file string) *OvpnConfig {
 	}
 
 	if len(config.Cert) > 0 {
-		cert := GetCommonNameFromCertificate(shell.AbsolutizePath(file, config.Cert))
+		cert := ReadCertificate(shell.AbsolutizePath(file, config.Cert))
 		if cert != nil {
-			config.MasterCn = cert.Subject.CommonName
+			config.MasterCn = cert.CommonName
 			//ovpnServerCaCertExpire.Set(float64((cert.NotAfter.Unix() - time.Now().Unix()) / 3600 / 24))
 		}
 	}
+
 	return config
 }
 
@@ -197,7 +203,10 @@ func parseServerConfLine(config *OvpnConfig, line string, commented bool) {
 	case key == "topology":
 		config.topology = getValueWithoutComment(line)
 	case key == "server-ipv6":
-		config.ServerIpv6 = getValueWithoutComment(line)
+		serverIpv6 := getValueWithoutComment(line)
+		if serverIpv6 != "" {
+			config.ServerIpv6 = &serverIpv6
+		}
 	case key == "tun-ipv6":
 		config.tunIpv6 = true
 	case key == "ecdh-curve":
@@ -264,9 +273,9 @@ func extractPushConfig(config *OvpnConfig, enabled bool, line string, comment st
 		}
 	} else if parts[0] == "dhcp-option" && parts[1] == "DNS" {
 		if isIpv4(parts[2]) {
-			config.DnsIpv4 = parts[2]
+			config.DnsIpv4 = &parts[2]
 		} else {
-			config.DnsIpv6 = parts[2]
+			config.DnsIpv6 = &parts[2]
 		}
 	} else if parts[0] == "route" {
 		if route, err := getRouteQuotedValue(parts[1:]); err == nil {
@@ -383,6 +392,31 @@ func getIntValueWithoutComment(line string) (int, error) {
 	}
 }
 
+func InitServerConf() *OvpnConfig {
+	config := new(OvpnConfig)
+	config.Port = 1194
+	config.proto = "udp"
+	config.dev = "tun"
+	config.Management = "localhost 7505"
+	config.ca = "easyrsa/pki/ca.crt"
+	config.Cert = "easyrsa/pki/issued/server.crt"
+	config.key = "easyrsa/pki/private/server.key"
+	config.ifconfigPoolPersist = "ipp.txt"
+	config.keepalive = "10 120"
+	config.persistKey = true
+	config.persistTun = true
+	config.status = "openvpn-status.log"
+	config.verb = 1
+	config.ClientConfigDir = "ccd"
+	config.TlsVersionMin = "1.0"
+	config.CrlVerify = "easyrsa/pki/crl.pem"
+	config.Routes = make([]Route, 0)
+	config.RoutesPush = make([]Route, 0)
+	config.dh = "easyrsa/pki/dh.pem"
+	//config.
+	return config
+}
+
 func BuildConfig(config OvpnConfig) []byte {
 
 	var lines = make([]string, 0)
@@ -465,7 +499,7 @@ func BuildConfig(config OvpnConfig) []byte {
 	if len(config.topology) > 0 {
 		lines = append(lines, fmt.Sprintf("topology %s", config.topology))
 	}
-	if len(config.ServerIpv6) > 0 {
+	if config.ServerIpv6 != nil && len(*config.ServerIpv6) > 0 {
 		lines = append(lines, fmt.Sprintf("server-ipv6 %s", config.ServerIpv6))
 		if config.tunIpv6 {
 			// tun-ipv6 is for old clients
@@ -530,10 +564,10 @@ func BuildConfig(config OvpnConfig) []byte {
 	if config.ForceGatewayIpv6 {
 		lines = append(lines, "push \"redirect-gateway ipv6\"")
 	}
-	if len(config.DnsIpv4) > 0 {
+	if config.DnsIpv4 != nil && len(*config.DnsIpv4) > 0 {
 		lines = append(lines, fmt.Sprintf("push \"dhcp-option DNS %s\"", config.DnsIpv4))
 	}
-	if len(config.DnsIpv6) > 0 {
+	if config.DnsIpv6 != nil && len(*config.DnsIpv6) > 0 {
 		lines = append(lines, fmt.Sprintf("push \"dhcp-option DNS %s\"", config.DnsIpv6))
 	}
 	if len(config.Push) > 0 {
@@ -543,6 +577,7 @@ func BuildConfig(config OvpnConfig) []byte {
 		}
 	}
 	lines = append(lines, "")
+	log.Printf("config: %s", strings.Join(lines, "\n"))
 	return []byte(strings.Join(lines, "\n"))
 }
 

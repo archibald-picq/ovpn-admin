@@ -6,6 +6,9 @@
         <h1 class="flex-grow-1">Upload Certificate</h1>
         <div></div>
     </div>
+    <div>
+        or <a routerLink="../register">request an account</a>
+    </div>
 </div>
 <form (ngSubmit)="save()">
     <div class="m-3 drop-zone" busFileInputDnd (fileDropped)="processFile($event)">

@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"math/rand"
+	"os"
 	"rpiadm/backend/mgmt"
 	"rpiadm/backend/model"
 	"rpiadm/backend/openvpn"
 	"rpiadm/backend/preference"
 	"rpiadm/backend/rpi"
 	"rpiadm/backend/shell"
+	"strings"
 
 	"embed"
 	"io/fs"
@@ -23,7 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 )
 
 const (
@@ -63,7 +65,7 @@ type OvpnAdmin struct {
 	lastSuccessfulSyncTime string
 	masterHostBasicAuth    bool
 	masterSyncToken        string
-	serverConf             openvpn.OvpnConfig
+	serverConf             *openvpn.OvpnConfig
 	clients                []*model.Device
 	triggerUpdateChan      chan *model.Device
 	promRegistry           *prometheus.Registry
@@ -124,86 +126,141 @@ func main() {
 
 	//log.Printf("PATH %s\n", os.Getenv("PATH"))
 
-	oAdmin := new(OvpnAdmin)
-	oAdmin.lastSyncTime = "unknown"
-	oAdmin.lastSuccessfulSyncTime = "unknown"
-	oAdmin.masterSyncToken = *masterSyncToken
-	oAdmin.promRegistry = prometheus.NewRegistry()
-	oAdmin.createUserMutex = &sync.Mutex{}
-	//oAdmin.mgmtInterface = *mgmtAddress
-	oAdmin.outboundIp = shell.GetOutboundIP()
-	oAdmin.clients = make([]*model.Device, 0)
-	oAdmin.easyrsa.EasyrsaBinPath = *easyrsaBinPath
-	oAdmin.easyrsa.EasyrsaDirPath = *easyrsaDirPath
+	app := new(OvpnAdmin)
+	app.lastSyncTime = "unknown"
+	app.lastSuccessfulSyncTime = "unknown"
+	app.masterSyncToken = *masterSyncToken
+	app.promRegistry = prometheus.NewRegistry()
+	app.createUserMutex = &sync.Mutex{}
+	//app.mgmtInterface = *mgmtAddress
+	app.outboundIp = shell.GetOutboundIP()
+	app.clients = make([]*model.Device, 0)
 
-	oAdmin.mgmt.GetConnection = oAdmin.getConnection
-	oAdmin.mgmt.GetUserConnection = oAdmin.getUserConnection
-	oAdmin.mgmt.TriggerBroadcastUser = oAdmin.triggerBroadcastUser
-	oAdmin.mgmt.SynchroConnections = oAdmin.synchroConnections
-	oAdmin.mgmt.AddClientConnection = oAdmin.addClientConnection
-	oAdmin.mgmt.BroadcastWritePacket = func(line string) {
-		oAdmin.broadcast(WebsocketPacket{Stream: "write", Data: line})
+	app.mgmt.GetConnection = app.getConnection
+	app.mgmt.GetUserConnection = app.getUserConnection
+	app.mgmt.TriggerBroadcastUser = app.triggerBroadcastUser
+	app.mgmt.SynchroConnections = app.synchroConnections
+	app.mgmt.AddClientConnection = app.addClientConnection
+	app.mgmt.BroadcastWritePacket = func(line string) {
+		app.broadcast(WebsocketPacket{Stream: "write", Data: line})
 	}
-	oAdmin.mgmt.BroadcastReadPacket = func(line string) {
-		oAdmin.broadcast(WebsocketPacket{Stream: "read", Data: line})
+	app.mgmt.BroadcastReadPacket = func(line string) {
+		app.broadcast(WebsocketPacket{Stream: "read", Data: line})
 	}
 
-	oAdmin.serverConf = *openvpn.ParseServerConf(*serverConfFile)
-	oAdmin.serverConf.CcdDir = shell.AbsolutizePath(*serverConfFile, oAdmin.serverConf.ClientConfigDir)
-	log.Printf("ccd dir %s", oAdmin.serverConf.CcdDir)
-
-	//log.Printf("loaded config %v", oAdmin.serverConf)
-
+	log.Printf("Reading ovpn-admin config '%s'", *ovpnConfigDir+"/config.json")
 	preference.LoadPreferences(
-		&oAdmin.applicationPreferences,
+		&app.applicationPreferences,
 		*ovpnConfigDir,
 		*jwtSecretFile,
 	)
+	log.Printf("  -> users: %d", len(app.applicationPreferences.Users))
+	log.Printf("  -> api keys: %d", len(app.applicationPreferences.ApiKeys))
+	log.Printf("  -> server host: %s", app.applicationPreferences.Preferences.Address)
 
-	oAdmin.registerMetrics()
-
-	if len(oAdmin.serverConf.Management) > 0 {
-		go oAdmin.connectToManagementInterface()
+	path, err := os.Getwd()
+	if err != nil {
+		log.Fatal("Can't get CWD")
 	}
 
-	upgrader.CheckOrigin = oAdmin.checkWebsocketOrigin
-	upgrader.Subprotocols = []string{"ovpn"}
-	// initial device load
-	for _, cert := range openvpn.IndexTxtParserCertificate(oAdmin.easyrsa) {
-		if cert.Username != oAdmin.serverConf.MasterCn {
-			oAdmin.createOrUpdateDeviceByCertificate(cert)
+	log.Printf("current working directory %s", path)
+	//log.Printf("  -> absolutize ccd '%s' + '%s'", path, *serverConfFile)
+	*serverConfFile = shell.AbsolutizePath(path+"/", *serverConfFile)
+	//log.Printf("Reading openvpn server config '%s'", *serverConfFile)
+	app.serverConf = openvpn.ParseServerConf(*serverConfFile)
+	if app.serverConf != nil {
+		log.Printf("  -> network: %s", app.serverConf.Server)
+		log.Printf("  -> master certificate: %s", app.serverConf.MasterCn)
+		log.Printf("  -> management address: %s", app.serverConf.Management)
+
+		//*serverConfFile = shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir)
+		//log.Printf("  -> absolutize ccd '%s' + '%s'", *serverConfFile, app.serverConf.ClientConfigDir)
+		log.Printf("  -> ccd dir: '%s'", shell.AbsolutizePath(*serverConfFile, app.serverConf.ClientConfigDir))
+	}
+
+	log.Printf("Reading easyrsa certificates")
+	app.easyrsa.EasyrsaBinPath = shell.AbsolutizePath(path+"/", *easyrsaBinPath)
+	app.easyrsa.EasyrsaDirPath = shell.AbsolutizePath(path+"/", *easyrsaDirPath)
+	log.Printf("  -> easyrsa bin: '%s' (%s)", app.easyrsa.EasyrsaBinPath, checkEasyrsaVersionOrAbsent(app.easyrsa.EasyrsaBinPath))
+	if openvpn.IndexTxtExists(app.easyrsa) {
+		log.Printf("  -> pki dir: '%s' (exists)", app.easyrsa.EasyrsaDirPath+"/pki/index.txt")
+		//log.Printf("loaded config %v", app.serverConf)
+		// initial device load
+		for _, cert := range openvpn.IndexTxtParserCertificate(app.easyrsa) {
+			if app.serverConf == nil || cert.Username != app.serverConf.MasterCn {
+				app.createOrUpdateDeviceByCertificate(cert)
+			}
 		}
+		log.Printf("  -> clients: %d (ccd: %d)", len(app.clients), app.countClientsWithCcd())
+	} else {
+		log.Printf("  -> pki dir: '%s' (absent)", app.easyrsa.EasyrsaDirPath+"/pki/index.txt")
 	}
-	oAdmin.triggerUpdateChan = make(chan *model.Device)
-	go oAdmin.autoUpdate()
+	app.registerMetrics()
+
+	if app.serverConf != nil && len(app.serverConf.Management) > 0 {
+		go app.connectToManagementInterface()
+	}
+
+	upgrader.CheckOrigin = app.checkWebsocketOrigin
+	upgrader.Subprotocols = []string{"ovpn"}
+	app.triggerUpdateChan = make(chan *model.Device)
+	go app.autoUpdate()
 
 	staticDir, _ := fs.Sub(content, "frontend/static")
 	embedFs := http.FS(staticDir)
-	http.HandleFunc("/api/ws", oAdmin.handleWebsocketCommand)
-	http.HandleFunc("/api/authenticate", oAdmin.authenticate)
-	http.HandleFunc("/api/logout", oAdmin.logout)
-	http.HandleFunc("/api/config", oAdmin.handleConfigCommand)
-	http.HandleFunc("/api/config/", oAdmin.handleConfigCommand)
-	http.HandleFunc("/api/openvpn", oAdmin.handleOpenvpnCommand)
-	http.HandleFunc("/api/openvpn/", oAdmin.handleOpenvpnCommand)
-	//http.HandleFunc("/api/config/preferences/save", oAdmin.postPreferences)
-	//http.HandleFunc("/api/config/admin/", oAdmin.handleAdminAccount)
-	//http.HandleFunc("/api/config/api-key/", oAdmin.handleApiKey)
-	http.HandleFunc("/api/user", oAdmin.handleUserCommand)
-	http.HandleFunc("/api/user/", oAdmin.handleUserCommand)
-	http.HandleFunc("/api/node", oAdmin.handleNodeCommand)
-	http.HandleFunc("/api/node/", oAdmin.handleNodeCommand)
+	http.HandleFunc("/api/ws", app.handleWebsocketCommand)
+	http.HandleFunc("/api/authenticate", app.authenticate)
+	http.HandleFunc("/api/logout", app.logout)
+	http.HandleFunc("/api/config", app.handleConfigCommand)
+	http.HandleFunc("/api/config/", app.handleConfigCommand)
+	http.HandleFunc("/api/openvpn", app.handleOpenvpnCommand)
+	http.HandleFunc("/api/openvpn/", app.handleOpenvpnCommand)
+	//http.HandleFunc("/api/config/preferences/save", app.postPreferences)
+	//http.HandleFunc("/api/config/admin/", app.handleAdminAccount)
+	//http.HandleFunc("/api/config/api-key/", app.handleApiKey)
+	http.HandleFunc("/api/user", app.handleUserCommand)
+	http.HandleFunc("/api/user/", app.handleUserCommand)
+	http.HandleFunc("/api/node", app.handleNodeCommand)
+	http.HandleFunc("/api/node/", app.handleNodeCommand)
 
-	http.Handle(*metricsPath, promhttp.HandlerFor(oAdmin.promRegistry, promhttp.HandlerOpts{}))
+	http.Handle(*metricsPath, promhttp.HandlerFor(app.promRegistry, promhttp.HandlerOpts{}))
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "pong")
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		oAdmin.catchAll(embedFs, w, r)
+		app.catchAll(embedFs, w, r)
 	})
 
-	log.Printf("Bind: http://%s:%s", *listenHost, *listenPort)
+	log.Printf("Admin interface: http://%s:%s", *listenHost, *listenPort)
 	log.Fatal(http.ListenAndServe(*listenHost+":"+*listenPort, nil))
+}
+
+func checkEasyrsaVersionOrAbsent(path string) string {
+	if !shell.FileExist(path) {
+		return "absent"
+	}
+	output, error := shell.RunBash(path + " --version")
+	if error != nil {
+		return "error"
+	}
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Version:") {
+			line = strings.TrimSpace(line[len("Version:"):])
+			return line
+		}
+	}
+	return "error"
+}
+
+func (app *OvpnAdmin) countClientsWithCcd() int {
+	count := 0
+	for _, c := range app.clients {
+		if c.Ccd != nil {
+			count++
+		}
+	}
+	return count
 }
 
 func (app *OvpnAdmin) catchAll(embedFs http.FileSystem, w http.ResponseWriter, r *http.Request) {

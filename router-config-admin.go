@@ -46,7 +46,7 @@ func (app *OvpnAdmin) handleAdminAccount(w http.ResponseWriter, r *http.Request)
 	var adminAccountUpdate preference.AdminAccountUpdate
 	err := json.NewDecoder(r.Body).Decode(&adminAccountUpdate)
 	if err != nil {
-		log.Printf(err.Error())
+		returnErrorMessage(w, http.StatusBadRequest, err)
 		return
 	}
 

@@ -1,6 +1,7 @@
 import {ICertificate, IClientCertificate, IConnection, INetwork, INode} from './client-certificate.interface';
 import { ClientConfig } from './client-config.model';
 import { Hello } from './hello.model';
+import {CertificatInfo} from './certificat-info.model';
 
 export class Network implements INetwork {
 	address: string;
@@ -96,15 +97,15 @@ export class Connection implements IConnection {
 export class Certificate implements ICertificate {
 	constructor(
 		public readonly identity: string,
-		public readonly country: string,
-		public readonly province: string,
-		public readonly city: string,
-		public readonly organisation: string,
-		public readonly organisationUnit: string,
-		public readonly email: string,
-		public readonly expirationDate: Date|undefined,
-		public readonly revocationDate: Date|undefined,
-		public accountStatus: string,
+		public readonly country?: string,
+		public readonly province?: string,
+		public readonly city?: string,
+		public readonly organisation?: string,
+		public readonly organisationUnit?: string,
+		public readonly email?: string,
+		public readonly expirationDate?: Date|undefined,
+		public readonly revocationDate?: Date|undefined,
+		public accountStatus?: string,
 	) {
 
 	}
@@ -121,6 +122,21 @@ export class Certificate implements ICertificate {
 			obj.revocationDate ? ClientCertificate.parseDate(obj.revocationDate): undefined,
 			obj.accountStatus,
 		);
+	}
+
+	public static copy(dest: CertificatInfo, orig: CertificatInfo): CertificatInfo {
+		dest.commonName = orig.commonName;
+		dest.email = orig.email;
+		dest.country = orig.country;
+		dest.province = orig.province;
+		dest.city = orig.city;
+		dest.organisation = orig.organisation;
+		dest.organisationUnit = orig.organisationUnit;
+		return dest;
+	}
+
+	public static build(orig: CertificatInfo): CertificatInfo {
+		return this.copy({commonName: orig.commonName}, orig);
 	}
 }
 

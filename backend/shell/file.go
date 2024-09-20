@@ -35,6 +35,10 @@ func FileExist(path string) bool {
 	return true
 }
 
+func CreateDir(path string) error {
+	return os.MkdirAll(path, 0700)
+}
+
 func dirname(path string) string {
 	if strings.HasSuffix("/", path) {
 		//log.Printf("referencePath ends with '/': '%s' .. '%s'", path, relativePath)
@@ -50,7 +54,9 @@ func AbsolutizePath(referencePath string, relativePath string) string {
 	}
 	relativePath = strings.TrimPrefix(relativePath, "./")
 
-	referencePath = dirname(referencePath)
+	if !strings.HasSuffix(referencePath, "/") {
+		referencePath = dirname(referencePath)
+	}
 
 	//log.Printf("concat paths: '%s' .. '%s'", referencePath, relativePath)
 	return referencePath + relativePath

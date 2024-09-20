@@ -1,0 +1,34 @@
+<form>
+  <div class="mb-3">
+    <label for="create-certificate-username">Common Name</label>
+    <input [disabled]="loading" id="create-certificate-username" name="username" class="form-control" [(ngModel)]="certificate.commonName" placeholder="homer">
+  </div>
+  <div class="mb-3">
+    <label for="create-certificate-organisation-email">Email</label>
+    <input [disabled]="loading" id="create-certificate-organisation-email" name="email" class="form-control" [(ngModel)]="certificate.email" placeholder="homer.simpson@example.com">
+  </div>
+  <div class="mb-3 d-flex flex-row">
+    <div class="me-2">
+      <label for="create-certificate-country">Country</label>
+      <input [disabled]="loading" id="create-certificate-country" name="country" class="form-control" [(ngModel)]="certificate.country" placeholder="US" maxlength="2">
+    </div>
+    <div class="me-2">
+      <label for="create-certificate-province">Province</label>
+      <input [disabled]="loading" id="create-certificate-province" name="province" class="form-control" [(ngModel)]="certificate.province" placeholder="Illinois">
+    </div>
+    <div>
+      <label for="create-certificate-city">City</label>
+      <input [disabled]="loading" id="create-certificate-city" name="city" class="form-control" [(ngModel)]="certificate.city" placeholder="Springfield">
+    </div>
+  </div>
+  <div class="mb-3 d-flex flex-row">
+    <div class="me-2 flex-grow-1">
+      <label for="create-certificate-organisation">Organisation</label>
+      <input [disabled]="loading" id="create-certificate-organisation" name="org" class="form-control" [(ngModel)]="certificate.organisation" placeholder="Power plant">
+    </div>
+    <div class="flex-grow-1">
+      <label for="create-certificate-organisation-unit">Organisation Unit</label>
+      <input [disabled]="loading" id="create-certificate-organisation-unit" name="ou" class="form-control" [(ngModel)]="certificate.organisationUnit" placeholder="Security service">
+    </div>
+  </div>
+</form>

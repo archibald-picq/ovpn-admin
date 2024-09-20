@@ -24,7 +24,7 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if openvpn.ExistCcd(app.serverConf, userDefinition.CommonName) {
+	if openvpn.ExistCcdCommonName(*serverConfFile, app.serverConf, userDefinition.CommonName) {
 		returnErrorMessage(w, http.StatusPreconditionFailed, errors.New("conflicting existing files"))
 		return
 	}
@@ -38,27 +38,73 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	log.Printf("create user with %v\n", userDefinition)
-	certificate, err := openvpn.UserCreateCertificate(app.easyrsa, *authByPassword, *authDatabase, userDefinition)
-	if err != nil {
-		app.removeCcd(userDefinition.CommonName)
-		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
-		return
-	}
+	if typeCa := r.URL.Query().Get("type"); typeCa == "ca" {
+		if !openvpn.PkiExists(app.easyrsa) {
+			if err = openvpn.InitPki(app.easyrsa); err != nil {
+				returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("can't init PKI"))
+				return
+			}
+		}
+		if openvpn.CaExists(app.easyrsa) {
+			returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("index already exists"))
+			return
+		}
+		certificate, err := openvpn.CreateCaCertificate(app.easyrsa, *authByPassword, *authDatabase, userDefinition)
+		if err != nil {
+			//app.removeCcd(userDefinition.CommonName)
+			returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+			return
+		}
+		log.Printf("certificate: %s", certificate)
+		//if err = openvpn.BuildCa(app.easyrsa); err != nil {
+		//	returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("Can't init PKI"))
+		//	return
+		//}
 
-	user := &model.Device{
-		Username:         userDefinition.CommonName,
-		ConnectionStatus: "",
-		Certificate:      certificate,
-		RpiState:         nil,
-		Connections:      make([]*openvpn.VpnConnection, 0),
-		Rpic:             make([]*rpi.RpiConnection, 0),
-		Ccd:              newCcd,
-	}
-	app.clients = append(app.clients, user)
-	log.Printf("created user %v over %d clients\n", user, len(app.clients))
-	err = returnJson(w, user)
-	if err != nil {
-		log.Printf("error sending response")
+	} else if typeCa == "server" {
+		certificate, err := openvpn.CreateServerCertificate(app.easyrsa, *authByPassword, *authDatabase, userDefinition)
+		if err != nil {
+			//app.removeCcd(userDefinition.CommonName)
+			returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+			return
+		}
+		log.Printf("certificate: %s", certificate)
+		server := &model.Device{
+			Username:         userDefinition.CommonName,
+			ConnectionStatus: "",
+			Certificate:      certificate,
+			RpiState:         nil,
+			Connections:      make([]*openvpn.VpnConnection, 0),
+			Rpic:             make([]*rpi.RpiConnection, 0),
+			Ccd:              newCcd,
+		}
+
+		openvpn.RebuildClientRevocationList(app.easyrsa)
+		//app.serverConf.MasterCn = userDefinition.CommonName
+		err = returnJson(w, server)
+	} else {
+		certificate, err := openvpn.CreateClientCertificate(app.easyrsa, *authByPassword, *authDatabase, userDefinition)
+		if err != nil {
+			app.removeCcd(userDefinition.CommonName)
+			returnErrorMessage(w, http.StatusUnprocessableEntity, err)
+			return
+		}
+
+		user := &model.Device{
+			Username:         userDefinition.CommonName,
+			ConnectionStatus: "",
+			Certificate:      certificate,
+			RpiState:         nil,
+			Connections:      make([]*openvpn.VpnConnection, 0),
+			Rpic:             make([]*rpi.RpiConnection, 0),
+			Ccd:              newCcd,
+		}
+		app.clients = append(app.clients, user)
+		log.Printf("created user %v over %d clients\n", user, len(app.clients))
+		err = returnJson(w, user)
+		if err != nil {
+			log.Printf("error sending response")
+		}
 	}
 }
 
@@ -120,20 +166,20 @@ func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
+	if !auth.HasWriteRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
-	var passwordPayload PasswordPayload
-	err := json.NewDecoder(r.Body).Decode(&passwordPayload)
+	var userDefinition openvpn.UserDefinition
+	err := json.NewDecoder(r.Body).Decode(&userDefinition)
 	if err != nil {
 		log.Printf(err.Error())
 		returnErrorMessage(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	err = app.userRotate(username, passwordPayload.Password)
+	err = app.userRotate(username, &userDefinition)
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return

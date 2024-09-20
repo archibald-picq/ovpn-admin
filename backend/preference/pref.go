@@ -29,7 +29,7 @@ func LoadPreferences(
 		rawJson := shell.ReadFile(ovpnConfigDir + "/config.json")
 		err = json.Unmarshal([]byte(rawJson), preference)
 		if err != nil {
-			log.Printf("Can't decode config")
+			log.Fatal("Can't decode config {}", err)
 			return
 		}
 	} else {

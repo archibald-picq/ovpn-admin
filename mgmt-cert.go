@@ -65,7 +65,7 @@ func (app *OvpnAdmin) userUnrevoke(username string) error {
 	return nil
 }
 
-func (app *OvpnAdmin) userRotate(username string, newPassword string) error {
+func (app *OvpnAdmin) userRotate(username string, newDefinition *openvpn.UserDefinition) error {
 	device := app.getDevice(username)
 	if device == nil {
 		return errors.New(fmt.Sprintf("User \"%s\" not found\"", username))
@@ -75,8 +75,7 @@ func (app *OvpnAdmin) userRotate(username string, newPassword string) error {
 		*authByPassword,
 		*authDatabase,
 		username,
-		newPassword,
-		device.Certificate,
+		newDefinition,
 	)
 
 	app.updateCertificateStats()

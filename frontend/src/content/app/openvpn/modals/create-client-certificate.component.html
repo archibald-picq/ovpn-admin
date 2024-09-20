@@ -1,45 +1,12 @@
 <div class="modal-header">
-    <h4 class="modal-title" id="modal-basic-title">Create certificate</h4>
+    <h4 class="modal-title" id="modal-basic-title">{{popupTitle}}</h4>
     <button [disabled]="loading" type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
 </div>
 <div class="modal-body">
     <div class="hint" *ngIf="showHint">
         If you have many certificates to create, try the <a (click)="modal.dismiss()" [routerLink]="['./import']">mass import</a> feature.
     </div>
-    <form>
-        <div class="mb-3">
-            <label for="create-certificate-username">Common Name</label>
-            <input [disabled]="loading" id="create-certificate-username" name="username" class="form-control" [(ngModel)]="commonName" placeholder="homer">
-        </div>
-        <div class="mb-3">
-            <label for="create-certificate-organisation-email">Email</label>
-            <input [disabled]="loading" id="create-certificate-organisation-email" name="email" class="form-control" [(ngModel)]="email" placeholder="homer.simpson@example.com">
-        </div>
-        <div class="mb-3 d-flex flex-row">
-            <div class="me-2">
-                <label for="create-certificate-country">Country</label>
-                <input [disabled]="loading" id="create-certificate-country" name="country" class="form-control" [(ngModel)]="country" placeholder="US" maxlength="2">
-            </div>
-            <div class="me-2">
-                <label for="create-certificate-province">Province</label>
-                <input [disabled]="loading" id="create-certificate-province" name="province" class="form-control" [(ngModel)]="province" placeholder="Illinois">
-            </div>
-            <div>
-                <label for="create-certificate-city">City</label>
-                <input [disabled]="loading" id="create-certificate-city" name="city" class="form-control" [(ngModel)]="city" placeholder="Springfield">
-            </div>
-        </div>
-        <div class="mb-3 d-flex flex-row">
-            <div class="me-2 flex-grow-1">
-                <label for="create-certificate-organisation">Organisation</label>
-                <input [disabled]="loading" id="create-certificate-organisation" name="org" class="form-control" [(ngModel)]="organisation" placeholder="Power plant">
-            </div>
-            <div class="flex-grow-1">
-                <label for="create-certificate-organisation-unit">Organisation Unit</label>
-                <input [disabled]="loading" id="create-certificate-organisation-unit" name="ou" class="form-control" [(ngModel)]="organisationUnit" placeholder="Security service">
-            </div>
-        </div>
-    </form>
+    <bus-openvpn-certificate-form [certificate]="certificate" [loading]="loading"></bus-openvpn-certificate-form>
 </div>
 <div class="modal-footer flex-nowrap">
     <div class="error">{{error}}</div>

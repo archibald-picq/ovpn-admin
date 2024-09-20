@@ -19,7 +19,7 @@ func (app *OvpnAdmin) onRemoveRpi(user *model.Device, rpic *rpi.RpiConnection) {
 }
 
 func (app *OvpnAdmin) autoUpdate() {
-	log.Printf("binding.triggerUpdateChan %v", app.triggerUpdateChan)
+	//log.Printf("binding.triggerUpdateChan %v", app.triggerUpdateChan)
 	//ticker := time.NewTicker(time.Second * 5)
 	//defer ticker.Stop()
 	//for c := range app.triggerUpdateChan {

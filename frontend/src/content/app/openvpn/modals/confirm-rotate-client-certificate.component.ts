@@ -2,6 +2,7 @@ import {Component} from "@angular/core";
 import {NgbActiveModal} from "@ng-bootstrap/ng-bootstrap";
 import { IClientCertificate } from '../models/client-certificate.interface';
 import { OpenvpnService } from '../services/openvpn.service';
+import {BaseCertificate} from '../models/certificate-base.interface';
 
 export class RotateClientOptions {
     constructor(public readonly client: IClientCertificate) {
@@ -24,7 +25,15 @@ export class ConfirmRotateClientCertificateComponent {
 
     public async save(): Promise<void> {
         try {
-            const newClient = await this.openvpnService.rotateCertificate(this.options.client);
+            const newInfo: BaseCertificate = {
+                email: this.options.client.certificate?.email ?? '',
+                country: this.options.client.certificate?.country ?? '',
+                province: this.options.client.certificate?.province ?? '',
+                city: this.options.client.certificate?.city ?? '',
+                organisation: this.options.client.certificate?.organisation ?? '',
+                organisationUnit: this.options.client.certificate?.organisationUnit ?? '',
+            };
+            const newClient = await this.openvpnService.rotateCertificate(this.options.client.username, newInfo);
             newClient.certificate!.accountStatus = 'Active';
             newClient.certificate!.revocationDate = undefined;
             this.options.client.certificate!.accountStatus = 'Revoked';

@@ -1,5 +1,6 @@
 import { Route } from './route.model';
 import { ServiceConfig } from '../../shared/models/service-config';
+import {CertificatInfo} from './certificat-info.model';
 
 export class ApiKey {
     constructor(
@@ -113,10 +114,34 @@ export class Preferences {
     }
 }
 
+export class ServerSetup {
+    constructor(
+        public serviceName: string,
+        public pkiPath: string,
+        public pkiCount: number|undefined,
+        public dhPem: boolean,
+        public caCert?: CertificatInfo,
+        public serverCert?: CertificatInfo,
+    ) {
+    }
+
+    static hydrate(raw: ServerSetup): ServerSetup {
+        return new ServerSetup(
+          raw.serviceName,
+          raw.pkiPath,
+          raw.pkiCount,
+          raw.dhPem,
+          raw.caCert,
+          raw.serverCert,
+        );
+    }
+}
+
 export class OpenvpnConfig extends ServiceConfig {
     settings?: Settings;
     preferences?: Preferences;
     unconfigured: boolean;
+    serverSetup?: ServerSetup;
 
     constructor(raw?: Record<string, any>) {
         super(raw);
@@ -127,6 +152,7 @@ export class OpenvpnConfig extends ServiceConfig {
             this.preferences = Preferences.parse(raw?.preferences);
         }
         this.unconfigured = raw?.unconfigured;
+        this.serverSetup = raw?.serverSetup ? ServerSetup.hydrate(raw.serverSetup) : undefined;
     }
 
     static hydrate(raw: any) {

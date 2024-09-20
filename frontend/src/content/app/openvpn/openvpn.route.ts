@@ -4,7 +4,6 @@ import { OpenvpnClientsComponent } from "./clients/clients.component";
 import { OpenvpnService } from './services/openvpn.service';
 import { IClientCertificate } from './models/client-certificate.interface';
 import { OpenvpnSettingsPageComponent } from './settings/settings.component';
-import { OpenvpnConfig } from './models/openvpn-config.model';
 import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
 import { UploadPageComponent } from './upload/upload.component';
 import { LogPageComponent } from './log/log.component';
@@ -18,17 +17,8 @@ import {SetupComponent} from './setup/setup.component';
 import {ImportComponent} from './import/import.component';
 import {ImportUploadComponent} from './import/upload/upload.component';
 import {ImportCreateComponent} from './import/create/create.component';
-
-@Injectable({ providedIn: 'root' })
-class ConfigResolve implements Resolve<OpenvpnConfig> {
-    constructor(
-        private readonly service: OpenvpnService,
-    ) {}
-
-    public resolve(): Promise<OpenvpnConfig> {
-        return this.service.loadConfig();
-    }
-}
+import {RegisterComponent} from './register/register.component';
+import {ConfigResolve} from './services/config-resolve.service';
 
 @Injectable({ providedIn: 'root' })
 class ClientsResolve implements Resolve<IClientCertificate[]> {
@@ -89,6 +79,10 @@ export const OPENVPN_ROUTES: Route[] = [{
             component: UploadPageComponent,
         },
         {
+            path: 'register',
+            component: RegisterComponent,
+        },
+        {
             path: 'import',
             component: ImportComponent,
             children: [
@@ -120,6 +114,9 @@ export const OPENVPN_ROUTES: Route[] = [{
         {
             path: 'setup',
             component: SetupComponent,
+            resolve: {
+                config: ConfigResolve,
+            },
             canActivate: [
                 IsNotConfigured,
             ],

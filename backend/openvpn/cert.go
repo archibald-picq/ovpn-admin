@@ -34,6 +34,16 @@ type RevokedCert struct {
 	Cert         *Certificate `json:"cert,omitempty"`
 }
 
+type BaseCertificate struct {
+	CommonName       string `json:"commonName"`
+	Email            string `json:"email"`
+	Country          string `json:"country"`
+	Province         string `json:"province"`
+	City             string `json:"city"`
+	Organisation     string `json:"organisation"`
+	OrganisationUnit string `json:"organisationUnit"`
+}
+
 type UserDefinition struct {
 	//Account
 	CommonName       string `json:"commonName"`
@@ -93,7 +103,7 @@ func parseDateToUnix(layout, datetime string) int64 {
 	return parseDate(layout, datetime).Unix()
 }
 
-func CreateClientCertificate(identity string, flag string, expirationDate string, revocationDate *string, serialNumber string, filename string) *Certificate {
+func BuildClientCertificate(identity string, flag string, expirationDate string, revocationDate *string, serialNumber string, filename string) *Certificate {
 	apochNow := time.Now().Unix()
 	cert := new(Certificate)
 	cert.Username = extractUsername(identity)
@@ -241,7 +251,168 @@ func ValidatePassword(password string) error {
 	}
 }
 
-func UserCreateCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
+func CreateCaCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
+	log.Printf("CreateCaCertificate(%s)", definition.CommonName)
+	if !shell.FileExist(easyrsa.EasyrsaDirPath + "/pki") {
+		err := shell.CreateDir(easyrsa.EasyrsaDirPath + "/pki")
+		if err != nil {
+			return nil, errors.New("cant create pki dir")
+		}
+	}
+
+	if !validateUsername(definition.CommonName) {
+		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
+	}
+
+	if checkUserActiveExist(easyrsa, definition.CommonName) {
+		return nil, errors.New(fmt.Sprintf("User \"%s\" already exists", definition.CommonName))
+	}
+
+	if authByPassword && ValidatePassword(definition.Password) == nil {
+		return nil, errors.New(fmt.Sprintf("Key too short, password length must be greater or equal %d", passwordMinLength))
+	}
+
+	cmd := fmt.Sprintf(
+		"cd %s && "+
+			"EASYRSA_REQ_CN=%s"+
+			"EASYRSA_REQ_COUNTRY=%s "+
+			"EASYRSA_REQ_PROVINCE=%s "+
+			"EASYRSA_REQ_CITY=%s "+
+			"EASYRSA_REQ_ORG=%s "+
+			"EASYRSA_REQ_OU=%s "+
+			"EASYRSA_REQ_EMAIL=%s "+
+			"%s --dn-mode=org --batch build-ca %s nopass 1>/dev/null",
+		shellescape.Quote(definition.CommonName),
+		shellescape.Quote(easyrsa.EasyrsaDirPath),
+		shellescape.Quote(definition.Country),
+		shellescape.Quote(definition.Province),
+		shellescape.Quote(definition.City),
+		shellescape.Quote(definition.Organisation),
+		shellescape.Quote(definition.OrganisationUnit),
+		shellescape.Quote(definition.Email),
+		shellescape.Quote(easyrsa.EasyrsaBinPath),
+		shellescape.Quote(definition.CommonName),
+	)
+
+	log.Printf("cmd %s", cmd)
+	o, err := shell.RunBash(cmd)
+	if err != nil {
+		log.Printf("Error creating certificate \"%s\", using \"cmd\" %s", err, cmd)
+		return nil, errors.New(fmt.Sprintf("Error creating certificate \"%s\"", err))
+	}
+
+	log.Printf("cert generated %s", o)
+
+	//if authByPassword {
+	//	o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.CommonName, definition.Password))
+	//	if err != nil {
+	//		return nil, errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
+	//	}
+	//	log.Printf("create password for %s: %s", definition.CommonName, o)
+	//}
+
+	log.Printf("Certificate for user %s issued", definition.CommonName)
+
+	//for _, cert := range IndexTxtParserCertificate(easyrsa) {
+	//	if cert.Username == definition.CommonName {
+	//		return cert, nil
+	//	}
+	//}
+
+	return nil, nil
+	//errors.New("cant find just created certificate")
+}
+
+func DhPemExists(easyrsa Easyrsa) bool {
+	return shell.FileExist(easyrsa.EasyrsaDirPath + "/pki/dh.pem")
+}
+
+func CreateDhFile(easyrsa Easyrsa) error {
+	if shell.FileExist(easyrsa.EasyrsaDirPath + "/pki/dh.pem") {
+		return nil
+	}
+	cmd := fmt.Sprintf(
+		"cd %s && %s gen-dh 1>/dev/null",
+		shellescape.Quote(easyrsa.EasyrsaDirPath),
+		shellescape.Quote(easyrsa.EasyrsaBinPath),
+	)
+
+	log.Printf("cmd %s", cmd)
+	o, err := shell.RunBash(cmd)
+	if err != nil {
+		log.Printf("Error generating DH file \"%s\", using \"cmd\" %s", err, cmd)
+		return errors.New(fmt.Sprintf("Error generating DH file \"%s\"", err))
+	}
+
+	log.Printf("cert generated %s", o)
+	return nil
+}
+
+func CreateServerCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
+	log.Printf("CreateServerCertificate(%s)", definition.CommonName)
+
+	if !validateUsername(definition.CommonName) {
+		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
+	}
+
+	if checkUserActiveExist(easyrsa, definition.CommonName) {
+		return nil, errors.New(fmt.Sprintf("User \"%s\" already exists", definition.CommonName))
+	}
+
+	if authByPassword && ValidatePassword(definition.Password) == nil {
+		return nil, errors.New(fmt.Sprintf("Key too short, password length must be greater or equal %d", passwordMinLength))
+	}
+
+	cmd := fmt.Sprintf(
+		"cd %s && "+
+			"EASYRSA_REQ_COUNTRY=%s "+
+			"EASYRSA_REQ_PROVINCE=%s "+
+			"EASYRSA_REQ_CITY=%s "+
+			"EASYRSA_REQ_ORG=%s "+
+			"EASYRSA_REQ_OU=%s "+
+			"EASYRSA_REQ_EMAIL=%s "+
+			"%s --dn-mode=org --batch build-server-full %s nopass 1>/dev/null",
+		shellescape.Quote(easyrsa.EasyrsaDirPath),
+		shellescape.Quote(definition.Country),
+		shellescape.Quote(definition.Province),
+		shellescape.Quote(definition.City),
+		shellescape.Quote(definition.Organisation),
+		shellescape.Quote(definition.OrganisationUnit),
+		shellescape.Quote(definition.Email),
+		shellescape.Quote(easyrsa.EasyrsaBinPath),
+		shellescape.Quote(definition.CommonName),
+	)
+
+	log.Printf("cmd %s", cmd)
+	o, err := shell.RunBash(cmd)
+	if err != nil {
+		log.Printf("Error creating certificate \"%s\", using \"cmd\" %s", err, cmd)
+		return nil, errors.New(fmt.Sprintf("Error creating certificate \"%s\"", err))
+	}
+
+	log.Printf("cert generated %s", o)
+
+	//if authByPassword {
+	//	o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.CommonName, definition.Password))
+	//	if err != nil {
+	//		return nil, errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
+	//	}
+	//	log.Printf("create password for %s: %s", definition.CommonName, o)
+	//}
+
+	log.Printf("Certificate for user %s issued", definition.CommonName)
+
+	for _, cert := range IndexTxtParserCertificate(easyrsa) {
+		if cert.Username == definition.CommonName {
+			return cert, nil
+		}
+	}
+
+	return nil, errors.New("cant find just created certificate")
+}
+
+func CreateClientCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
+	log.Printf("CreateClientCertificate(%s)", definition.CommonName)
 
 	if !validateUsername(definition.CommonName) {
 		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
@@ -278,6 +449,7 @@ func UserCreateCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase st
 		shellescape.Quote(definition.CommonName),
 	)
 
+	log.Printf("cmd %s", cmd)
 	o, err := shell.RunBash(cmd)
 	if err != nil {
 		log.Printf("Error creating certificate \"%s\", using \"cmd\" %s", err, cmd)
@@ -322,7 +494,7 @@ func UserCreateCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase st
 	//}, nil
 }
 
-func GetCommonNameFromCertificate(path string) *x509.Certificate {
+func ReadCertificate(path string) *BaseCertificate {
 	caCert, err := os.ReadFile(path)
 	if err != nil {
 		log.Printf("error read file %s: %s", path, err.Error())
@@ -332,13 +504,33 @@ func GetCommonNameFromCertificate(path string) *x509.Certificate {
 	certPem, _ := pem.Decode(caCert)
 	certPemBytes := certPem.Bytes
 
-	cert, err := x509.ParseCertificate(certPemBytes)
+	x509cert, err := x509.ParseCertificate(certPemBytes)
 	if err != nil {
 		log.Printf("error parse certificate ca.crt: %s\n", err.Error())
 		return nil
 	}
 
-	return cert
+	var cert BaseCertificate
+	cert.CommonName = x509cert.Subject.CommonName
+	if len(x509cert.EmailAddresses) > 0 {
+		cert.Email = x509cert.EmailAddresses[0]
+	}
+	if len(x509cert.Subject.Country) > 0 {
+		cert.Country = x509cert.Subject.Country[0]
+	}
+	if len(x509cert.Subject.Province) > 0 {
+		cert.Province = x509cert.Subject.Province[0]
+	}
+	if len(x509cert.Subject.Locality) > 0 {
+		cert.City = x509cert.Subject.Locality[0]
+	}
+	if len(x509cert.Subject.Organization) > 0 {
+		cert.Organisation = x509cert.Subject.Organization[0]
+	}
+	if len(x509cert.Subject.OrganizationalUnit) > 0 {
+		cert.OrganisationUnit = x509cert.Subject.OrganizationalUnit[0]
+	}
+	return &cert
 }
 
 // decode certificate from PEM to x509

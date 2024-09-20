@@ -3,6 +3,7 @@ import {SetupComponent} from './setup.component';
 import {CreateAccountComponent} from './steps/create-account.component';
 import {JoinMasterComponent} from './steps/join-master.component';
 import {ChooseRoleComponent} from './steps/choose-role.component';
+import {CreateServerComponent} from './steps/create-server.component';
 
 export const SETUP_ROUTES: Route[] = [{
   path: '',
@@ -15,6 +16,10 @@ export const SETUP_ROUTES: Route[] = [{
     {
       path: 'create-account',
       component: CreateAccountComponent,
+    },
+    {
+      path: 'create-server',
+      component: CreateServerComponent,
     },
     {
       path: 'join',

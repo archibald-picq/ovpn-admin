@@ -11,6 +11,7 @@ import { OpenvpnConfig } from '../models/openvpn-config.model';
 import { NodeConfig } from '../models/node-config.model';
 import {IRevokedCertificate} from '../models/revoked-certificate.interface';
 import {CreateCertificateDefinition} from '../models/create-certificate.interface';
+import {BaseCertificate} from '../models/certificate-base.interface';
 
 @Injectable()
 export class OpenvpnService {
@@ -37,8 +38,7 @@ export class OpenvpnService {
     this.config = firstValueFrom(this.http.get<OpenvpnConfig>(this.OPENVPN_ADMIN_API+'/api/config', { observe: 'response'}).pipe(
       filter((response: HttpResponse<any>) => response.ok),
       map((res: any) => res.body as any[]),
-      tap(console.warn),
-      map(res => OpenvpnConfig.hydrate(res.openvpn)),
+      map((res: any) => OpenvpnConfig.hydrate(res.openvpn)),
       tap(openvpnConfig => {
         config.openvpn = openvpnConfig;
         if (!config.openvpn.url) {
@@ -65,6 +65,19 @@ export class OpenvpnService {
   //   return firstValueFrom(this.http.get<ClientConfig>(this.OPENVPN_ADMIN_API+'/api/user/'+clientUsername+'/ccd'))
   //     .then(ClientConfig.hydrate);
   // }
+
+  public async createCaCertificat(definition: CreateCertificateDefinition): Promise<void> {
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/?type=ca', definition)).then();
+  }
+  public async initPki(): Promise<void> {
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/openvpn/init-pki', '')).then();
+  }
+
+  public async createServerCertificat(definition: CreateCertificateDefinition): Promise<ClientCertificate> {
+    return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/?type=server', definition)).then(
+      ClientCertificate.hydrate,
+    );
+  }
 
   public async createClientCertificat(definition: CreateCertificateDefinition): Promise<ClientCertificate> {
     return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/', definition)).then(
@@ -123,6 +136,10 @@ export class OpenvpnService {
       });
   }
 
+  public async generateDh() {
+    await firstValueFrom(this.http.post<void>(this.OPENVPN_ADMIN_API+'/api/openvpn/gen-dh', ''));
+  }
+
   public async unrevokeCertificate(client: IClientCertificate): Promise<any> {
     return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/unrevoke', {}));
   }
@@ -131,11 +148,8 @@ export class OpenvpnService {
     return firstValueFrom(this.http.delete<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/'));
   }
 
-  public async rotateCertificate(client: IClientCertificate): Promise<IClientCertificate> {
-    const body = {password: ''};
-    return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/' + client.username + '/rotate', body)).then(
-      () => client.clone()
-    );
+  public async rotateCertificate(commonName: string, newInfo: BaseCertificate): Promise<IClientCertificate> {
+    return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/' + commonName + '/rotate', newInfo));
   }
 
   public sorter(sort: Sort) {
@@ -167,8 +181,8 @@ export class OpenvpnService {
       };
     } else if (sort.active === 'accountStatus') {
       return (p1: IClientCertificate, p2: IClientCertificate) => {
-        const a = p1.certificate!.accountStatus;
-        const b = p2.certificate!.accountStatus;
+        const a = p1.certificate!.accountStatus ?? '';
+        const b = p2.certificate!.accountStatus ?? '';
         return a < b? rev1: (a > b? rev2: 0);
       };
     } else if (sort.active === 'connectionStatus') {

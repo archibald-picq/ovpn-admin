@@ -1,5 +1,5 @@
 import {AccountEditDTO} from '../../models/account-edit.model';
-import {OpenvpnConfig} from '../../models/openvpn-config.model';
+import {OpenvpnConfig, User} from '../../models/openvpn-config.model';
 import {AccountService} from '../../services/account.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Component} from '@angular/core';
@@ -45,8 +45,11 @@ export class CreateAccountComponent {
       this.loading = true;
       await this.accountService.createAdminAccount(this.account);
       this.config.unconfigured = false;
-      // console.warn('navigate to ./');
-      await this.router.navigate(['/']);
+      this.config.preferences!.users.push(new User(
+        this.account.username,
+        this.account.name,
+      ));
+      await this.router.navigate(['../create-server'], {relativeTo: this.activatedRoute /* , skipLocationChange: true */ });
     } catch (e: any) {
       this.loading = false;
       console.warn('error', e);
