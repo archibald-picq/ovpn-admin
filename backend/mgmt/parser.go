@@ -216,13 +216,10 @@ func (mgmt *OpenVPNmgmt) processMgmtBuffer() int {
 		//log.Printf("matched %s", app.buffer[0])
 		if lastLine == "END" {
 			activeConnections := mgmt.MgmtConnectedUsersParser3(mgmt.buffer)
+			//log.Printf("currently active clients %d", len(activeConnections))
 			mgmt.buffer = make([]string, 0)
 			mgmt.SynchroConnections(activeConnections)
-
-			//log.Printf("currently active clients %d", len(app.activeClients))
 			return 1
-			//} else {
-			//	log.Printf("skipped to %d", len(app.buffer))
 		}
 	} else if startCommand := regCommand.FindStringSubmatch(mgmt.buffer[0]); len(startCommand) > 0 {
 		//log.Printf("matched command %v", startCommand)
@@ -333,7 +330,7 @@ func (mgmt *OpenVPNmgmt) handleNewClientEvent(lines []string) {
 			}
 		}
 	}
-	if client.ClientId > 0 && len(client.CommonName) > 0 {
+	if len(client.CommonName) > 0 {
 		if len(trustedAddress) > 0 && trustedPort > 0 {
 			client.RealAddress = fmt.Sprintf("%s:%d", trustedAddress, trustedPort)
 		}
@@ -344,6 +341,9 @@ func (mgmt *OpenVPNmgmt) handleNewClientEvent(lines []string) {
 		mgmt.AddClientConnection(client)
 
 	} else {
-		log.Printf("Skipped client '%v'", lines)
+		log.Printf("Skipped client:")
+		for _, line := range lines {
+			log.Printf("    %s", line)
+		}
 	}
 }

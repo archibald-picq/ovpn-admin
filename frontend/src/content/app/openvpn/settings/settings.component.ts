@@ -31,8 +31,8 @@ export class OpenvpnSettingsPageComponent {
         private readonly openvpnService: OpenvpnService,
     ) {
         // console.warn('config', this.activatedRoute.parent?.snapshot.data.config);
-        console.warn('settings', this.activatedRoute.parent?.snapshot.data.config.settings);
         this.original = this.activatedRoute.parent?.snapshot.data.config.settings;
+//        console.warn('settings', this.original);
         this.model = this.original?.clone() ?? Settings.parse({});
         console.warn('routes', this.model.routes);
         console.warn('routesPush', this.model.routesPush);
@@ -84,7 +84,7 @@ export class OpenvpnSettingsPageComponent {
             this.loading = true;
             this.error = '';
             const toSave = this.toSave();
-            await this.openvpnService.saveServerConfig(toSave);
+            await this.openvpnService.saveServiceConfig(this.model.serviceName, toSave);
             Object.assign(this.original, toSave);
             if (!toSave.dnsIpv4) {
                 this.original.dnsIpv4 = '';

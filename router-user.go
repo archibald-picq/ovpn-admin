@@ -28,6 +28,7 @@ func (app *OvpnAdmin) handleUserCommand(w http.ResponseWriter, r *http.Request) 
 		returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
 		return
 	}
+
 	username := matches[1]
 	cmd := matches[2]
 	log.Printf("exec cmd %s for user %s", cmd, username)
@@ -82,7 +83,7 @@ func (app *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request) {
 	clients := make([]*model.Device, 0)
 
 	for _, client := range app.clients {
-		if client.Certificate.Flag != "D" {
+		if client.Certificate.Flag != "D" && (app.serverConf == nil || client.Username != app.serverConf.MasterCn) {
 			clients = append(clients, client)
 		}
 	}

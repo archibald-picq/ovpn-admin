@@ -116,13 +116,13 @@ func ExistCcd(serverConfFile string, serverConf *OvpnConfig) bool {
 	return shell.FileExist(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
 }
 
-func CreateCcd(serverConfFile string, serverConf *OvpnConfig) error {
+func CreateCcdIfNotExists(serverConfFile string, serverConf *OvpnConfig) error {
 	if serverConf == nil {
 		return nil
 	}
-	log.Printf("check ccd file at %s", shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
+	//log.Printf("check ccd file at %s", shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
 	if !ExistCcd(serverConfFile, serverConf) {
-		log.Printf("create ccd at %s", shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
+		//log.Printf("create ccd at %s", shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
 		return shell.CreateDir(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
 	}
 	return nil

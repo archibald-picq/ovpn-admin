@@ -36,6 +36,7 @@ export class User {
 
 export class Settings {
     constructor(
+        public serviceName: string,
         public server: string,
         public forceGatewayIpv4: boolean,
         public forceGatewayIpv4ExceptDhcp: boolean,
@@ -59,6 +60,7 @@ export class Settings {
 
     static parse(raw: Record<string, any>): Settings {
         return new Settings(
+            raw?.serviceName,
             raw?.server,
             raw?.forceGatewayIpv4,
             raw?.forceGatewayIpv4ExceptDhcp,

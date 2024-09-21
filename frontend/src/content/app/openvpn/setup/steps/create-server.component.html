@@ -13,7 +13,7 @@
         <div class="error" *ngIf="pkiInit.error">{{pkiInit.error}}</div>
       </div>
       <div class="check-progress">
-        <mat-icon *ngIf="pkiInit.loading">sync</mat-icon>
+        <mat-icon *ngIf="pkiInit.loading" class="fa-spin">sync</mat-icon>
         <mat-icon *ngIf="!pkiInit.loading">{{pkiInit.exists ? 'check_box': 'check_box_outline_blank'}}</mat-icon>
       </div>
     </div>
@@ -30,7 +30,7 @@
         <button class="btn btn-primary btn-sm" id="certificate-authority" aria-describedby="certificate authority" (click)="editAuthCert($event)" [disabled]="loading">edit</button>
       </div>
       <div class="check-progress">
-        <mat-icon *ngIf="authorityCertificate.loading">sync</mat-icon>
+        <mat-icon *ngIf="authorityCertificate.loading" class="fa-spin">sync</mat-icon>
         <mat-icon *ngIf="!authorityCertificate.loading">{{authorityCertificate.exists ? 'check_box': 'check_box_outline_blank'}}</mat-icon>
       </div>
     </div>
@@ -47,7 +47,7 @@
         <button class="btn btn-primary btn-sm" id="server-certificate" aria-describedby="certificate authority" (click)="editServerCert($event)" [disabled]="loading">edit</button>
       </div>
       <div class="check-progress">
-        <mat-icon *ngIf="serverCertificate.loading">sync</mat-icon>
+        <mat-icon *ngIf="serverCertificate.loading" class="fa-spin">sync</mat-icon>
         <mat-icon *ngIf="!serverCertificate.loading">{{serverCertificate.exists ? 'check_box': 'check_box_outline_blank' }}</mat-icon>
       </div>
     </div>
@@ -60,7 +60,7 @@
         <div class="error" *ngIf="dhPem.error">{{dhPem.error}}</div>
       </div>
       <div class="check-progress">
-        <mat-icon *ngIf="dhPem.loading">sync</mat-icon>
+        <mat-icon *ngIf="dhPem.loading" class="fa-spin">sync</mat-icon>
         <mat-icon *ngIf="!dhPem.loading">{{setup.dhPem ? 'check_box': 'check_box_outline_blank' }}</mat-icon>
       </div>
     </div>
@@ -85,7 +85,7 @@
         <div class="error" *ngIf="systemdService.error">{{systemdService.error}}</div>
       </div>
       <div class="check-progress">
-        <mat-icon *ngIf="systemdService.loading">sync</mat-icon>
+        <mat-icon *ngIf="systemdService.loading" class="fa-spin">sync</mat-icon>
         <mat-icon *ngIf="!systemdService.loading">{{systemdService.state === 'started' ? 'check_box': 'check_box_outline_blank' }}</mat-icon>
       </div>
     </div>

@@ -3,6 +3,7 @@ package model
 import "rpiadm/backend/openvpn"
 
 type ConfigPublicSettings struct {
+	ServiceName                string          `json:"serviceName"`
 	Server                     string          `json:"server"`
 	ForceGatewayIpv4           bool            `json:"forceGatewayIpv4"`
 	ForceGatewayIpv4ExceptDhcp bool            `json:"forceGatewayIpv4ExceptDhcp"`

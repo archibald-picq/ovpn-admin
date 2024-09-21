@@ -160,8 +160,28 @@ export class CreateServerComponent {
   public async save(): Promise<void> {
     if (this.loading) {
       console.warn('already processing');
-      return ;
+      return;
     }
+    await this.savePki();
+    await this.saveAuthorityCertificate();
+    await this.saveServerCertificate();
+    await this.saveDiffieHellman();
+    await this.saveSystemdService();
+
+    if (this.pkiInit.exists && this.authorityCertificate.exists && this.serverCertificate.exists && this.dhPem.exists && this.systemdService.exists) {
+      if (this.debugUi) {
+        this.loading = false;
+        console.warn('Stay on this page after process done during development');
+      } else {
+        await this.router.navigate(['../'] /* , {skipLocationChange: true}*/);
+      }
+    } else {
+      this.loading = false;
+      console.warn('Not fully OK');
+    }
+  }
+
+  public async savePki(): Promise<void> {
     this.loading = true;
 
     // init the pki folder
@@ -183,6 +203,9 @@ export class CreateServerComponent {
       this.pkiInit.error = this.wrapError(e);
     }
     this.pkiInit.loading = false;
+  }
+
+  public async saveAuthorityCertificate(): Promise<void> {
 
     // create authority certificate
     try {
@@ -190,6 +213,9 @@ export class CreateServerComponent {
       if (!this.pkiInit.exists) {
         this.authorityCertificate.error = 'Init PKI before creating CA';
       } else if (!this.authorityCertificate.exists) {
+        if (!this.authorityCertificate.commonName) {
+          throw {message: 'Missing commonName in certificate'};
+        }
         this.authorityCertificate.loading = true;
         const cert = Certificate.build(this.authorityCertificate);
         if (this.debugUi) {
@@ -209,13 +235,18 @@ export class CreateServerComponent {
       this.authorityCertificate.error = this.wrapError(e);
     }
     this.authorityCertificate.loading = false;
+  }
 
+  public async saveServerCertificate(): Promise<void> {
     // create server certificate
     try {
       this.serverCertificate.error = '';
       if (!this.authorityCertificate.exists) {
         this.serverCertificate.error = 'Create Authority Certificate before creating Server Certificate';
-      } else if (this.authorityCertificate.exists) {
+      } else if (!this.serverCertificate.exists) {
+        if (!this.serverCertificate.commonName) {
+          throw {message: 'Missing commonName in certificate'};
+        }
         this.serverCertificate.loading = true;
         const cert = Certificate.build(this.serverCertificate);
         if (this.debugUi) {
@@ -229,15 +260,15 @@ export class CreateServerComponent {
         this.setup.serverCert = cert;
         console.warn('server cert created', cert);
         this.serverCertificate.exists = true;
-      } else {
-        console.warn('Cant generate server certificate unless authority certificate exists');
       }
     } catch (e: any) {
       console.warn('raw error', e);
       this.serverCertificate.error = this.wrapError(e);
     }
     this.serverCertificate.loading = false;
+  }
 
+  public async saveDiffieHellman(): Promise<void> {
     // create Diffie Hellman key
     try {
       this.dhPem.error = '';
@@ -257,7 +288,9 @@ export class CreateServerComponent {
       this.dhPem.error = this.wrapError(e);
     }
     this.dhPem.loading = false;
+  }
 
+  public async saveSystemdService(): Promise<void> {
     // create systemd service
     try {
       this.systemdService.error = '';
@@ -270,11 +303,15 @@ export class CreateServerComponent {
         const toSave = {
           server: this.systemdService.network,
           port: this.systemdService.port,
+          serverCertificate: this.serverCertificate.commonName,
         };
         if (this.debugUi) {
           await delay(1000);
         } else {
-          await this.openvpnService.saveServerConfig(toSave);
+          const serviceConfig = await this.openvpnService.saveServiceConfig(this.setup.serviceName, toSave);
+          console.warn('serviceConfig: ', serviceConfig);
+          this.config.serverSetup = undefined;
+          this.config.settings = serviceConfig;
         }
         this.systemdService.exists = true;
         this.systemdService.state = 'started';
@@ -284,18 +321,6 @@ export class CreateServerComponent {
       this.systemdService.error = this.wrapError(e);
     }
     this.systemdService.loading = false;
-
-    if (this.pkiInit.exists && this.authorityCertificate.exists && this.serverCertificate.exists && this.dhPem.exists && this.systemdService.exists) {
-      if (this.debugUi) {
-        this.loading = false;
-        console.warn('Stay on this page after process done during development');
-      } else {
-        await this.router.navigate(['../'] /* , {skipLocationChange: true}*/);
-      }
-    } else {
-      this.loading = false;
-      console.warn('Not fully OK');
-    }
   }
 
   private wrapError(e: any): string {

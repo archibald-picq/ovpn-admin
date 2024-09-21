@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"regexp"
 	"rpiadm/backend/auth"
 	"rpiadm/backend/model"
 	"rpiadm/backend/openvpn"
@@ -16,6 +17,7 @@ import (
 )
 
 type ServerSavePayload struct {
+	ServerCertificate          *string         `json:"serverCertificate"`
 	Server                     string          `json:"server"`
 	ForceGatewayIpv4           bool            `json:"forceGatewayIpv4"`
 	ForceGatewayIpv4ExceptDhcp bool            `json:"forceGatewayIpv4ExceptDhcp"`
@@ -40,12 +42,13 @@ func convertCidrNetworkMask(cidr string) string {
 	return fmt.Sprintf("%s %s", ipv4Addr, mask)
 }
 
-func (app *OvpnAdmin) exportPublicSettings() *model.ConfigPublicSettings {
+func (app *OvpnAdmin) exportServiceSettings() *model.ConfigPublicSettings {
 	if app.serverConf == nil {
 		return nil
 	}
 	//log.Println("exporting settings %v", app.serverConf)
 	var settings = new(model.ConfigPublicSettings)
+	settings.ServiceName = app.serverConf.ServiceName
 	settings.Server = openvpn.ConvertNetworkMaskCidr(app.serverConf.Server)
 	settings.ForceGatewayIpv4 = app.serverConf.ForceGatewayIpv4
 	settings.ForceGatewayIpv4ExceptDhcp = app.serverConf.ForceGatewayIpv4ExceptDhcp
@@ -114,12 +117,12 @@ func (app *OvpnAdmin) handleConfigCommand(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if r.URL.Path == "/api/config/settings/save" {
-		app.postServerConfig(w, r)
-		return
-	}
+	//if r.URL.Path == "/api/config/settings/save" {
+	//	app.saveServerConfig(w, r)
+	//	return
+	//}
 
-	if r.URL.Path == "/api/config/preferences/save" && r.Method == "POST" {
+	if r.Method == "POST" && r.URL.Path == "/api/config/preferences/save" {
 		app.postPreferences(w, r)
 		return
 	}
@@ -131,6 +134,14 @@ func (app *OvpnAdmin) handleConfigCommand(w http.ResponseWriter, r *http.Request
 
 	if strings.HasPrefix(r.URL.Path, "/api/config/api-key/") {
 		app.handleApiKey(w, r)
+		return
+	}
+
+	regServer := regexp.MustCompile("^/api/config/service/([^/]*)/save$")
+	matches := regServer.FindStringSubmatch(r.URL.Path)
+	if len(matches) >= 1 {
+		serviceName := matches[1]
+		app.saveServerConfig(w, r, serviceName)
 		return
 	}
 
@@ -147,7 +158,7 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 	ok, jwtUsername := auth.JwtUsername(app.applicationPreferences.JwtData, r)
 	if ok {
 		configPublic.User = auth.GetUserProfile(&app.applicationPreferences, jwtUsername)
-		configPublic.Openvpn.Settings = app.exportPublicSettings()
+		configPublic.Openvpn.Settings = app.exportServiceSettings()
 		configPublic.Openvpn.Preferences = app.exportPublicPreferences()
 	}
 
@@ -156,20 +167,9 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 		configPublic.Openvpn.Unconfigured = &b
 	}
 
+	// no server settings ? so no server daemon configured
 	if configPublic.Openvpn.Settings == nil {
-		var serverSetup openvpn.ServerConfigVpn
-		serverSetup.ServiceName = "server"
-		serverSetup.PkiPath = app.easyrsa.EasyrsaDirPath + "/pki"
-		if openvpn.IndexTxtExists(app.easyrsa) {
-			count := countCertInIndex()
-			serverSetup.PkiInit = &count
-		}
-		serverSetup.DhPem = openvpn.DhPemExists(app.easyrsa)
-		serverSetup.CaCert = openvpn.ReadCaCertIfExists(app.easyrsa)
-		serverSetup.ServerCert = openvpn.ReadPkiCertIfExists(app.easyrsa, serverSetup.ServiceName)
-
-		//*configPublic.Openvpn.Instances = append(*configPublic.Openvpn.Instances, firstServer)
-		configPublic.Openvpn.ServerSetup = &serverSetup
+		configPublic.Openvpn.ServerSetup = app.buildServerSetupConfig()
 	}
 
 	err := returnJson(w, configPublic)
@@ -179,35 +179,49 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	//fmt.Fprintf(w, `{%s"openvpn":{"url":""}}`, user)
 }
-
-func countCertInIndex() int {
-	certs := openvpn.IndexTxtParserCertificate(app.easyrsa)
-	return len(certs)
+func (app *OvpnAdmin) buildServerSetupConfig() *openvpn.ServerConfigVpn {
+	var serverSetup openvpn.ServerConfigVpn
+	serverSetup.ServiceName = "server"
+	serverSetup.PkiPath = app.easyrsa.EasyrsaDirPath + "/pki"
+	if openvpn.IsPkiInited(app.easyrsa) {
+		certs := openvpn.IndexTxtParserCertificate(app.easyrsa)
+		count := len(certs)
+		serverSetup.PkiInit = &count
+		serverSetup.ServerCert = openvpn.FindFirstServerCertIfExists(app.easyrsa, certs)
+	} else {
+		serverSetup.ServerCert = nil
+	}
+	serverSetup.DhPem = openvpn.DhPemExists(app.easyrsa)
+	serverSetup.CaCert = openvpn.ReadCaCertIfExists(app.easyrsa)
+	return &serverSetup
 }
-
-func (app *OvpnAdmin) restartServer(configName string) error {
-	cmd := fmt.Sprintf("systemctl restart openvpn@%s.service", shellescape.Quote(configName))
+func (app *OvpnAdmin) restartServer(serviceName string) error {
+	cmd := fmt.Sprintf("systemctl restart openvpn@%s.service", shellescape.Quote(serviceName))
 	log.Printf("cmd %s", cmd)
-	_, err := shell.RunBash(cmd)
+	ret, err := shell.RunBash(cmd)
+	if err != nil {
+		log.Printf("cmd fails with: %s", ret)
+	}
 	return err
 }
 
-func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
+func (app *OvpnAdmin) saveServerConfig(w http.ResponseWriter, r *http.Request, serviceName string) {
 
 	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		returnErrorMessage(w, http.StatusForbidden, errors.New("Access denied"))
 		return
 	}
 
-	var savePayload ServerSavePayload
 	if r.Body == nil {
 		returnErrorMessage(w, http.StatusBadRequest, errors.New("Please send a request body"))
 		return
 	}
 
+	var savePayload ServerSavePayload
 	err := json.NewDecoder(r.Body).Decode(&savePayload)
 	if err != nil {
-		log.Printf("failed to decode body %v", err)
+		returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to decode body %v", err)))
+		return
 	}
 
 	// check addresses in post payload
@@ -227,9 +241,26 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 
 	if app.serverConf != nil {
 		conf = *app.serverConf
+		if serviceName != conf.ServiceName {
+			returnErrorMessage(w, http.StatusBadRequest, errors.New("can't edit another instance"))
+			return
+		}
 	} else {
 		conf = *openvpn.InitServerConf()
+		conf.ServiceName = serviceName
 		log.Printf("conf: %v", conf)
+	}
+
+	if savePayload.ServerCertificate != nil && len(*savePayload.ServerCertificate) > 0 {
+		commonName := *savePayload.ServerCertificate
+		if !openvpn.IsValidServerCert(app.easyrsa, commonName) {
+			returnErrorMessage(w, http.StatusBadRequest, errors.New("invalid server certificate"))
+			return
+		}
+		// when creating new service, we can set the common name of the certificate
+		conf.Cert = "easyrsa/pki/issued/" + commonName + ".crt"
+		conf.Key = "easyrsa/pki/private/" + commonName + ".key"
+		conf.MasterCn = commonName
 	}
 
 	// store in temporary object
@@ -251,7 +282,7 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 	conf.DnsIpv6 = savePayload.DnsIpv6
 
 	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
-
+	initialServer := false
 	if shell.FileExist(*serverConfFile) {
 		// make a backup of the original OpenVPN config file
 		err = shell.FileCopy(*serverConfFile, backupFile)
@@ -261,12 +292,16 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		log.Printf("initial server")
+		initialServer = true
 	}
 
-	log.Printf("ensure ccd dir exists")
-	openvpn.CreateCcd(*serverConfFile, &conf)
+	//log.Printf("ensure ccd dir exists")
+	err = openvpn.CreateCcdIfNotExists(*serverConfFile, &conf)
+	if err != nil {
+		log.Printf("fail to create ccd dir %s", err)
+	}
 
-	// write a temporary config file over the original one
+	// overwrite original config file
 	err = shell.WriteFile(*serverConfFile, openvpn.BuildConfig(conf))
 	if err != nil {
 		shell.FileCopy(backupFile, *serverConfFile)
@@ -282,13 +317,21 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 			err = app.restartServer("server")
 			shell.DeleteFile(backupFile)
 		}
-		returnErrorMessage(w, http.StatusBadRequest, errors.New("restarted"))
+		// remove the config file if it fails to start for the first time
+		if initialServer {
+			shell.DeleteFile(*serverConfFile)
+		}
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("fail to start service"))
 		return
 	}
 
 	// store the working config in memory
 	if app.serverConf == nil {
 		app.serverConf = &conf
+		// start management thread when it is the first time
+		if len(app.serverConf.Management) > 0 {
+			go app.connectToManagementInterface()
+		}
 	} else {
 		app.serverConf.Server = conf.Server
 		app.serverConf.ForceGatewayIpv4 = conf.ForceGatewayIpv4
@@ -308,5 +351,8 @@ func (app *OvpnAdmin) postServerConfig(w http.ResponseWriter, r *http.Request) {
 		app.serverConf.RoutesPush = conf.RoutesPush
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	err = returnJson(w, app.exportServiceSettings())
+	if err != nil {
+		log.Printf("error sending response")
+	}
 }

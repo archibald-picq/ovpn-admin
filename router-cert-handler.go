@@ -39,14 +39,8 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 
 	log.Printf("create user with %v\n", userDefinition)
 	if typeCa := r.URL.Query().Get("type"); typeCa == "ca" {
-		if !openvpn.PkiExists(app.easyrsa) {
-			if err = openvpn.InitPki(app.easyrsa); err != nil {
-				returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("can't init PKI"))
-				return
-			}
-		}
-		if openvpn.CaExists(app.easyrsa) {
-			returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("index already exists"))
+		if openvpn.CaCertExists(app.easyrsa) {
+			returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("ca already exists"))
 			return
 		}
 		certificate, err := openvpn.CreateCaCertificate(app.easyrsa, *authByPassword, *authDatabase, userDefinition)

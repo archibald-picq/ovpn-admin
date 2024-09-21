@@ -4,10 +4,10 @@ import {IClientCertificate, IConnection} from '../models/client-certificate.inte
 import { ClientCertificate } from '../models/client-certificate.model';
 import {filter, map, tap} from 'rxjs/operators';
 import { Sort } from '@angular/material/sort';
-import {firstValueFrom} from 'rxjs';
+import {firstValueFrom, pipe} from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
-import { OpenvpnConfig } from '../models/openvpn-config.model';
+import {OpenvpnConfig, Settings} from '../models/openvpn-config.model';
 import { NodeConfig } from '../models/node-config.model';
 import {IRevokedCertificate} from '../models/revoked-certificate.interface';
 import {CreateCertificateDefinition} from '../models/create-certificate.interface';
@@ -95,12 +95,10 @@ export class OpenvpnService {
     return firstValueFrom(this.http.get<IRevokedCertificate[]>(this.OPENVPN_ADMIN_API+'/api/openvpn/crl'));
   }
 
-  public async saveServerConfig(toSave: Record<string, any>): Promise<any> {
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/config/settings/save', toSave, {
-      observe: 'response',
-    }).pipe(
-      filter((response: HttpResponse<any>) => response.ok),
-    ));
+  public async saveServiceConfig(serviceName: string, toSave: Record<string, any>): Promise<Settings> {
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/config/service/'+serviceName+'/save', toSave)).then(
+      Settings.parse,
+    );
   }
 
   public async savePreferences(toSave: Record<string, any>): Promise<void> {

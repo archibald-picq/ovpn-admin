@@ -1,10 +1,14 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"io/fs"
 	"math/rand"
+	"net"
+	"net/http"
 	"os"
 	"rpiadm/backend/mgmt"
 	"rpiadm/backend/model"
@@ -12,12 +16,6 @@ import (
 	"rpiadm/backend/preference"
 	"rpiadm/backend/rpi"
 	"rpiadm/backend/shell"
-	"strings"
-
-	"embed"
-	"io/fs"
-	"net"
-	"net/http"
 	"sync"
 	"time"
 
@@ -33,11 +31,10 @@ const (
 )
 
 var (
-	serverConfFile       = kingpin.Flag("server.conf", "Configuration file for the server").Default("/etc/openvpn/server.conf").Envar("OPENVPN_SERVER_CONF").String()
-	serverRestartCommand = kingpin.Flag("restart.cmd", "Command to restart the server").Default("systemctl restart openvpn@server.service").Envar("OPENVPN_RESTART_CMD").String()
-	listenHost           = kingpin.Flag("listen.host", "host for ovpn-admin").Default("0.0.0.0").Envar("OVPN_LISTEN_HOST").String()
-	listenPort           = kingpin.Flag("listen.port", "port for ovpn-admin").Default("8042").Envar("OVPN_LISTEN_PORT").String()
-	masterSyncToken      = kingpin.Flag("master.sync-token", "master host data sync security token").Default("VerySecureToken").Envar("OVPN_MASTER_TOKEN").PlaceHolder("TOKEN").String()
+	serverConfFile  = kingpin.Flag("server.conf", "Configuration file for the server").Default("/etc/openvpn/server.conf").Envar("OPENVPN_SERVER_CONF").String()
+	listenHost      = kingpin.Flag("listen.host", "host for ovpn-admin").Default("0.0.0.0").Envar("OVPN_LISTEN_HOST").String()
+	listenPort      = kingpin.Flag("listen.port", "port for ovpn-admin").Default("8042").Envar("OVPN_LISTEN_PORT").String()
+	masterSyncToken = kingpin.Flag("master.sync-token", "master host data sync security token").Default("VerySecureToken").Envar("OVPN_MASTER_TOKEN").PlaceHolder("TOKEN").String()
 	//openvpnNetwork       = kingpin.Flag("ovpn.network", "NETWORK/MASK_PREFIX for OpenVPN server").Default("").Envar("OVPN_NETWORK").String()
 	openvpnServer  = kingpin.Flag("ovpn.server", "HOST:PORT:PROTOCOL for OpenVPN server; can have multiple values").Default("").Envar("OVPN_SERVER").PlaceHolder("HOST:PORT:PROTOCOL").Strings()
 	metricsPath    = kingpin.Flag("metrics.path", "URL path for exposing collected metrics").Default("/metrics").Envar("OVPN_METRICS_PATH").String()
@@ -80,41 +77,6 @@ type OvpnAdmin struct {
 
 type MessagePayload struct {
 	Message string `json:"message"`
-}
-
-func enableCors(w *http.ResponseWriter, r *http.Request) bool {
-	// TODO: manage whitelist of origins
-	isCors := (*r).Method == "OPTIONS" || len((*r).Header.Get("Origin")) > 0
-	if isCors {
-		(*w).Header().Set("Access-Control-Allow-Origin", (*r).Header.Get("Origin"))
-		(*w).Header().Set("Access-Control-Allow-Credentials", "true")
-		(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-		(*w).Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-	}
-	if (*r).Method == "OPTIONS" {
-		return true
-	}
-	return false
-}
-
-func returnErrorMessage(w http.ResponseWriter, status int, err error) {
-	jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
-	http.Error(w, string(jsonRaw), status)
-}
-
-func returnJson(w http.ResponseWriter, v any) error {
-	jsonRaw, _ := json.Marshal(v)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write(jsonRaw)
-	return err
-}
-
-func returnText(w http.ResponseWriter, v string) error {
-	w.Header().Set("Content-Type", "application/text")
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte(v))
-	return err
 }
 
 var app OvpnAdmin
@@ -181,19 +143,19 @@ func main() {
 	log.Printf("Reading easyrsa certificates")
 	app.easyrsa.EasyrsaBinPath = shell.AbsolutizePath(path+"/", *easyrsaBinPath)
 	app.easyrsa.EasyrsaDirPath = shell.AbsolutizePath(path+"/", *easyrsaDirPath)
-	log.Printf("  -> easyrsa bin: '%s' (%s)", app.easyrsa.EasyrsaBinPath, checkEasyrsaVersionOrAbsent(app.easyrsa.EasyrsaBinPath))
+	log.Printf("  -> easyrsa bin: '%s' (%s)", app.easyrsa.EasyrsaBinPath, openvpn.CheckEasyrsaVersionOrAbsent(app.easyrsa))
 	if openvpn.IndexTxtExists(app.easyrsa) {
 		log.Printf("  -> pki dir: '%s' (exists)", app.easyrsa.EasyrsaDirPath+"/pki/index.txt")
 		//log.Printf("loaded config %v", app.serverConf)
 		// initial device load
 		for _, cert := range openvpn.IndexTxtParserCertificate(app.easyrsa) {
-			if app.serverConf == nil || cert.Username != app.serverConf.MasterCn {
-				app.createOrUpdateDeviceByCertificate(cert)
-			}
+			app.createOrUpdateDeviceByCertificate(cert)
 		}
-		log.Printf("  -> clients: %d (ccd: %d)", len(app.clients), app.countClientsWithCcd())
+		log.Printf("  -> certificates: %d (ccd: %d)", len(app.clients), app.countClientsWithCcd())
+	} else if openvpn.IsPkiInited(app.easyrsa) {
+		log.Printf("  -> pki dir: '%s' (initializing)", app.easyrsa.EasyrsaDirPath+"/pki")
 	} else {
-		log.Printf("  -> pki dir: '%s' (absent)", app.easyrsa.EasyrsaDirPath+"/pki/index.txt")
+		log.Printf("  -> pki dir: '%s' (absent)", app.easyrsa.EasyrsaDirPath+"/pki")
 	}
 	app.registerMetrics()
 
@@ -235,22 +197,39 @@ func main() {
 	log.Fatal(http.ListenAndServe(*listenHost+":"+*listenPort, nil))
 }
 
-func checkEasyrsaVersionOrAbsent(path string) string {
-	if !shell.FileExist(path) {
-		return "absent"
+func enableCors(w *http.ResponseWriter, r *http.Request) bool {
+	// TODO: manage whitelist of origins
+	isCors := (*r).Method == "OPTIONS" || len((*r).Header.Get("Origin")) > 0
+	if isCors {
+		(*w).Header().Set("Access-Control-Allow-Origin", (*r).Header.Get("Origin"))
+		(*w).Header().Set("Access-Control-Allow-Credentials", "true")
+		(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		(*w).Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
 	}
-	output, error := shell.RunBash(path + " --version")
-	if error != nil {
-		return "error"
+	if (*r).Method == "OPTIONS" {
+		return true
 	}
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "Version:") {
-			line = strings.TrimSpace(line[len("Version:"):])
-			return line
-		}
-	}
-	return "error"
+	return false
+}
+
+func returnErrorMessage(w http.ResponseWriter, status int, err error) {
+	jsonRaw, _ := json.Marshal(MessagePayload{Message: err.Error()})
+	http.Error(w, string(jsonRaw), status)
+}
+
+func returnJson(w http.ResponseWriter, v any) error {
+	jsonRaw, _ := json.Marshal(v)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write(jsonRaw)
+	return err
+}
+
+func returnText(w http.ResponseWriter, v string) error {
+	w.Header().Set("Content-Type", "application/text")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write([]byte(v))
+	return err
 }
 
 func (app *OvpnAdmin) countClientsWithCcd() int {
@@ -296,15 +275,3 @@ func (app *OvpnAdmin) triggerBroadcastUser(user *model.Device) {
 func apiKeyMapper(apiKey model.ApiKey) model.ConfigPublicApiKey {
 	return model.ConfigPublicApiKey{Id: apiKey.Id.String(), Comment: apiKey.Comment, Expires: apiKey.Expires.Format(time.RFC3339)}
 }
-
-//func (app *OvpnAdmin) handleHelloAction(conn *WsSafeConn, packet WebsocketAction, hello Hello) {
-//	//rawJson, _ := json.Marshal(hello)
-//	//log.Printf("storing hello for %s: %s", conn, rawJson)
-//
-//	client, rpic := app.findConnection(conn)
-//	if rpic == nil {
-//		return
-//	}
-//	rpic.Hello = &hello
-//	app.triggerBroadcastUser(client)
-//}

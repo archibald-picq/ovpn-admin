@@ -274,7 +274,7 @@ func CreateCaCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase stri
 
 	cmd := fmt.Sprintf(
 		"cd %s && "+
-			"EASYRSA_REQ_CN=%s"+
+			"EASYRSA_REQ_CN=%s "+
 			"EASYRSA_REQ_COUNTRY=%s "+
 			"EASYRSA_REQ_PROVINCE=%s "+
 			"EASYRSA_REQ_CITY=%s "+
@@ -282,8 +282,8 @@ func CreateCaCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase stri
 			"EASYRSA_REQ_OU=%s "+
 			"EASYRSA_REQ_EMAIL=%s "+
 			"%s --dn-mode=org --batch build-ca %s nopass 1>/dev/null",
-		shellescape.Quote(definition.CommonName),
 		shellescape.Quote(easyrsa.EasyrsaDirPath),
+		shellescape.Quote(definition.CommonName),
 		shellescape.Quote(definition.Country),
 		shellescape.Quote(definition.Province),
 		shellescape.Quote(definition.City),
@@ -493,12 +493,11 @@ func CreateClientCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase 
 	//	//AccountStatus    string `json:"accountStatus"`
 	//}, nil
 }
-
-func ReadCertificate(path string) *BaseCertificate {
+func ReadCertificateX509(path string) (*x509.Certificate, error) {
 	caCert, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("error read file %s: %s", path, err.Error())
-		return nil
+		//log.Printf("error read file %s: %s", path, err.Error())
+		return nil, err
 	}
 
 	certPem, _ := pem.Decode(caCert)
@@ -506,9 +505,35 @@ func ReadCertificate(path string) *BaseCertificate {
 
 	x509cert, err := x509.ParseCertificate(certPemBytes)
 	if err != nil {
-		log.Printf("error parse certificate ca.crt: %s\n", err.Error())
+		log.Printf("error parse certificate '%s': %s", path, err.Error())
+		return nil, err
+	}
+	return x509cert, nil
+}
+
+func IsValidServerCert(easyrsa Easyrsa, commonName string) bool {
+	path := easyrsa.EasyrsaDirPath + "/pki/issued/" + commonName + ".crt"
+	if !shell.FileExist(path) {
+		return false
+	}
+	x509cert, err := ReadCertificateX509(path)
+	if err != nil {
+		log.Printf("can't read cert '%s': %v", path, err)
+		return false
+	}
+	return isServerCert(x509cert)
+}
+
+func ReadCertificate(path string) *BaseCertificate {
+	x509cert, err := ReadCertificateX509(path)
+	if err != nil {
+		log.Printf("error reading certificate '%s': %s", path, err.Error())
 		return nil
 	}
+	return MapX509ToCertificate(x509cert)
+}
+
+func MapX509ToCertificate(x509cert *x509.Certificate) *BaseCertificate {
 
 	var cert BaseCertificate
 	cert.CommonName = x509cert.Subject.CommonName
@@ -546,7 +571,7 @@ func decodeCert(certPEMBytes []byte) (cert *x509.Certificate, err error) {
 	return
 }
 
-// decode private key from PEM to RSA format
+// decode private Key from PEM to RSA format
 func decodePrivKey(privKey []byte) (key *rsa.PrivateKey, err error) {
 	privKeyPem, _ := pem.Decode(privKey)
 	key, err = x509.ParsePKCS1PrivateKey(privKeyPem.Bytes)
@@ -556,7 +581,7 @@ func decodePrivKey(privKey []byte) (key *rsa.PrivateKey, err error) {
 
 	tmp, err := x509.ParsePKCS8PrivateKey(privKeyPem.Bytes)
 	if err != nil {
-		err = errors.New("error parse private key")
+		err = errors.New("error parse private Key")
 		return
 	}
 	key, _ = tmp.(*rsa.PrivateKey)
@@ -564,7 +589,7 @@ func decodePrivKey(privKey []byte) (key *rsa.PrivateKey, err error) {
 	return
 }
 
-// return PEM encoded private key
+// return PEM encoded private Key
 func genPrivKey() (privKeyPEM *bytes.Buffer, err error) {
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 

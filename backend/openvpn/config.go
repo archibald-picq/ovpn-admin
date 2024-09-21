@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
+	"path/filepath"
 	"regexp"
 	"rpiadm/backend/shell"
 	"strconv"
@@ -20,6 +22,7 @@ type Push struct {
 }
 
 type OvpnConfig struct {
+	ServiceName                string
 	Server                     string // 10.8.0.0 255.255.255.0
 	MasterCn                   string
 	ForceGatewayIpv4           bool    // push "redirect-gateway def1 bypass-dhcp"
@@ -39,7 +42,7 @@ type OvpnConfig struct {
 	Management                 string  // localhost 7505
 	ca                         string  // ca.crt
 	Cert                       string  // Server.crt
-	key                        string  // Server.key
+	Key                        string  // Server.key
 	dh                         string  // dh2048.pem none
 	ifconfigPoolPersist        string  // ipp.txt
 	keepalive                  string  // 10 120
@@ -90,6 +93,7 @@ func isIpv4(addr string) bool {
 // }
 func ParseServerConf(file string) *OvpnConfig {
 	config := new(OvpnConfig)
+	config.ServiceName = extractServiceName(file)
 	config.TunMtu = -1
 	config.Fragment = -1
 	config.Mssfix = -1
@@ -123,6 +127,12 @@ func ParseServerConf(file string) *OvpnConfig {
 	}
 
 	return config
+}
+
+func extractServiceName(filename string) string {
+	filename = path.Base(filename)
+	extension := filepath.Ext(filename)
+	return filename[0 : len(filename)-len(extension)]
 }
 
 func parseServerConfLine(config *OvpnConfig, line string, commented bool) {
@@ -171,7 +181,7 @@ func parseServerConfLine(config *OvpnConfig, line string, commented bool) {
 	case key == "cert":
 		config.Cert = getValueWithoutComment(line)
 	case key == "key":
-		config.key = getValueWithoutComment(line)
+		config.Key = getValueWithoutComment(line)
 	case key == "dh":
 		config.dh = getValueWithoutComment(line)
 	case key == "ifconfig-pool-persist":
@@ -400,7 +410,7 @@ func InitServerConf() *OvpnConfig {
 	config.Management = "localhost 7505"
 	config.ca = "easyrsa/pki/ca.crt"
 	config.Cert = "easyrsa/pki/issued/server.crt"
-	config.key = "easyrsa/pki/private/server.key"
+	config.Key = "easyrsa/pki/private/server.key"
 	config.ifconfigPoolPersist = "ipp.txt"
 	config.keepalive = "10 120"
 	config.persistKey = true
@@ -457,8 +467,8 @@ func BuildConfig(config OvpnConfig) []byte {
 	if len(config.Cert) > 0 {
 		lines = append(lines, fmt.Sprintf("cert %s", config.Cert))
 	}
-	if len(config.key) > 0 {
-		lines = append(lines, fmt.Sprintf("key %s", config.key))
+	if len(config.Key) > 0 {
+		lines = append(lines, fmt.Sprintf("key %s", config.Key))
 	}
 	if len(config.dh) > 0 {
 		lines = append(lines, fmt.Sprintf("dh %s", config.dh))
@@ -577,7 +587,7 @@ func BuildConfig(config OvpnConfig) []byte {
 		}
 	}
 	lines = append(lines, "")
-	log.Printf("config: %s", strings.Join(lines, "\n"))
+	//log.Printf("config: %s", strings.Join(lines, "\n"))
 	return []byte(strings.Join(lines, "\n"))
 }
 

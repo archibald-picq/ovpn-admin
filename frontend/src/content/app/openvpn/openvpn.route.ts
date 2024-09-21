@@ -69,22 +69,37 @@ export const OPENVPN_ROUTES: Route[] = [{
         {
             path: 'settings',
             component: OpenvpnSettingsPageComponent,
+            canActivate: [
+                IsConfigured,
+            ],
         },
         {
             path: 'preferences',
             component: OpenvpnPreferencesPageComponent,
+            canActivate: [
+                IsConfigured,
+            ],
         },
         {
             path: 'upload',
             component: UploadPageComponent,
+            canActivate: [
+                IsConfigured,
+            ],
         },
         {
             path: 'register',
             component: RegisterComponent,
+            canActivate: [
+                IsConfigured,
+            ],
         },
         {
             path: 'import',
             component: ImportComponent,
+            canActivate: [
+                IsConfigured,
+            ],
             children: [
                 {
                     path: '',
@@ -102,6 +117,9 @@ export const OPENVPN_ROUTES: Route[] = [{
         {
             path: 'logs',
             component: LogPageComponent,
+            canActivate: [
+                IsConfigured,
+            ],
         },
         {
             path: 'config/:username',
@@ -109,7 +127,10 @@ export const OPENVPN_ROUTES: Route[] = [{
             resolve: {
                 client: ClientResolve,
                 config: NodeConfigResolve,
-            }
+            },
+            canActivate: [
+                IsConfigured,
+            ],
         },
         {
             path: 'setup',
