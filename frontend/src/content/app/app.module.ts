@@ -1,9 +1,8 @@
 import { APP_INITIALIZER, LOCALE_ID, NgModule } from '@angular/core';
 import {BrowserModule, Title} from '@angular/platform-browser';
-import {httpInterceptorProviders} from './core/interceptor';
-import {NgxWebstorageModule, SessionStorageService} from "ngx-webstorage";
+import {NgxWebstorageModule} from "ngx-webstorage";
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientModule} from "@angular/common/http";
+import {HTTP_INTERCEPTORS, HttpClientModule} from "@angular/common/http";
 import {MainComponent} from "./layouts/main/main.component";
 import { RouterModule } from '@angular/router';
 import { BusUiRoutingModule } from './app-routing.module';
@@ -16,6 +15,7 @@ import { LoginComponent } from './layouts/login/login.component';
 import { FormsModule } from '@angular/forms';
 import { AppConfigService } from './shared/services/app-config.service';
 import { RouterService } from './shared/services/router.service';
+import {CorsInterceptor} from './core/interceptor/cors.interceptor';
 registerLocaleData(localeFr);
 
 function initializeAppFactory(appInit: AppConfigService, routerService: RouterService): () => Promise<any> {
@@ -58,7 +58,11 @@ function initializeAppFactory(appInit: AppConfigService, routerService: RouterSe
             provide: LOCALE_ID,
             useValue: 'fr-FR',
         },
-        httpInterceptorProviders,
+        {
+            provide: HTTP_INTERCEPTORS,
+            useClass: CorsInterceptor,
+            multi: true,
+        },
     ],
     bootstrap: [MainComponent]
 })

@@ -171,6 +171,7 @@ func (app *OvpnAdmin) synchroConnections(conns []*openvpn.VpnConnection) {
 		//}
 		client.Connections = make([]*openvpn.VpnConnection, 0)
 	}
+	clients := make([]*model.Device, 0)
 	for _, conn := range conns {
 		var found = false
 		for _, client := range app.clients {
@@ -185,7 +186,12 @@ func (app *OvpnAdmin) synchroConnections(conns []*openvpn.VpnConnection) {
 			log.Printf("Can't find certificate for connection %s from %s", conn.CommonName, conn.RealAddress)
 		}
 	}
-	app.broadcast(WebsocketPacket{Stream: "users", Data: app.clients})
+	for _, client := range app.clients {
+		if client.Username != app.serverConf.MasterCn {
+			clients = append(clients, client)
+		}
+	}
+	app.broadcast(WebsocketPacket{Stream: "users", Data: clients})
 }
 
 func (app *OvpnAdmin) getDevice(username string) *model.Device {

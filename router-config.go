@@ -160,16 +160,23 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 		configPublic.User = auth.GetUserProfile(&app.applicationPreferences, jwtUsername)
 		configPublic.Openvpn.Settings = app.exportServiceSettings()
 		configPublic.Openvpn.Preferences = app.exportPublicPreferences()
+
+		if auth.HasWriteRole(app.applicationPreferences.JwtData, r) {
+			// no server settings when i'm admin ? so no server daemon configured
+			if configPublic.Openvpn.Settings == nil {
+				configPublic.Openvpn.ServerSetup = app.buildServerSetupConfig()
+			}
+		}
 	}
 
 	// first user: allow create admin account
 	if len(app.applicationPreferences.Users) == 0 {
 		configPublic.Openvpn.Unconfigured = &b
-	}
 
-	// no server settings ? so no server daemon configured
-	if configPublic.Openvpn.Settings == nil {
-		configPublic.Openvpn.ServerSetup = app.buildServerSetupConfig()
+		// no server settings when no user at all ? so no server daemon configured
+		if configPublic.Openvpn.Settings == nil {
+			configPublic.Openvpn.ServerSetup = app.buildServerSetupConfig()
+		}
 	}
 
 	err := returnJson(w, configPublic)

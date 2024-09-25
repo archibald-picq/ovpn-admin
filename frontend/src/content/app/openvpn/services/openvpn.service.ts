@@ -4,7 +4,7 @@ import {IClientCertificate, IConnection} from '../models/client-certificate.inte
 import { ClientCertificate } from '../models/client-certificate.model';
 import {filter, map, tap} from 'rxjs/operators';
 import { Sort } from '@angular/material/sort';
-import {firstValueFrom, pipe} from 'rxjs';
+import {firstValueFrom} from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
 import {OpenvpnConfig, Settings} from '../models/openvpn-config.model';
@@ -96,9 +96,7 @@ export class OpenvpnService {
   }
 
   public async saveServiceConfig(serviceName: string, toSave: Record<string, any>): Promise<Settings> {
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/config/service/'+serviceName+'/save', toSave)).then(
-      Settings.parse,
-    );
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/config/service/'+serviceName+'/save', toSave)).then(Settings.parse);
   }
 
   public async savePreferences(toSave: Record<string, any>): Promise<void> {

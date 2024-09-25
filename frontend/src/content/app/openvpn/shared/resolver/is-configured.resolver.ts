@@ -13,22 +13,22 @@ export class IsConfigured implements CanActivate {
 
   async canActivate(): Promise<boolean> {
     const config = await this.service.loadConfig();
-    console.warn('config(unconfigured:', config.unconfigured,', serverSetup:', config.serverSetup, ')');
+    // console.warn('config(unconfigured:', config.unconfigured,', serverSetup:', config.serverSetup, ')');
 
     // base configuration: create the admin account first
     if (config.unconfigured) {
       return this.router.navigate(['./setup'] /* , {skipLocationChange: true}*/);
     }
     if (config.serverSetup) {
-      console.warn("serverSetup");
+      // console.warn("serverSetup");
       // return true;
       return this.router.navigate(['./setup/create-server'] /* , {skipLocationChange: true}*/);
     }
-    if (!config.settings) {
-      console.warn("settings");
-      // return true;
-      return this.router.navigate(['./setup/create-server'] /* , {skipLocationChange: true}*/);
-    }
+    // if (!config.settings) {
+    //   console.warn("settings");
+    //   // return true;
+    //   return this.router.navigate(['./setup/create-server'] /* , {skipLocationChange: true}*/);
+    // }
     return true;
   }
 }
