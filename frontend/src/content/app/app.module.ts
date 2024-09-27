@@ -19,7 +19,7 @@ registerLocaleData(localeFr);
 
 function initializeAppFactory(appInit: AppConfigService, routerService: RouterService): () => Promise<any> {
     routerService.setRouteErrorHandler();
-    return () => appInit.Init();
+    return () => appInit.init();
 }
 
 @NgModule({

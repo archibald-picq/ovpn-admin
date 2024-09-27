@@ -9,22 +9,16 @@ export class AppConfig {
   public openvpn?: OpenvpnServiceConfig;
   public peripherals?: ServiceConfig;
 
-  constructor(raw?: Record<string, any>) {
-    if (raw) {
-      this.import(raw);
-    }
-  }
-  public static parse(raw: Record<string, any>): AppConfig {
-    return new AppConfig(raw);
-  }
-
   import(raw: Record<string, any>) {
-    Object.assign(this, raw);
     if (raw.user) {
       this.user = UserProfile.parse(raw.user);
     }
     if (raw.openvpn) {
-      this.openvpn = OpenvpnServiceConfig.hydrate(raw.openvpn);
+      if (!this.openvpn) {
+        this.openvpn = OpenvpnServiceConfig.hydrate(raw.openvpn);
+      } else {
+        this.openvpn.import(raw.openvpn);
+      }
     }
   }
 }

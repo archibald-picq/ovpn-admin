@@ -171,6 +171,15 @@ export class OpenvpnServiceConfig extends ServiceConfig {
         );
     }
 
+    public import(raw: any) {
+        this.url = raw.url;
+        this.settings = raw?.settings ? Settings.parse(raw?.settings): undefined;
+        this.preferences = raw?.preferences ? Preferences.hydrate(raw?.preferences): undefined;
+        this.serverSetup = raw?.serverSetup ? ServerSetup.hydrate(raw.serverSetup) : undefined;
+        this.unconfigured = raw?.unconfigured;
+        this.allowSubmitCsr = raw?.allowSubmitCsr ?? false;
+    }
+
     public clone(): OpenvpnServiceConfig {
         return OpenvpnServiceConfig.hydrate(this);
     }

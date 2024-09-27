@@ -4,6 +4,7 @@ import { UserService } from '../../shared/services/user.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { RouterService } from '../../shared/services/router.service';
+import {AppConfigService} from '../../shared/services/app-config.service';
 
 @Component({
     selector: 'bus-login',
@@ -19,6 +20,7 @@ export class LoginComponent {
         public readonly userService: UserService,
         public readonly router: Router,
         public readonly routerService: RouterService,
+        public readonly configService: AppConfigService,
         @Optional() public readonly modal?: NgbActiveModal,
     ) {
     }
@@ -28,6 +30,7 @@ export class LoginComponent {
         this.errorMessage = '';
         try {
             const userData = await this.userService.authenticate(this.username, this.password);
+            await this.configService.reload();
             this.logginSucceed(userData);
             const currentUrl = this.routerService.getLastUrl();
             console.warn('reload url', currentUrl);

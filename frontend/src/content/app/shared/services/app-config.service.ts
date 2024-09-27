@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { AppConfig } from '../models/app-config';
 import { HttpClient } from '@angular/common/http';
+import {firstValueFrom} from 'rxjs';
 
 @Injectable({providedIn: 'root'})
 export class AppConfigService {
@@ -14,15 +15,16 @@ export class AppConfigService {
     get(): AppConfig {
         return this.config;
     }
-    Init(): Promise<any> {
-        return this.httpClient.get(this.apiUrl+'/config')
-            // .catch((err: HttpErrorResponse))
-            .pipe(
-                // map(user => console.warn('user', user))
-            ).toPromise().then((ret: any) => {
+    init(): Promise<any> {
+        return firstValueFrom(this.httpClient.get(this.apiUrl+'/config'))
+          .then((ret: any) => {
               this.config.import(ret);
             }, (err) => {
                 console.warn('err', err);
             });
+    }
+
+    reload(): Promise<any> {
+      return this.init();
     }
 }
