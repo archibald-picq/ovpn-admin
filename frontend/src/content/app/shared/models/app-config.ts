@@ -1,4 +1,4 @@
-import { OpenvpnConfig } from '../../openvpn/models/openvpn-config.model';
+import { OpenvpnServiceConfig } from '../../openvpn/models/openvpn-config.model';
 import { ServiceConfig } from './service-config';
 import {UserProfile} from "./user-profile";
 
@@ -6,7 +6,7 @@ import {UserProfile} from "./user-profile";
 export class AppConfig {
   public color?: string;
   public user?: Record<string, any>;
-  public openvpn?: OpenvpnConfig;
+  public openvpn?: OpenvpnServiceConfig;
   public peripherals?: ServiceConfig;
 
   constructor(raw?: Record<string, any>) {
@@ -24,7 +24,7 @@ export class AppConfig {
       this.user = UserProfile.parse(raw.user);
     }
     if (raw.openvpn) {
-      this.openvpn = OpenvpnConfig.hydrate(raw.openvpn);
+      this.openvpn = OpenvpnServiceConfig.hydrate(raw.openvpn);
     }
   }
 }

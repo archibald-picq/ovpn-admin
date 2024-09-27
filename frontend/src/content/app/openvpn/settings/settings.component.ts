@@ -32,7 +32,7 @@ export class OpenvpnSettingsPageComponent {
     ) {
         // console.warn('config', this.activatedRoute.parent?.snapshot.data.config);
         this.original = this.activatedRoute.parent?.snapshot.data.config.settings;
-//        console.warn('settings', this.original);
+        console.warn('settings', this.original);
         this.model = this.original?.clone() ?? Settings.parse({});
         console.warn('routes', this.model.routes);
         console.warn('routesPush', this.model.routesPush);

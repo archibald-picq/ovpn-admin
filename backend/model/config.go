@@ -24,6 +24,7 @@ type ConfigPreferences struct {
 	ExplicitExitNotify  bool   `json:"explicitExitNotify"`
 	AuthNocache         bool   `json:"authNocache"`
 	VerifyX509Name      bool   `json:"verifyX509Name"`
+	AllowAnonymousCsr   bool   `json:"allowAnonymousCsr"`
 }
 
 type ApplicationConfig struct {

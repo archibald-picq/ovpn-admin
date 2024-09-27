@@ -22,6 +22,7 @@ type ConfigPublicSettings struct {
 	PushRoutes                 []string        `json:"pushRoutes"`
 	DnsIpv4                    *string         `json:"dnsIpv4"`
 	DnsIpv6                    *string         `json:"dnsIpv6"`
+	ServerCommonName           string          `json:"serverCommonName"`
 }
 
 type ConfigPublicPreferences struct {
@@ -33,6 +34,7 @@ type ConfigPublicPreferences struct {
 	VerifyX509Name      bool                  `json:"verifyX509Name"`
 	Users               []ConfigPublicAccount `json:"users"`
 	ApiKeys             []ConfigPublicApiKey  `json:"apiKeys"`
+	AllowAnonymousCsr   bool                  `json:"allowAnonymousCsr"`
 }
 
 type ConfigPublicAccount struct {
@@ -47,11 +49,12 @@ type ConfigPublicApiKey struct {
 }
 
 type ConfigPublicOpenvpn struct {
-	Url          string                   `json:"url"`
-	Settings     *ConfigPublicSettings    `json:"settings,omitempty"`
-	Preferences  *ConfigPublicPreferences `json:"preferences,omitempty"`
-	Unconfigured *bool                    `json:"unconfigured,omitempty"`
-	ServerSetup  *openvpn.ServerConfigVpn `json:"serverSetup,omitempty"`
+	Url            string                   `json:"url"`
+	Settings       *ConfigPublicSettings    `json:"settings,omitempty"`
+	Preferences    *ConfigPublicPreferences `json:"preferences,omitempty"`
+	Unconfigured   *bool                    `json:"unconfigured,omitempty"`
+	ServerSetup    *openvpn.ServerConfigVpn `json:"serverSetup,omitempty"`
+	AllowSubmitCsr *bool                    `json:"allowSubmitCsr,omitempty"`
 }
 
 type ConfigPublic struct {

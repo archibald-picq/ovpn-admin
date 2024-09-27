@@ -2,7 +2,7 @@ import { Component, Injector } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { OpenvpnService } from '../services/openvpn.service';
-import {ApiKey, Preferences, User} from '../models/openvpn-config.model';
+import {ApiKey, Preferences, Settings, User} from '../models/openvpn-config.model';
 import { Sort } from '@angular/material/sort';
 import { EditAdminAccountComponent, EditAdminAccountOptions } from '../modals/edit-admin-account.component';
 import { MatTableDataSource } from '@angular/material/table';
@@ -21,6 +21,7 @@ import {EditApiKeyComponent, EditApiKeyOptions} from '../modals/edit-api-key.com
 })
 export class OpenvpnPreferencesPageComponent {
     public loading = false;
+    public serverInstanceConfig: Settings;
     public model: Preferences;
     public original: Preferences;
     public error = '';
@@ -39,6 +40,7 @@ export class OpenvpnPreferencesPageComponent {
         private readonly injector: Injector,
         private readonly openvpnService: OpenvpnService,
     ) {
+        this.serverInstanceConfig = this.activatedRoute.parent?.snapshot.data.config.settings;
         this.original = this.activatedRoute.parent?.snapshot.data.config.preferences;
         this.dataSource.data = this.original.users;
         this.dataSourceApiKey.data = this.original.apiKeys;
@@ -72,6 +74,7 @@ export class OpenvpnPreferencesPageComponent {
             explicitExitNotify: this.model.explicitExitNotify,
             autoNoCache: this.model.authNoCache,
             verifyX509Name: this.model.verifyX509Name,
+            allowAnonymousCsr: this.model.allowAnonymousCsr,
         };
     }
 

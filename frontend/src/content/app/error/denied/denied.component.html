@@ -1,9 +1,25 @@
-<div class="columns">
-  <div class="open-pages">
-    Access denied
-  </div>
-  <div class="login-form">
-    <div class="intro">Please login</div>
-
+<div class="page">
+  <div class="columns">
+    <div class="open-pages">
+      <ul class="identity-server">
+<!--        <li>Connect to BLE</li>-->
+        <li *ngIf="appConfig.openvpn?.allowSubmitCsr">
+          <a [routerLink]="['/register']">
+            Request a certificate
+          </a>
+        </li>
+      </ul>
+<!--      <ul class="client-node">-->
+<!--        <li>Link to master node (if connected)</li>-->
+<!--        <li>Reconfigure WiFi (if no internet access)</li>-->
+<!--      </ul>-->
+<!--      <ul class="iot-device">-->
+<!--        <li>Reconfigure WiFi (if no internet access)</li>-->
+<!--      </ul>-->
+    </div>
+    <div class="login-form">
+      <div class="intro">Please login</div>
+      <bus-login></bus-login>
+    </div>
   </div>
 </div>

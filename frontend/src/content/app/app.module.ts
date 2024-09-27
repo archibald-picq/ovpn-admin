@@ -11,7 +11,6 @@ import localeFr from '@angular/common/locales/fr';
 import { OpenvpnModule } from './openvpn/openvpn.module';
 import { TopbarComponent } from './layouts/topbar/topbar.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
-import { LoginComponent } from './layouts/login/login.component';
 import { FormsModule } from '@angular/forms';
 import { AppConfigService } from './shared/services/app-config.service';
 import { RouterService } from './shared/services/router.service';
@@ -27,7 +26,6 @@ function initializeAppFactory(appInit: AppConfigService, routerService: RouterSe
     declarations: [
         MainComponent,
         TopbarComponent,
-        LoginComponent,
     ],
     imports: [
         CommonModule,

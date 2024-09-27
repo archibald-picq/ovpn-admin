@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import {Component, Injector, Optional, Output} from '@angular/core';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { UserService } from '../../shared/services/user.service';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -14,11 +14,12 @@ export class LoginComponent {
     public username = '';
     public password = '';
     public errorMessage = '';
+
     constructor(
-        public readonly modal: NgbActiveModal,
         public readonly userService: UserService,
         public readonly router: Router,
         public readonly routerService: RouterService,
+        @Optional() public readonly modal?: NgbActiveModal,
     ) {
     }
 
@@ -32,7 +33,7 @@ export class LoginComponent {
             console.warn('reload url', currentUrl);
             this.router.navigateByUrl('/', {skipLocationChange: true}).then(() => {
                 this.router.navigate([currentUrl]);
-                this.modal.close('success');
+                this.modal?.close('success');
             });
         } catch (e: any) {
             if (e instanceof HttpErrorResponse) {
@@ -44,5 +45,9 @@ export class LoginComponent {
 
     private logginSucceed(userData: Record<string, any>): void {
         console.warn('just logged with', userData);
+    }
+
+    public cancel() {
+        this.modal?.dismiss('Cross click');
     }
 }

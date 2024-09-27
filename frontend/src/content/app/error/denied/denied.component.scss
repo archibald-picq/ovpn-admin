@@ -1,8 +1,26 @@
 
-div {
-  margin: 20px;
+.page {
+  margin: auto;
+  max-width: 800px;
+
+  .columns {
+    margin: 0 20px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+
+    .open-pages {
+      width: 50%;
+      flex-grow: 1;
+    }
+    .login-form {
+      width: 50%;
+      flex-grow: 1;
+    }
+  }
 }
-.columns {
-  display: flex;
-  flex-direction: row;
-}
+
+
+
+
+

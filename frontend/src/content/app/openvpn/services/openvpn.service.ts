@@ -7,7 +7,7 @@ import { Sort } from '@angular/material/sort';
 import {firstValueFrom} from 'rxjs';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { ClientConfig } from '../models/client-config.model';
-import {OpenvpnConfig, Settings} from '../models/openvpn-config.model';
+import {OpenvpnServiceConfig, Settings} from '../models/openvpn-config.model';
 import { NodeConfig } from '../models/node-config.model';
 import {IRevokedCertificate} from '../models/revoked-certificate.interface';
 import {CreateCertificateDefinition} from '../models/create-certificate.interface';
@@ -16,7 +16,7 @@ import {BaseCertificate} from '../models/certificate-base.interface';
 @Injectable()
 export class OpenvpnService {
   public OPENVPN_ADMIN_API? = '';
-  private config?: Promise<OpenvpnConfig>;
+  private config?: Promise<OpenvpnServiceConfig>;
 
   constructor(
     protected readonly http: HttpClient,
@@ -26,7 +26,7 @@ export class OpenvpnService {
     // console.warn('OPENVPN_API_URL', appConfigService.get().openvpn?.url);
   }
 
-  public async loadConfig(): Promise<OpenvpnConfig> {
+  public async loadConfig(): Promise<OpenvpnServiceConfig> {
     if (this.config) {
       return this.config;
     }
@@ -35,10 +35,10 @@ export class OpenvpnService {
       this.config = Promise.resolve(config.openvpn);
       return this.config;
     }
-    this.config = firstValueFrom(this.http.get<OpenvpnConfig>(this.OPENVPN_ADMIN_API+'/api/config', { observe: 'response'}).pipe(
+    this.config = firstValueFrom(this.http.get<OpenvpnServiceConfig>(this.OPENVPN_ADMIN_API+'/api/config', { observe: 'response'}).pipe(
       filter((response: HttpResponse<any>) => response.ok),
       map((res: any) => res.body as any[]),
-      map((res: any) => OpenvpnConfig.hydrate(res.openvpn)),
+      map((res: any) => OpenvpnServiceConfig.hydrate(res.openvpn)),
       tap(openvpnConfig => {
         config.openvpn = openvpnConfig;
         if (!config.openvpn.url) {

@@ -19,13 +19,13 @@ func randomJwtSecret(n int) []byte {
 func LoadPreferences(
 	preference *model.ApplicationConfig,
 	ovpnConfigDir string,
-	jwtSecretFile string,
 ) {
 	preference.Users = make([]model.Account, 0)
 	preference.ApiKeys = make([]model.ApiKey, 0)
 	preference.Preferences.ExplicitExitNotify = true // default config value, will be overwritten by Unmarshal
 
 	if _, err := os.Stat(ovpnConfigDir + "/config.json"); err == nil {
+		log.Printf("Reading ovpn-admin config '%s'", ovpnConfigDir+"/config.json")
 		rawJson := shell.ReadFile(ovpnConfigDir + "/config.json")
 		err = json.Unmarshal([]byte(rawJson), preference)
 		if err != nil {
@@ -33,26 +33,19 @@ func LoadPreferences(
 			return
 		}
 	} else {
-		log.Printf("No config file found, using defaults")
+		log.Printf("Config file for ovpn-admin not found at '%s', using defaults", ovpnConfigDir+"/config.json")
 	}
 
-	if len(jwtSecretFile) > 0 {
-		if _, err := os.Stat(jwtSecretFile); err == nil {
-			preference.JwtData = []byte(shell.ReadFile(jwtSecretFile))
-			SavePreferences(ovpnConfigDir, preference)
-		}
+	if len(preference.JwtSecretData) == 0 {
+		preference.JwtData = randomJwtSecret(64)
+		SavePreferences(ovpnConfigDir, preference)
 	} else {
-		if len(preference.JwtSecretData) == 0 {
-			preference.JwtData = randomJwtSecret(64)
-			SavePreferences(ovpnConfigDir, preference)
-		} else {
-			jwtData, err := b64.StdEncoding.DecodeString(preference.JwtSecretData)
-			if err != nil {
-				log.Printf("Cant decode jwtSecret %s", err)
-				return
-			}
-			preference.JwtData = jwtData
+		jwtData, err := b64.StdEncoding.DecodeString(preference.JwtSecretData)
+		if err != nil {
+			log.Printf("Cant decode jwtSecret %s", err)
+			return
 		}
+		preference.JwtData = jwtData
 	}
 }
 

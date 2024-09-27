@@ -54,6 +54,7 @@ export class Settings {
         public routesPush: Route[],
         public pushs: Route[],
         public auth: string,
+        public serverCommonName: string,
     ) {
 
     }
@@ -78,6 +79,7 @@ export class Settings {
             (raw?.routesPush ?? []).map(Route.parse),
             raw?.pushs ?? [],
           raw?.auth === ''? null: raw?.auth,
+          raw?.serverCommonName,
         );
     }
 
@@ -87,32 +89,38 @@ export class Settings {
 }
 
 export class Preferences {
-    address: string;
-    defaultAddress: string;
-    certificateDuration: number;
-    explicitExitNotify: boolean;
-    authNoCache: boolean;
-    verifyX509Name: boolean;
-    users: User[];
-    apiKeys: ApiKey[];
 
-    constructor(raw?: Record<string, any>) {
-        this.address = raw?.address;
-        this.defaultAddress = raw?.defaultAddress ?? '';
-        this.certificateDuration = raw?.certificateDuration;
-        this.explicitExitNotify = raw?.explicitExitNotify;
-        this.authNoCache = raw?.authNoCache;
-        this.verifyX509Name = raw?.verifyX509Name;
-        this.users = (raw?.users ?? []).map(User.hydrate);
-        this.apiKeys = (raw?.apiKeys ?? []).map(ApiKey.hydrate);
+
+    constructor(
+      public address: string,
+      public defaultAddress: string,
+      public certificateDuration: number,
+      public explicitExitNotify: boolean,
+      public allowAnonymousCsr: boolean,
+      public authNoCache: boolean,
+      public verifyX509Name: boolean,
+      public users: User[],
+      public apiKeys: ApiKey[],
+    ) {
+
     }
 
-    static parse(raw: any) {
-        return new Preferences(raw);
+    static hydrate(raw: any) {
+        return new Preferences(
+          raw?.address,
+          raw?.defaultAddress ?? '',
+          raw?.certificateDuration,
+          raw?.explicitExitNotify,
+          raw?.allowAnonymousCsr,
+          raw?.authNoCache,
+          raw?.verifyX509Name,
+          (raw?.users ?? []).map(User.hydrate),
+          (raw?.apiKeys ?? []).map(ApiKey.hydrate),
+        );
     }
 
     public clone(): Preferences {
-        return new Preferences(this);
+        return Preferences.hydrate(this);
     }
 }
 
@@ -139,29 +147,31 @@ export class ServerSetup {
     }
 }
 
-export class OpenvpnConfig extends ServiceConfig {
-    settings?: Settings;
-    preferences?: Preferences;
-    unconfigured: boolean;
-    serverSetup?: ServerSetup;
 
-    constructor(raw?: Record<string, any>) {
-        super(raw);
-        if (raw?.settings) {
-            this.settings = Settings.parse(raw?.settings);
-        }
-        if (raw?.preferences) {
-            this.preferences = Preferences.parse(raw?.preferences);
-        }
-        this.unconfigured = raw?.unconfigured;
-        this.serverSetup = raw?.serverSetup ? ServerSetup.hydrate(raw.serverSetup) : undefined;
+export class OpenvpnServiceConfig extends ServiceConfig {
+    constructor(
+      public url?: string,
+      public settings?: Settings,
+      public preferences?: Preferences,
+      public serverSetup?: ServerSetup,
+      public unconfigured?: boolean,
+      public allowSubmitCsr?: boolean,
+    ) {
+        super({url});
     }
 
     static hydrate(raw: any) {
-        return new OpenvpnConfig(raw);
+        return new OpenvpnServiceConfig(
+          raw.url,
+          raw?.settings ? Settings.parse(raw?.settings): undefined,
+          raw?.preferences ? Preferences.hydrate(raw?.preferences): undefined,
+          raw?.serverSetup ? ServerSetup.hydrate(raw.serverSetup) : undefined,
+          raw?.unconfigured,
+          raw?.allowSubmitCsr ?? false,
+        );
     }
 
-    public clone(): OpenvpnConfig {
-        return new OpenvpnConfig(this);
+    public clone(): OpenvpnServiceConfig {
+        return OpenvpnServiceConfig.hydrate(this);
     }
 }

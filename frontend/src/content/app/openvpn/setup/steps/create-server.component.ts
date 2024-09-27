@@ -1,7 +1,7 @@
 import {Component, Injector} from '@angular/core';
 import {OpenvpnService} from '../../services/openvpn.service';
 import {ActivatedRoute, Router} from '@angular/router';
-import {OpenvpnConfig, ServerSetup} from '../../models/openvpn-config.model';
+import {OpenvpnServiceConfig, ServerSetup} from '../../models/openvpn-config.model';
 import {
   CreateClientCertificateComponent,
   EditCertificatInfo
@@ -59,7 +59,7 @@ export class CreateServerComponent {
 
   // Current config state from the server
   // note: we must update it according to what we do (http 2xx)
-  public config: OpenvpnConfig;
+  public config: OpenvpnServiceConfig;
   public setup: ServerSetup;
 
   // UI states

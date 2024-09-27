@@ -44,7 +44,6 @@ var (
 	clientConfigTemplatePath = kingpin.Flag("templates.clientconfig-path", "path to custom client.conf.tpl").Default("").Envar("OVPN_TEMPLATES_CC_PATH").String()
 	authByPassword           = kingpin.Flag("auth.password", "enable additional password authentication").Default("false").Envar("OVPN_AUTH").Bool()
 	authDatabase             = kingpin.Flag("auth.db", "database path for password authentication").Default("./easyrsa/pki/users.db").Envar("OVPN_AUTH_DB_PATH").String()
-	jwtSecretFile            = kingpin.Flag("jwt.secret", "jwt secret file").Default("").Envar("JWT_SECRET").String()
 	ovpnConfigDir            = kingpin.Flag("config.dir", "Configuration files dir").Default("/etc/openvpn/admin").Envar("CONFIG_DIR").String()
 
 	upgrader = websocket.Upgrader{} // use default options
@@ -110,11 +109,9 @@ func main() {
 		app.broadcast(WebsocketPacket{Stream: "read", Data: line})
 	}
 
-	log.Printf("Reading ovpn-admin config '%s'", *ovpnConfigDir+"/config.json")
 	preference.LoadPreferences(
 		&app.applicationPreferences,
 		*ovpnConfigDir,
-		*jwtSecretFile,
 	)
 	log.Printf("  -> users: %d", len(app.applicationPreferences.Users))
 	log.Printf("  -> api keys: %d", len(app.applicationPreferences.ApiKeys))

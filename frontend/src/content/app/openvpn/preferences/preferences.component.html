@@ -45,7 +45,13 @@
             <div class="form-group mb-2">
                 <input class="form-check-input" type="checkbox" id="verifyX509Name" name="verifyX509Name" aria-describedby="Verify x509 Name" [value]="true" [(ngModel)]="model.verifyX509Name">
                 <label class="form-check-label" for="verifyX509Name">
-                    Verify x509 Name
+                    Verify x509 Name is "{{serverInstanceConfig.serverCommonName}}"
+                </label>
+            </div>
+            <div class="form-group mb-2">
+                <input class="form-check-input" type="checkbox" id="allow-anonymous-csr" name="allowAnonymousCsr" aria-describedby="Allow Anonymous CSR" [value]="true" [(ngModel)]="model.allowAnonymousCsr">
+                <label class="form-check-label" for="allow-anonymous-csr">
+                    Allow anonymous users to submit a <abbr title="Certificate Signing Request">CSR</abbr>
                 </label>
             </div>
         </div>

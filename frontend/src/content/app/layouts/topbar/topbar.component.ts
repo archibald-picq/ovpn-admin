@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
-import { LoginComponent } from '../login/login.component';
+import { LoginComponent } from '../../error/login/login.component';
 import { AppConfigService } from '../../shared/services/app-config.service';
 import { UserService } from '../../shared/services/user.service';
 import { AppConfig } from '../../shared/models/app-config';

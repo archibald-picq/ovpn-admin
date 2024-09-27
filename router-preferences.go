@@ -14,6 +14,7 @@ type ConfigPublicPreferencesPost struct {
 	ExplicitExitNotify  bool   `json:"explicitExitNotify"`
 	AuthNoCache         bool   `json:"authNoCache"`
 	VerifyX509Name      bool   `json:"verifyX509Name"`
+	AllowAnonymousCsr   bool   `json:"allowAnonymousCsr"`
 }
 
 func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
@@ -29,13 +30,14 @@ func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("saving preferences %v", post)
-	preferences := &app.applicationPreferences
-	preferences.Preferences.Address = post.Address
-	preferences.Preferences.ExplicitExitNotify = post.ExplicitExitNotify
-	preferences.Preferences.CertificateDuration = post.CertificateDuration
-	preferences.Preferences.AuthNocache = post.AuthNoCache
-	preferences.Preferences.VerifyX509Name = post.VerifyX509Name
-	err = preference.SavePreferences(*ovpnConfigDir, preferences)
+	config := &app.applicationPreferences
+	config.Preferences.Address = post.Address
+	config.Preferences.ExplicitExitNotify = post.ExplicitExitNotify
+	config.Preferences.CertificateDuration = post.CertificateDuration
+	config.Preferences.AuthNocache = post.AuthNoCache
+	config.Preferences.VerifyX509Name = post.VerifyX509Name
+	config.Preferences.AllowAnonymousCsr = post.AllowAnonymousCsr
+	err = preference.SavePreferences(*ovpnConfigDir, config)
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return

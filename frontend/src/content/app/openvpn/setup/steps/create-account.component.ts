@@ -1,5 +1,5 @@
 import {AccountEditDTO} from '../../models/account-edit.model';
-import {OpenvpnConfig, User} from '../../models/openvpn-config.model';
+import {OpenvpnServiceConfig, User} from '../../models/openvpn-config.model';
 import {AccountService} from '../../services/account.service';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Component} from '@angular/core';
@@ -14,14 +14,14 @@ export class CreateAccountComponent {
   public account: AccountEditDTO = new AccountEditDTO();
   public passwordConfirm = '';
   public error?: string;
-  private readonly config: OpenvpnConfig;
+  private readonly config: OpenvpnServiceConfig;
 
   constructor(
     private readonly accountService: AccountService,
     public readonly router: Router,
     public readonly activatedRoute: ActivatedRoute,
   ) {
-    this.config = this.activatedRoute.snapshot.parent!.data.config as OpenvpnConfig;
+    this.config = this.activatedRoute.snapshot.parent!.data.config as OpenvpnServiceConfig;
   }
 
   public async save() {

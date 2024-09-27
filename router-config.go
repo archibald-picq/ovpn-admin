@@ -66,6 +66,8 @@ func (app *OvpnAdmin) exportServiceSettings() *model.ConfigPublicSettings {
 	settings.TunMtu = app.serverConf.TunMtu
 	settings.DnsIpv4 = app.serverConf.DnsIpv4
 	settings.DnsIpv6 = app.serverConf.DnsIpv6
+	settings.ServerCommonName = app.serverConf.MasterCn
+
 	//settings.Routes = make([]string, 0)
 	//for _, routes := range app.serverConf.routes {
 	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
@@ -90,6 +92,7 @@ func (app *OvpnAdmin) exportPublicPreferences() *model.ConfigPublicPreferences {
 	preferences.AuthNoCache = app.applicationPreferences.Preferences.AuthNocache
 	preferences.VerifyX509Name = app.applicationPreferences.Preferences.VerifyX509Name
 	preferences.ApiKeys = make([]model.ConfigPublicApiKey, 0)
+	preferences.AllowAnonymousCsr = app.applicationPreferences.Preferences.AllowAnonymousCsr
 
 	if app.applicationPreferences.Preferences.CertificateDuration > 0 {
 		preferences.CertificateDuration = app.applicationPreferences.Preferences.CertificateDuration
@@ -167,6 +170,10 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 				configPublic.Openvpn.ServerSetup = app.buildServerSetupConfig()
 			}
 		}
+	} else {
+		if app.applicationPreferences.Preferences.AllowAnonymousCsr {
+			configPublic.Openvpn.AllowSubmitCsr = &b
+		}
 	}
 
 	// first user: allow create admin account
@@ -189,6 +196,7 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 func (app *OvpnAdmin) buildServerSetupConfig() *openvpn.ServerConfigVpn {
 	var serverSetup openvpn.ServerConfigVpn
 	serverSetup.ServiceName = "server"
+
 	serverSetup.PkiPath = app.easyrsa.EasyrsaDirPath + "/pki"
 	if openvpn.IsPkiInited(app.easyrsa) {
 		certs := openvpn.IndexTxtParserCertificate(app.easyrsa)
