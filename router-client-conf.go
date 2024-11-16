@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"rpiadm/backend/auth"
 	"rpiadm/backend/openvpn"
-	"text/template"
 )
 
 func (app *OvpnAdmin) buildClientOvpnConfigFile(w http.ResponseWriter, r *http.Request, username string) {
@@ -46,22 +45,8 @@ func (app *OvpnAdmin) buildClientOvpnConfigFile(w http.ResponseWriter, r *http.R
 		app.applicationPreferences.Preferences.VerifyX509Name,
 		app.outboundIp.String(),
 		app.serverConf.MasterCn,
-		*serverConfFile,
 		app.easyrsa.EasyrsaDirPath,
-		app.getClientConfigTemplate(),
 		*authByPassword,
 		username,
 	))
-}
-
-func (app *OvpnAdmin) getClientConfigTemplate() *template.Template {
-	if *clientConfigTemplatePath != "" {
-		return template.Must(template.ParseFiles(*clientConfigTemplatePath))
-	} else {
-		clientConfigTpl, clientConfigTplErr := templates.ReadFile("templates/client.conf.tpl")
-		if clientConfigTplErr != nil {
-			log.Printf("clientConfigTpl not found in templates box")
-		}
-		return template.Must(template.New("client-config").Parse(string(clientConfigTpl)))
-	}
 }

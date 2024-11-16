@@ -17,13 +17,14 @@ import {
     DeleteClientOptions
 } from '../modals/confirm-delete-client-certificate.component';
 import {
-    ConfirmRotateClientCertificateComponent,
+    RotateClientCertificateComponent,
     RotateClientOptions
-} from '../modals/confirm-rotate-client-certificate.component';
+} from '../modals/rotate-client-certificate.component';
 import {WebsocketService} from "../services/websocket.service";
 import {ClientCertificate} from "../models/client-certificate.model";
 import {ConfirmKillConnectionComponent, KillConnectionOptions} from "../modals/confirm-kill-connection.component";
 import {CsvService} from '../services/csv.service';
+import {OpenvpnServiceConfig} from '../models/openvpn-config.model';
 
 @Component({
     selector: 'bus-openvpn-clients',
@@ -37,6 +38,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
     public hideRevoked = !!localStorage.getItem('hideRevoked');
     private sort?: Sort;
     public minSpeedThreshold = 1024; // don't show speed lower thant 1kb/s
+    public readonly config: OpenvpnServiceConfig;
 
     private usersCallback = (data: any) => {
         this.mergeLists(this.clients, data);
@@ -55,6 +57,8 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         private readonly csvService: CsvService,
     ) {
         this.clients = this.activatedRoute.snapshot.data.clients;
+        this.config = this.activatedRoute.parent?.snapshot.data.config;
+        console.warn('config', this.config);
         this.applySorting();
         if (!this.hideRevoked) {
             this.addRevocationDateColumnBeforeActions();
@@ -136,7 +140,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
     public async unrevokeClientCertificate(client: IClientCertificate): Promise<void> {
         try {
             console.warn('unrevoke client certificate', client);
-            await this.openvpnService.unrevokeCertificate(client);
+            await this.openvpnService.unrevokeCertificate(client, client.certificate!.serialNumber!);
             client.certificate!.accountStatus = 'Active';
             client.certificate!.revocationDate = undefined;
             this.applySorting();
@@ -148,22 +152,22 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
     public async rotateClientCertificate(client: IClientCertificate): Promise<void> {
         try {
             console.warn('rotate client certificate', client);
-            const newClient = await this.modalService.open(ConfirmRotateClientCertificateComponent, {
+            const newClient = await this.modalService.open(RotateClientCertificateComponent, {
                 centered: true,
                 injector: Injector.create([{
                     provide: RotateClientOptions,
                     useValue: new RotateClientOptions(client),
                 }], this.injector),
             }).result;
-            console.warn('new client', newClient);
-            this.clients.push(newClient);
+            // console.warn('new client', newClient);
+            // this.clients.push(newClient);
             // const p = this.clients.indexOf(client);
             // if (p === -1) {
             //     console.warn('Error in UI');
             // } else {
             //     this.clients.splice(p, 1, newClient);
             // }
-            console.warn('all clients', this.clients);
+            // console.warn('all clients', this.clients);
             this.applySorting();
         } catch (e) {
             console.warn('Cancel delete client');

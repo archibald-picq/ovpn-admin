@@ -20,17 +20,7 @@ func (app *OvpnAdmin) handleApiKey(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "DELETE" {
 		matches := regId.FindStringSubmatch(r.URL.Path)
 		if len(matches) > 0 {
-			id, err := uuid.Parse(matches[1])
-			if err != nil {
-				returnErrorMessage(w, http.StatusBadRequest, errors.New("invalid uuid"))
-				return
-			}
-			err = preference.DeleteApiKey(*ovpnConfigDir, &app.applicationPreferences, id)
-			if err != nil {
-				returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete api key %s", err)))
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
+			app.deleteApiKeyById(w, matches[1])
 			return
 		} else {
 			returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
@@ -48,41 +38,58 @@ func (app *OvpnAdmin) handleApiKey(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "PUT" {
 		matches := regId.FindStringSubmatch(r.URL.Path)
 		if len(matches) > 0 {
-			id, err := uuid.Parse(matches[1])
-			if err != nil {
-				returnErrorMessage(w, http.StatusBadRequest, errors.New("invalid uuid"))
-				return
-			}
-			apiKey, err := preference.UpdateApiKey(*ovpnConfigDir, &app.applicationPreferences, id, apiKeyUpdateUpdate)
-			if err != nil {
-				returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete api key %s", err)))
-				return
-			}
-			err = returnJson(w, apiKeyMapper(*apiKey))
-			if err != nil {
-				log.Printf("error sending response")
-			}
+			app.updateApiKeyById(w, matches[1], apiKeyUpdateUpdate)
 			return
 		} else {
 			returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
 			return
 		}
-	} else if r.Method == "POST" {
-
-		if r.URL.Path == "/api/config/api-key/" {
-
-			apiKey, err := preference.CreateApiKey(*ovpnConfigDir, &app.applicationPreferences, apiKeyUpdateUpdate)
-			if err != nil {
-				returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to create api key %s", err)))
-				return
-			}
-			err = returnJson(w, apiKeyMapper(*apiKey))
-			if err != nil {
-				log.Printf("error sending response")
-			}
-			return
-		}
-
+	} else if r.Method == "POST" && r.URL.Path == "/api/config/api-key/" {
+		app.CreateApiKey(w, apiKeyUpdateUpdate)
+		return
 	}
 	returnErrorMessage(w, http.StatusBadRequest, errors.New("bad request"))
+}
+
+func (app *OvpnAdmin) CreateApiKey(w http.ResponseWriter, update preference.ApiKeyUpdate) {
+	apiKey, err := preference.CreateApiKey(*ovpnConfigDir, &app.applicationPreferences, update)
+	if err != nil {
+		returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to create api key %s", err)))
+		return
+	}
+	err = returnJson(w, preference.ApiKeyMapper(*apiKey))
+	if err != nil {
+		log.Printf("error sending response")
+	}
+}
+
+func (app *OvpnAdmin) deleteApiKeyById(w http.ResponseWriter, idStr string) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("invalid uuid"))
+		return
+	}
+	err = preference.DeleteApiKey(*ovpnConfigDir, &app.applicationPreferences, id)
+	if err != nil {
+		returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete api key %s", err)))
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (app *OvpnAdmin) updateApiKeyById(w http.ResponseWriter, idStr string, update preference.ApiKeyUpdate) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		returnErrorMessage(w, http.StatusBadRequest, errors.New("invalid uuid"))
+		return
+	}
+	apiKey, err := preference.UpdateApiKey(*ovpnConfigDir, &app.applicationPreferences, id, update)
+	if err != nil {
+		returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete api key %s", err)))
+		return
+	}
+	err = returnJson(w, preference.ApiKeyMapper(*apiKey))
+	if err != nil {
+		log.Printf("error sending response")
+	}
 }

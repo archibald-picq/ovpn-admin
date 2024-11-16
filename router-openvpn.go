@@ -51,7 +51,6 @@ func (app *OvpnAdmin) listCrl(w http.ResponseWriter) {
 		returnErrorMessage(w, http.StatusBadRequest, errors.New("no crl active"))
 		return
 	}
-	crlPath := shell.AbsolutizePath(*serverConfFile, app.serverConf.CrlVerify)
 
 	//log.Printf("load crl %s", crlPath)
 	certs := make([]*openvpn.Certificate, 0)
@@ -59,7 +58,7 @@ func (app *OvpnAdmin) listCrl(w http.ResponseWriter) {
 		//log.Printf("existing cert %s, serial: %s", client.Certificate.CommonName, client.Certificate.SerialNumber)
 		certs = append(certs, client.Certificate)
 	}
-	crlList, err := openvpn.GetCrlList(crlPath, certs)
+	crlList, err := openvpn.GetCrlList(shell.AbsolutizePath(app.serverConf.SourceFile, app.serverConf.CrlVerify), certs)
 	if err != nil {
 		log.Printf("error %v", err)
 		returnErrorMessage(w, http.StatusInternalServerError, errors.New("cant parse crl"))

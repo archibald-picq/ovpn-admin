@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpResponse } from '@angular/common/http';
-import {IClientCertificate, IConnection} from '../models/client-certificate.interface';
-import { ClientCertificate } from '../models/client-certificate.model';
+import {ICertificate, IClientCertificate, IConnection} from '../models/client-certificate.interface';
+import {Certificate, ClientCertificate} from '../models/client-certificate.model';
 import {filter, map, tap} from 'rxjs/operators';
 import { Sort } from '@angular/material/sort';
 import {firstValueFrom} from 'rxjs';
@@ -12,6 +12,7 @@ import { NodeConfig } from '../models/node-config.model';
 import {IRevokedCertificate} from '../models/revoked-certificate.interface';
 import {CreateCertificateDefinition} from '../models/create-certificate.interface';
 import {BaseCertificate} from '../models/certificate-base.interface';
+import {CertificatInfo} from '../models/certificat-info.model';
 
 @Injectable()
 export class OpenvpnService {
@@ -96,7 +97,7 @@ export class OpenvpnService {
   }
 
   public async saveServiceConfig(serviceName: string, toSave: Record<string, any>): Promise<Settings> {
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/config/service/'+serviceName+'/save', toSave)).then(Settings.parse);
+    return firstValueFrom(this.http.post<Settings>(this.OPENVPN_ADMIN_API+'/api/config/service/'+serviceName+'/save', toSave)).then(Settings.parse);
   }
 
   public async savePreferences(toSave: Record<string, any>): Promise<void> {
@@ -112,8 +113,8 @@ export class OpenvpnService {
     return firstValueFrom(this.http.put<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/ccd', body));
   }
 
-  public async revokeCertificate(client: IClientCertificate): Promise<void> {
-    return firstValueFrom(this.http.post<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/revoke', {}));
+  public async revokeCertificate(client: IClientCertificate, serialNumber: string): Promise<void> {
+    return firstValueFrom(this.http.post<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+':'+serialNumber+'/revoke', {}));
   }
 
   public async killConnection(client: IClientCertificate, conn: IConnection): Promise<void> {
@@ -136,16 +137,16 @@ export class OpenvpnService {
     await firstValueFrom(this.http.post<void>(this.OPENVPN_ADMIN_API+'/api/openvpn/gen-dh', ''));
   }
 
-  public async unrevokeCertificate(client: IClientCertificate): Promise<any> {
-    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/unrevoke', {}));
+  public async unrevokeCertificate(client: IClientCertificate, serialNumber: string): Promise<any> {
+    return firstValueFrom(this.http.post(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+':'+serialNumber+'/unrevoke', {}));
   }
 
   public async deleteCertificate(client: IClientCertificate): Promise<void> {
     return firstValueFrom(this.http.delete<void>(this.OPENVPN_ADMIN_API+'/api/user/'+client.username+'/'));
   }
 
-  public async rotateCertificate(commonName: string, newInfo: BaseCertificate): Promise<IClientCertificate> {
-    return firstValueFrom(this.http.post<IClientCertificate>(this.OPENVPN_ADMIN_API+'/api/user/' + commonName + '/rotate', newInfo));
+  public async rotateCertificate(commonName: string, newInfo: CertificatInfo): Promise<ICertificate> {
+    return firstValueFrom(this.http.post<ICertificate>(this.OPENVPN_ADMIN_API+'/api/user/' + commonName + '/rotate', newInfo)).then(Certificate.hydrate);
   }
 
   public sorter(sort: Sort) {

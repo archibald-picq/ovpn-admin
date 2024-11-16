@@ -12,11 +12,11 @@ import { ConfirmRevokeClientCertificateComponent } from './modals/confirm-revoke
 import { FormsModule } from '@angular/forms';
 import { CreateClientCertificateComponent } from './modals/create-client-certificate.component';
 import { ConfirmDeleteClientCertificateComponent } from './modals/confirm-delete-client-certificate.component';
-import { ConfirmRotateClientCertificateComponent } from './modals/confirm-rotate-client-certificate.component';
+import { RotateClientCertificateComponent } from './modals/rotate-client-certificate.component';
 import { SharedModule } from '../shared/shared.module';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
-import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
+import {NgbDatepickerModule, NgbPopoverModule, NgbTimepickerModule, NgbTooltipModule} from '@ng-bootstrap/ng-bootstrap';
 import { OpenvpnSettingsPageComponent } from './settings/settings.component';
 import { OpenvpnPreferencesPageComponent } from './preferences/preferences.component';
 import { EditAdminAccountComponent } from './modals/edit-admin-account.component';
@@ -47,6 +47,9 @@ import {ImportComponent} from './import/import.component';
 import {ImportCreateComponent} from './import/create/create.component';
 import {CreateServerComponent} from './setup/steps/create-server.component';
 import {CertificateFormComponent} from './components/certificate-form.component';
+import {WarningExpiresComponent} from './components/warning-expires.component';
+import {RotateServerCertificateComponent} from './modals/rotate-server-certificate.component';
+import {DateTimePickerComponent} from './components/date-time-picker.component';
 
 @NgModule({
     declarations: [
@@ -55,7 +58,7 @@ import {CertificateFormComponent} from './components/certificate-form.component'
         EditClientComponent,
         ConfirmRevokeClientCertificateComponent,
         ConfirmDeleteClientCertificateComponent,
-        ConfirmRotateClientCertificateComponent,
+        RotateClientCertificateComponent,
         CreateClientCertificateComponent,
         OpenvpnSettingsPageComponent,
         OpenvpnPreferencesPageComponent,
@@ -79,22 +82,28 @@ import {CertificateFormComponent} from './components/certificate-form.component'
         JoinMasterComponent,
         CreateServerComponent,
         CertificateFormComponent,
+        WarningExpiresComponent,
+        RotateServerCertificateComponent,
+        DateTimePickerComponent,
     ],
-    imports: [
-        RouterModule.forChild(OPENVPN_ROUTES),
-        CommonModule,
-        MatSliderModule,
-        MatSortModule,
-        MatTableModule,
-        FormsModule,
-        SharedModule,
-        MatIconModule,
-        NgbTooltipModule,
-        MatMenuModule,
-        MatButtonModule,
-        MatCheckboxModule,
-        MatCardModule,
-    ],
+  imports: [
+    RouterModule.forChild(OPENVPN_ROUTES),
+    CommonModule,
+    MatSliderModule,
+    MatSortModule,
+    MatTableModule,
+    FormsModule,
+    SharedModule,
+    MatIconModule,
+    NgbTooltipModule,
+    MatMenuModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatCardModule,
+    NgbDatepickerModule,
+    NgbPopoverModule,
+    NgbTimepickerModule,
+  ],
     providers: [
         OpenvpnService,
         WebsocketService,

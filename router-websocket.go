@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+var upgrader = websocket.Upgrader{} // use default options
+
 type WebsocketPacket struct {
 	Stream string      `json:"stream"`
 	Data   interface{} `json:"data"`
@@ -154,7 +156,7 @@ func (app *OvpnAdmin) handleWebsocketResponse(conn *rpi.WsSafeConn, packet cmd.W
 	for i, req := range wsConn.RequestQueue {
 		if req.Id == *packet.Id {
 			wsConn.RequestQueue = append(wsConn.RequestQueue[0:i], wsConn.RequestQueue[i+1:]...)
-			log.Printf("< handle response %d (%d bytes)", req.Id, len(data))
+			//log.Printf("< handle response %d (%d bytes)", req.Id, len(data))
 			req.Cb(data, nil)
 			return
 		}
@@ -276,7 +278,7 @@ func (app *OvpnAdmin) handleWebsocketAuth(conn *rpi.WsSafeConn, packet cmd.Webso
 		app.send(conn, cmd.WebsocketAction{Action: "auth", Data: cmd.WebsocketAuthResponse{Status: "ko"}})
 		return
 	}
-	log.Printf("Successfully logged for device %s\n", data.Name)
+	log.Printf("Successfully logged for device '%s'\n", data.Name)
 	//app.send(conn, WebsocketAction{Action: "auth", Data: WebsocketAuthResponse{Status: "ok"}})
 
 	log.Printf("current time %d", time.Now().UnixMilli())

@@ -1,12 +1,10 @@
 package openvpn
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"rpiadm/backend/shell"
 	"strings"
-	"text/template"
 )
 
 func RenderClientConfig(
@@ -18,9 +16,7 @@ func RenderClientConfig(
 	VerifyX509Name bool,
 	outboundIp string,
 	masterCn string,
-	serverConfFile string,
 	easyrsaDirPath string,
-	t *template.Template,
 	authByPassword bool,
 	username string,
 ) []byte {
@@ -65,7 +61,7 @@ func RenderClientConfig(
 		conf.CompLzo = true
 	}
 	if len(config.TlsCrypt) > 0 {
-		conf.TlsCrypt = stripDashComments(shell.ReadFile(shell.AbsolutizePath(serverConfFile, config.TlsCrypt)))
+		conf.TlsCrypt = stripDashComments(shell.ReadFile(config.GetCrlPath()))
 	}
 
 	conf.Auth = config.Auth
@@ -75,24 +71,103 @@ func RenderClientConfig(
 	conf.TlsClient = config.TlsServer
 	conf.TlsVersionMin = config.TlsVersionMin
 	conf.TlsCipher = config.TlsCipher
-
 	conf.Cert = removeCertificatText(shell.ReadFile(easyrsaDirPath + "/pki/issued/" + username + ".crt"))
 	conf.Key = shell.ReadFile(easyrsaDirPath + "/pki/private/" + username + ".key")
 
 	conf.PasswdAuth = authByPassword
 
-	var tmp bytes.Buffer
-	err := t.Execute(&tmp, conf)
-	if err != nil {
-		//log.Errorf("something goes wrong during rendering config for %s", username)
-		//log.Debugf("rendering config for %s failed with error %v", username, err)
+	return buildOvpnClientConfigFile(conf)
+}
+
+func buildOvpnClientConfigFile(conf OpenvpnClientConfig) []byte {
+	var lines = make([]string, 0)
+
+	lines = append(lines, "client")
+	if conf.ExplicitExitNotify {
+		lines = append(lines, "explicit-exit-notify")
+	}
+	lines = append(lines, "dev tun")
+	lines = append(lines, "proto udp")
+
+	for _, server := range conf.Hosts {
+		proto := ""
+		if len(server.Protocol) > 0 {
+			proto = " " + server.Protocol
+		}
+		lines = append(lines, "remote "+server.Host+" "+server.Port+proto)
 	}
 
-	hosts = nil
+	lines = append(lines, "resolv-retry infinite")
+	lines = append(lines, "nobind")
+	lines = append(lines, "persist-key")
+	lines = append(lines, "persist-tun")
 
-	//log.Printf("Rendered config for user %s: %+v", username, tmp.String())
+	lines = append(lines, "remote-cert-tls server")
 
-	return tmp.Bytes()
+	if conf.CompLzo {
+		lines = append(lines, "comp-lzo")
+	}
+	lines = append(lines, "verb 3")
+
+	if len(conf.CertCommonName) > 0 {
+		lines = append(lines, "verify-x509-name "+conf.CertCommonName+" name")
+	}
+
+	if len(conf.Auth) > 0 {
+		lines = append(lines, "auth "+conf.Auth)
+	}
+
+	if conf.AuthNocache {
+		lines = append(lines, "auth-nocache")
+	}
+
+	if len(conf.Cipher) > 0 {
+		lines = append(lines, "cipher "+conf.Cipher)
+	}
+
+	if conf.TlsClient {
+		lines = append(lines, "tls-client")
+	}
+
+	if len(conf.TlsVersionMin) > 0 {
+		lines = append(lines, "tls-version-min "+conf.TlsVersionMin)
+	}
+
+	if len(conf.TlsCipher) > 0 {
+		lines = append(lines, "tls-cipher "+conf.TlsCipher)
+	}
+
+	lines = append(lines, "ignore-unknown-option block-outside-dns")
+	lines = append(lines, "setenv opt block-outside-dns # Prevent Windows 10 DNS leak")
+
+	if conf.PasswdAuth {
+		lines = append(lines, "auth-user-pass")
+	}
+
+	lines = append(lines, "<cert>")
+	lines = append(lines, conf.Cert)
+	lines = append(lines, "</cert>")
+
+	lines = append(lines, "<key>")
+	lines = append(lines, conf.Key)
+	lines = append(lines, "</key>")
+
+	lines = append(lines, "<ca>")
+	lines = append(lines, conf.CA)
+	lines = append(lines, "</ca>")
+
+	if len(conf.TLS) > 0 {
+		lines = append(lines, "<tls-auth>")
+		lines = append(lines, conf.TLS)
+		lines = append(lines, "</tls-auth>")
+	}
+	if len(conf.TLS) > 0 {
+		lines = append(lines, "<tls-crypt>")
+		lines = append(lines, conf.TlsCrypt)
+		lines = append(lines, "</tls-crypt>")
+	}
+
+	return []byte(strings.Join(lines, "\n"))
 }
 
 func stripDashComments(content string) string {

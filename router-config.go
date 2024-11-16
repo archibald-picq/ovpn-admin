@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/alessio/shellescape"
 	"log"
 	"net"
 	"net/http"
@@ -12,9 +11,23 @@ import (
 	"rpiadm/backend/auth"
 	"rpiadm/backend/model"
 	"rpiadm/backend/openvpn"
-	"rpiadm/backend/shell"
+	"rpiadm/backend/preference"
 	"strings"
 )
+
+type ConfigPublicOpenvpn struct {
+	Url            string                              `json:"url"`
+	Settings       *openvpn.ConfigPublicSettings       `json:"settings,omitempty"`
+	Preferences    *preference.ConfigPublicPreferences `json:"preferences,omitempty"`
+	Unconfigured   *bool                               `json:"unconfigured,omitempty"`
+	ServerSetup    *openvpn.ServerConfigVpn            `json:"serverSetup,omitempty"`
+	AllowSubmitCsr *bool                               `json:"allowSubmitCsr,omitempty"`
+}
+
+type ConfigPublic struct {
+	User    *model.ConfigPublicAccount `json:"user,omitempty"`
+	Openvpn ConfigPublicOpenvpn        `json:"openvpn"`
+}
 
 type ServerSavePayload struct {
 	ServerCertificate          *string         `json:"serverCertificate"`
@@ -42,39 +55,6 @@ func convertCidrNetworkMask(cidr string) string {
 	return fmt.Sprintf("%s %s", ipv4Addr, mask)
 }
 
-func (app *OvpnAdmin) exportServiceSettings() *model.ConfigPublicSettings {
-	if app.serverConf == nil {
-		return nil
-	}
-	//log.Println("exporting settings %v", app.serverConf)
-	var settings = new(model.ConfigPublicSettings)
-	settings.ServiceName = app.serverConf.ServiceName
-	settings.Server = openvpn.ConvertNetworkMaskCidr(app.serverConf.Server)
-	settings.ForceGatewayIpv4 = app.serverConf.ForceGatewayIpv4
-	settings.ForceGatewayIpv4ExceptDhcp = app.serverConf.ForceGatewayIpv4ExceptDhcp
-	settings.ForceGatewayIpv4ExceptDns = app.serverConf.ForceGatewayIpv4ExceptDns
-	settings.ServerIpv6 = app.serverConf.ServerIpv6
-	settings.ForceGatewayIpv6 = app.serverConf.ForceGatewayIpv6
-	settings.DuplicateCn = app.serverConf.DuplicateCn
-	settings.ClientToClient = app.serverConf.ClientToClient
-	settings.CompLzo = app.serverConf.CompLzo
-	settings.Routes = app.serverConf.Routes
-	settings.RoutesPush = app.serverConf.RoutesPush
-	settings.Auth = app.serverConf.Auth
-	settings.Pushs = app.serverConf.Push
-	settings.EnableMtu = app.serverConf.EnableMtu
-	settings.TunMtu = app.serverConf.TunMtu
-	settings.DnsIpv4 = app.serverConf.DnsIpv4
-	settings.DnsIpv6 = app.serverConf.DnsIpv6
-	settings.ServerCommonName = app.serverConf.MasterCn
-
-	//settings.Routes = make([]string, 0)
-	//for _, routes := range app.serverConf.routes {
-	//	settings.Routes = append(settings.Routes, convertNetworkMaskCidr(routes))
-	//}
-	return settings
-}
-
 func (app *OvpnAdmin) buildDefaultAddress() string {
 	if app.serverConf != nil {
 		return fmt.Sprintf("%s:%d", app.outboundIp, app.serverConf.Port)
@@ -83,34 +63,8 @@ func (app *OvpnAdmin) buildDefaultAddress() string {
 	}
 }
 
-func (app *OvpnAdmin) exportPublicPreferences() *model.ConfigPublicPreferences {
-	var preferences = new(model.ConfigPublicPreferences)
-	preferences.Address = app.applicationPreferences.Preferences.Address
-	preferences.DefaultAddress = app.buildDefaultAddress()
-	preferences.CertificateDuration = 3600 * 24 * 365 * 10 // 10 years
-	preferences.ExplicitExitNotify = app.applicationPreferences.Preferences.ExplicitExitNotify
-	preferences.AuthNoCache = app.applicationPreferences.Preferences.AuthNocache
-	preferences.VerifyX509Name = app.applicationPreferences.Preferences.VerifyX509Name
-	preferences.ApiKeys = make([]model.ConfigPublicApiKey, 0)
-	preferences.AllowAnonymousCsr = app.applicationPreferences.Preferences.AllowAnonymousCsr
-
-	if app.applicationPreferences.Preferences.CertificateDuration > 0 {
-		preferences.CertificateDuration = app.applicationPreferences.Preferences.CertificateDuration
-	}
-
-	for _, u := range app.applicationPreferences.Users {
-		preferences.Users = append(preferences.Users, model.ConfigPublicAccount{Username: u.Username, Name: u.Name})
-	}
-
-	for _, u := range app.applicationPreferences.ApiKeys {
-		preferences.ApiKeys = append(preferences.ApiKeys, apiKeyMapper(u))
-	}
-
-	return preferences
-}
-
 func (app *OvpnAdmin) handleConfigCommand(w http.ResponseWriter, r *http.Request) {
-	log.Printf("config %s, %s", r.Method, r.URL.Path)
+	//log.Printf("config %s, %s", r.Method, r.URL.Path)
 	if enableCors(&w, r) {
 		return
 	}
@@ -155,14 +109,14 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 	b := true
 
 	//log.Printf("config %v", app.serverConf)
-	configPublic := new(model.ConfigPublic)
+	configPublic := new(ConfigPublic)
 	configPublic.Openvpn.Url = ""
 
 	ok, jwtUsername := auth.JwtUsername(app.applicationPreferences.JwtData, r)
 	if ok {
-		configPublic.User = auth.GetUserProfile(&app.applicationPreferences, jwtUsername)
-		configPublic.Openvpn.Settings = app.exportServiceSettings()
-		configPublic.Openvpn.Preferences = app.exportPublicPreferences()
+		configPublic.User = app.applicationPreferences.GetUserProfile(jwtUsername)
+		configPublic.Openvpn.Settings = app.serverConf.ExportServiceSettings(app.easyrsa)
+		configPublic.Openvpn.Preferences = app.applicationPreferences.ExportPublicPreferences(app.buildDefaultAddress())
 
 		if auth.HasWriteRole(app.applicationPreferences.JwtData, r) {
 			// no server settings when i'm admin ? so no server daemon configured
@@ -175,6 +129,7 @@ func (app *OvpnAdmin) showUserConfig(w http.ResponseWriter, r *http.Request) {
 			configPublic.Openvpn.AllowSubmitCsr = &b
 		}
 	}
+	//log.Printf("unconfigured: %v", configPublic.Openvpn.Unconfigured)
 
 	// first user: allow create admin account
 	if len(app.applicationPreferences.Users) == 0 {
@@ -198,8 +153,8 @@ func (app *OvpnAdmin) buildServerSetupConfig() *openvpn.ServerConfigVpn {
 	serverSetup.ServiceName = "server"
 
 	serverSetup.PkiPath = app.easyrsa.EasyrsaDirPath + "/pki"
-	if openvpn.IsPkiInited(app.easyrsa) {
-		certs := openvpn.IndexTxtParserCertificate(app.easyrsa)
+	if app.easyrsa.IsPkiInited() {
+		certs := app.easyrsa.IndexTxtParserCertificate()
 		count := len(certs)
 		serverSetup.PkiInit = &count
 		serverSetup.ServerCert = openvpn.FindFirstServerCertIfExists(app.easyrsa, certs)
@@ -210,16 +165,6 @@ func (app *OvpnAdmin) buildServerSetupConfig() *openvpn.ServerConfigVpn {
 	serverSetup.CaCert = openvpn.ReadCaCertIfExists(app.easyrsa)
 	return &serverSetup
 }
-func (app *OvpnAdmin) restartServer(serviceName string) error {
-	cmd := fmt.Sprintf("systemctl restart openvpn@%s.service", shellescape.Quote(serviceName))
-	log.Printf("cmd %s", cmd)
-	ret, err := shell.RunBash(cmd)
-	if err != nil {
-		log.Printf("cmd fails with: %s", ret)
-	}
-	return err
-}
-
 func (app *OvpnAdmin) saveServerConfig(w http.ResponseWriter, r *http.Request, serviceName string) {
 
 	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
@@ -279,6 +224,7 @@ func (app *OvpnAdmin) saveServerConfig(w http.ResponseWriter, r *http.Request, s
 	}
 
 	// store in temporary object
+	conf.SourceFile = "/etc/openvpn/" + conf.ServiceName + ".conf"
 	conf.Server = convertCidrNetworkMask(savePayload.Server)
 	conf.ForceGatewayIpv4 = savePayload.ForceGatewayIpv4
 	conf.ForceGatewayIpv4ExceptDhcp = savePayload.ForceGatewayIpv4ExceptDhcp
@@ -296,50 +242,11 @@ func (app *OvpnAdmin) saveServerConfig(w http.ResponseWriter, r *http.Request, s
 	conf.DnsIpv4 = savePayload.DnsIpv4
 	conf.DnsIpv6 = savePayload.DnsIpv6
 
-	backupFile := fmt.Sprintf("%s.backup", *serverConfFile)
-	initialServer := false
-	if shell.FileExist(*serverConfFile) {
-		// make a backup of the original OpenVPN config file
-		err = shell.FileCopy(*serverConfFile, backupFile)
-		if err != nil {
-			returnErrorMessage(w, http.StatusBadRequest, errors.New("can't backup config file"))
-			return
-		}
-	} else {
-		log.Printf("initial server")
-		initialServer = true
-	}
-
-	//log.Printf("ensure ccd dir exists")
-	err = openvpn.CreateCcdIfNotExists(*serverConfFile, &conf)
+	err = openvpn.SafeRestartServer(conf)
 	if err != nil {
-		log.Printf("fail to create ccd dir %s", err)
-	}
-
-	// overwrite original config file
-	err = shell.WriteFile(*serverConfFile, openvpn.BuildConfig(conf))
-	if err != nil {
-		shell.FileCopy(backupFile, *serverConfFile)
 		returnErrorMessage(w, http.StatusBadRequest, err)
 		return
 	}
-
-	err = app.restartServer("server")
-	if err != nil {
-		// rollback config and restart server on error
-		if shell.FileExist(backupFile) {
-			shell.FileCopy(backupFile, *serverConfFile)
-			err = app.restartServer("server")
-			shell.DeleteFile(backupFile)
-		}
-		// remove the config file if it fails to start for the first time
-		if initialServer {
-			shell.DeleteFile(*serverConfFile)
-		}
-		returnErrorMessage(w, http.StatusBadRequest, errors.New("fail to start service"))
-		return
-	}
-
 	// store the working config in memory
 	if app.serverConf == nil {
 		app.serverConf = &conf
@@ -366,7 +273,7 @@ func (app *OvpnAdmin) saveServerConfig(w http.ResponseWriter, r *http.Request, s
 		app.serverConf.RoutesPush = conf.RoutesPush
 	}
 
-	err = returnJson(w, app.exportServiceSettings())
+	err = returnJson(w, app.serverConf.ExportServiceSettings(app.easyrsa))
 	if err != nil {
 		log.Printf("error sending response")
 	}

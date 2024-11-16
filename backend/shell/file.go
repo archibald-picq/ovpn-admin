@@ -22,6 +22,13 @@ func DeleteFile(path string) error {
 	return os.Remove(path)
 }
 
+func DeleteFileIfExists(path string) error {
+	if FileExist(path) {
+		return os.Remove(path)
+	}
+	return nil
+}
+
 func FileExist(path string) bool {
 	var _, err = os.Stat(path)
 

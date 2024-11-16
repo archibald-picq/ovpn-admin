@@ -26,11 +26,3 @@ type ConfigPreferences struct {
 	VerifyX509Name      bool   `json:"verifyX509Name"`
 	AllowAnonymousCsr   bool   `json:"allowAnonymousCsr"`
 }
-
-type ApplicationConfig struct {
-	Users         []Account         `json:"users"`
-	ApiKeys       []ApiKey          `json:"apiKeys"`
-	Preferences   ConfigPreferences `json:"preferences"`
-	JwtSecretData string            `json:"jwtSecret"`
-	JwtData       []byte
-}

@@ -11,6 +11,7 @@ import (
 	"rpiadm/backend/shell"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -22,9 +23,11 @@ type Push struct {
 }
 
 type OvpnConfig struct {
+	SourceFile                 string
 	ServiceName                string
 	Server                     string // 10.8.0.0 255.255.255.0
 	MasterCn                   string
+	ServerCert                 *IssuedCertificate
 	ForceGatewayIpv4           bool    // push "redirect-gateway def1 bypass-dhcp"
 	ForceGatewayIpv4ExceptDhcp bool    // push "redirect-gateway def1 bypass-dhcp"
 	ForceGatewayIpv4ExceptDns  bool    // push "redirect-gateway def1 bypass-dns"
@@ -41,11 +44,12 @@ type OvpnConfig struct {
 	Mssfix                     int     // 0
 	Management                 string  // localhost 7505
 	ca                         string  // ca.crt
-	Cert                       string  // Server.crt
-	Key                        string  // Server.key
-	dh                         string  // dh2048.pem none
-	ifconfigPoolPersist        string  // ipp.txt
-	keepalive                  string  // 10 120
+	caCert                     *IssuedCertificate
+	Cert                       string // Server.crt
+	Key                        string // Server.key
+	dh                         string // dh2048.pem none
+	ifconfigPoolPersist        string // ipp.txt
+	keepalive                  string // 10 120
 	CompLzo                    bool
 	allowCompression           bool
 	persistKey                 bool
@@ -87,46 +91,108 @@ func isIpv4(addr string) bool {
 	return regIp.MatchString(addr)
 }
 
-//	func setDefaults(config *OvpnConfig) {
-//		config.ClientConfigDir = "ccd"
-//
-// }
-func ParseServerConf(file string) *OvpnConfig {
-	config := new(OvpnConfig)
-	config.ServiceName = extractServiceName(file)
-	config.TunMtu = -1
-	config.Fragment = -1
-	config.Mssfix = -1
+func (config *OvpnConfig) GetCrlPath() string {
+	return shell.AbsolutizePath(config.SourceFile, config.CrlVerify)
+}
 
+func (config *OvpnConfig) GetCcdPath() string {
+	return shell.AbsolutizePath(config.SourceFile, config.ClientConfigDir)
+}
+
+func ParseServerConf(file string) *OvpnConfig {
 	if !shell.FileExist(file) {
 		log.Printf("OpenVPN server not configured at '%s', starting with defaults", file)
 		//setDefaults(config)
 		return nil
 	}
-	lines := strings.Split(shell.ReadFile(file), "\n")
 
+	log.Printf("Reading openvpn server config '%s'", file)
+	config := new(OvpnConfig)
+	config.SourceFile = file
+	config.ServiceName = extractServiceName(file) // keep only the 'instance-name' from path like /etc/openvpn/[instance-name].conf
+	config.TunMtu = -1
+	config.Fragment = -1
+	config.Mssfix = -1
+	parseServerConfLines(config, strings.Split(shell.ReadFile(file), "\n"))
+
+	log.Printf("  -> network: %s", config.Server)
+	log.Printf("  -> management address: %s", config.Management)
+
+	log.Printf("  -> ccd dir: '%s'", config.GetCcdPath())
+
+	if len(config.ca) > 0 {
+		x509cert := ReadCertificate(shell.AbsolutizePath(file, config.ca))
+		cert := mapX509ToCertificate(x509cert)
+		if cert != nil {
+			config.caCert = cert
+		}
+		log.Printf("  -> reading ca certificate: '%s'%s", config.ca, buildCertSimpleInfo(cert))
+	}
+	if len(config.Cert) > 0 {
+
+		x509cert := ReadCertificate(shell.AbsolutizePath(file, config.Cert))
+		if x509cert != nil {
+			cert := mapX509ToCertificate(x509cert)
+			if cert != nil {
+				config.ServerCert = cert
+				config.MasterCn = cert.CommonName
+			}
+			str := buildCertSimpleInfo(cert)
+			if !isServerCert(x509cert) {
+				str += ", invalid cert type for server"
+			}
+			log.Printf("  -> reading server certificate: '%s'%s", config.Cert, str)
+		} else {
+			log.Printf("  -> server certificate '%s' is missing !!!", config.Cert)
+		}
+	}
+	if len(config.CrlVerify) > 0 {
+		revList, _ := readCertificateRevocationList(config.GetCrlPath())
+		if revList != nil {
+			log.Printf("  -> CRL %s", buildDateExpire(revList.NextUpdate))
+		} else {
+			log.Printf("Cant read CRL !!!")
+		}
+	}
+
+	return config
+}
+
+func buildCertSimpleInfo(cert *IssuedCertificate) string {
+	str := ""
+	if cert != nil {
+		str += ", cn=" + cert.CommonName
+		str += ", serial=" + bigIntToString(cert.SerialNumber)
+		str += ", " + buildDateExpire(cert.ExpiresAt)
+	} else {
+		str = "missing"
+	}
+	return str
+}
+
+func buildDateExpire(t time.Time) string {
+	if t.Before(time.Now()) {
+		secondBehind := int64(time.Now().Sub(t).Seconds())
+		return "expired since " + strconv.FormatInt(secondBehind, 10) + " seconds"
+	} else {
+		secondAbove := int64(t.Sub(time.Now()).Seconds())
+		return "expires in " + strconv.FormatInt(secondAbove, 10) + " seconds"
+	}
+}
+
+func parseServerConfLines(config *OvpnConfig, lines []string) {
 	for _, line := range lines {
 		line = strings.TrimLeft(line, " ")
 		if len(line) == 0 {
 			continue
 		}
+		commented := false
 		if line[0:1] == "#" {
 			line = strings.TrimLeft(line, "# ")
-			parseServerConfLine(config, line, true)
-		} else {
-			parseServerConfLine(config, line, false)
+			commented = true
 		}
+		parseServerConfLine(config, line, commented)
 	}
-
-	if len(config.Cert) > 0 {
-		cert := ReadCertificate(shell.AbsolutizePath(file, config.Cert))
-		if cert != nil {
-			config.MasterCn = cert.CommonName
-			//ovpnServerCaCertExpire.Set(float64((cert.NotAfter.Unix() - time.Now().Unix()) / 3600 / 24))
-		}
-	}
-
-	return config
 }
 
 func extractServiceName(filename string) string {
@@ -249,7 +315,7 @@ func parseServerConfLine(config *OvpnConfig, line string, commented bool) {
 		}
 	case key == "push":
 		value, comment := getQuotedValueAndComment(value)
-		log.Printf("parsed push [%d] [%s] [%s]", commented, value, comment)
+		//log.Printf("parsed push [%d] [%s] [%s]", commented, value, comment)
 		//getQuotedValueWithoutComment(line)
 		extractPushConfig(config, !commented, value, comment)
 

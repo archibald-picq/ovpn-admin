@@ -8,8 +8,10 @@ import {CertificatInfo} from '../models/certificat-info.model';
 })
 export class CertificateFormComponent {
   @Input()
-  public certificate: CertificatInfo = {commonName: ''};
+  public certificate: CertificatInfo = {} as CertificatInfo;
   @Input()
   public loading = false;
+  @Input()
+  public lockCommonName = false;
 
 }

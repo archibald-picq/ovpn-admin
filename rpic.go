@@ -44,7 +44,7 @@ func (app *OvpnAdmin) autoUpdate() {
 			//	log.Println("tick:", t.String())
 			//conn.Base.sendPingAction(t)
 			nextTick := app.calcNextTick(intervalCheck)
-			log.Printf("next tick in %f", nextTick.Seconds())
+			//log.Printf("next tick in %f", nextTick.Seconds())
 			if nextTickTimer != nil {
 				nextTickTimer.Reset(nextTick)
 			} else {
@@ -134,5 +134,5 @@ func (app *OvpnAdmin) updatePackages(user *model.Device, response json.RawMessag
 	//log.Printf("response %v", response)
 	user.RpiState.Lsb = packet.Lsb
 	user.RpiState.InstalledPackages = packet.Packages
-	log.Printf("client %s: %d installed packages", user.Username, len(user.RpiState.InstalledPackages))
+	//log.Printf("client %s: %d installed packages", user.Username, len(user.RpiState.InstalledPackages))
 }

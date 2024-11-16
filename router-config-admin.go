@@ -30,7 +30,7 @@ func (app *OvpnAdmin) handleAdminAccount(w http.ResponseWriter, r *http.Request)
 	if r.Method == "DELETE" {
 		matches := re.FindStringSubmatch(r.URL.Path)
 		if len(matches) > 0 {
-			err := preference.DeleteUser(*ovpnConfigDir, &app.applicationPreferences, matches[1])
+			err := app.applicationPreferences.DeleteUser(*ovpnConfigDir, matches[1])
 			if err != nil {
 				returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete user %s", err)))
 				return
@@ -53,7 +53,7 @@ func (app *OvpnAdmin) handleAdminAccount(w http.ResponseWriter, r *http.Request)
 	if r.Method == "PUT" {
 		matches := re.FindStringSubmatch(r.URL.Path)
 		if len(matches) > 0 {
-			err := preference.UpdateUser(*ovpnConfigDir, &app.applicationPreferences, matches[1], adminAccountUpdate)
+			err := app.applicationPreferences.UpdateUser(*ovpnConfigDir, matches[1], adminAccountUpdate)
 			if err != nil {
 				returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete user %s", err)))
 				return
@@ -71,7 +71,7 @@ func (app *OvpnAdmin) handleAdminAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = preference.CreateUser(*ovpnConfigDir, &app.applicationPreferences, adminAccountUpdate)
+	err = app.applicationPreferences.CreateUser(*ovpnConfigDir, adminAccountUpdate)
 	if err != nil {
 		returnErrorMessage(w, http.StatusBadRequest, errors.New(fmt.Sprintf("failed to delete user %s", err)))
 		return

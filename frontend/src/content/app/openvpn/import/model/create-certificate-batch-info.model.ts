@@ -13,6 +13,8 @@ export class CreateCertificateBatchInfo implements CertificatInfo {
   public lastError?: string;
   public skip = false;
   public processing = false;
+  public serialNumber: string | undefined;
+  public expiresAt: Date | undefined;
 
   public static hydrate(obj: CreateCertificateBatchInfo): CreateCertificateBatchInfo {
     const target = new CreateCertificateBatchInfo();

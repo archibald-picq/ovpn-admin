@@ -1,0 +1,20 @@
+<div class="modal-header">
+    <h4 class="modal-title" id="modal-basic-title">Rotate certificate</h4>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+</div>
+<div class="modal-body">
+    <bus-openvpn-certificate-form [certificate]="certificate" [loading]="loading" [lockCommonName]="true"></bus-openvpn-certificate-form>
+
+<!--    <form>-->
+<!--        <div class="mb-3">-->
+<!--            <p>Rotate certificate of <strong>{{options.client.username}}</strong> ?</p>-->
+<!--        </div>-->
+<!--    </form>-->
+</div>
+<div class="modal-footer flex-nowrap">
+    <div class="error">{{error}}</div>
+    <button type="button" class="btn btn-outline-dark" (click)="save()">
+        <span *ngIf="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        <span class="sr-only">Rotate</span>
+    </button>
+</div>

@@ -24,7 +24,7 @@ export class ConfirmRevokeClientCertificateComponent {
 
     public async doRevokeCertificate(): Promise<void> {
         try {
-            await this.openvpnService.revokeCertificate(this.options.client);
+            await this.openvpnService.revokeCertificate(this.options.client, this.options.client.certificate!.serialNumber!);
             this.options.client.certificate!.accountStatus = 'Revoked';
             this.options.client.certificate!.revocationDate = new Date();
             this.modal.close('Save click');

@@ -136,12 +136,14 @@ func (app *OvpnAdmin) updateCertificateStats() {
 }
 
 func (app *OvpnAdmin) createOrUpdateDeviceByCertificate(certificate *openvpn.Certificate) {
-	for idx, existing := range app.clients {
-		if existing.Username == certificate.Username {
+	for idx, client := range app.clients {
+		if client.Username == certificate.Username {
 			app.clients[idx].Certificate = certificate
-			app.clients[idx].Certificate.Flag = certificate.Flag
-			app.clients[idx].Certificate.DeletionDate = certificate.DeletionDate
-			log.Printf("update certificate", app.clients[idx].Certificate)
+			//app.clients[idx].Certificate.Flag = certificate.Flag
+			//app.clients[idx].Certificate.DeletionDate = certificate.DeletionDate
+			//app.clients[idx].Certificate.ExpirationDate = certificate.ExpirationDate
+			//app.clients[idx].Certificate.SerialNumber = certificate.SerialNumber
+			//log.Printf("update certificate", app.clients[idx].Certificate)
 			return
 		}
 	}
@@ -149,8 +151,8 @@ func (app *OvpnAdmin) createOrUpdateDeviceByCertificate(certificate *openvpn.Cer
 }
 
 func (app *OvpnAdmin) createDeviceByCertificate(certificate *openvpn.Certificate) {
-	//log.Printf("      -> create cert '%s'", certificate.Username)
-	ccd := openvpn.ParseCcd(*serverConfFile, app.serverConf, certificate.Username)
+	log.Printf("      -> create user '%v'", certificate.Username)
+	ccd := app.serverConf.ParseCcd(certificate.Username)
 
 	app.clients = append(app.clients, &model.Device{
 		Username:         certificate.Username,
@@ -242,8 +244,8 @@ func (app *OvpnAdmin) connectToManagementInterface() {
 			app.mgmt.SendManagementCommand("version")
 			//log.Printf("send status 3")
 			app.mgmt.SendManagementCommand("status 3")
-			resp := app.mgmt.SendManagementCommandWaitResponse("bytecount 5")
-			log.Printf("register bytecount 5 returns: %s", resp)
+			app.mgmt.SendManagementCommandWaitResponse("bytecount 5")
+			//log.Printf("register bytecount 5 returns: %s", resp)
 
 		}()
 		app.mgmt.HandleMessages()

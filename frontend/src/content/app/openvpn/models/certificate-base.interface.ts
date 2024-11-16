@@ -6,4 +6,5 @@ export interface BaseCertificate {
   city?: string;
   organisation?: string;
   organisationUnit?: string;
+  serialNumber?: string;
 }

@@ -20,7 +20,7 @@ export class EditCertificatInfo {
     styleUrls: ['./create-client-certificate.component.scss'],
 })
 export class CreateClientCertificateComponent {
-    public certificate: CertificatInfo = {commonName: ''};
+    public certificate: CertificatInfo = {} as CertificatInfo;
     public error = '';
     public loading = false;
     public showHint = true;

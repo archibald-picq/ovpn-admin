@@ -1,7 +1,7 @@
 <form>
   <div class="mb-3">
     <label for="create-certificate-username">Common Name</label>
-    <input [disabled]="loading" id="create-certificate-username" name="username" class="form-control" [(ngModel)]="certificate.commonName" placeholder="homer">
+    <input [disabled]="loading || lockCommonName" id="create-certificate-username" name="username" class="form-control" [(ngModel)]="certificate.commonName" placeholder="homer">
   </div>
   <div class="mb-3">
     <label for="create-certificate-organisation-email">Email</label>
@@ -29,6 +29,18 @@
     <div class="flex-grow-1">
       <label for="create-certificate-organisation-unit">Organisation Unit</label>
       <input [disabled]="loading" id="create-certificate-organisation-unit" name="ou" class="form-control" [(ngModel)]="certificate.organisationUnit" placeholder="Security service">
+    </div>
+  </div>
+
+  <div class="mb-3 d-flex flex-row">
+    <div class="me-2">
+      <label for="create-certificate-expiresAt">Expiration date</label>
+      <bus-date-time-picker
+          [disabled]="loading"
+          id="create-certificate-expiresAt"
+          name="expiresAt"
+          [(ngModel)]="certificate.expiresAt">
+      </bus-date-time-picker>
     </div>
   </div>
 </form>

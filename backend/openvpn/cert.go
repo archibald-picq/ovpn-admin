@@ -9,7 +9,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"gopkg.in/alessio/shellescape.v1"
 	"log"
 	"math/big"
 	"os"
@@ -23,7 +22,7 @@ const (
 	indexTxtDateLayout = "060102150405Z"
 	stringDateFormat   = "2006-01-02 15:04:05"
 	crlDateFormat      = "Jan 02 15:04:05 2006 MST"
-	usernameRegexp     = `^([a-zA-Z0-9_.\-@])+$`
+	usernameRegexp     = `^([a-zA-Z0-9])+([a-zA-Z0-9_.\-@])*$`
 	passwordMinLength  = 6
 )
 
@@ -44,17 +43,24 @@ type BaseCertificate struct {
 	OrganisationUnit string `json:"organisationUnit"`
 }
 
+type IssuedCertificate struct {
+	ExpiresAt    time.Time `json:"expiresAt"`
+	SerialNumber *big.Int  `json:"serialNumber"`
+	BaseCertificate
+}
+
 type UserDefinition struct {
 	//Account
-	CommonName       string `json:"commonName"`
-	Password         string `json:"password"`
-	Email            string `json:"email"`
-	Country          string `json:"country"`
-	Province         string `json:"province"`
-	City             string `json:"city"`
-	Organisation     string `json:"organisation"`
-	OrganisationUnit string `json:"organisationUnit"`
-	Ccd              *Ccd   `json:"ccd"`
+	CommonName       string     `json:"commonName"`
+	Password         string     `json:"password"`
+	Email            string     `json:"email"`
+	Country          string     `json:"country"`
+	Province         string     `json:"province"`
+	City             string     `json:"city"`
+	Organisation     string     `json:"organisation"`
+	OrganisationUnit string     `json:"organisationUnit"`
+	Ccd              *Ccd       `json:"ccd"`
+	ExpiresAt        *time.Time `json:"expiresAt"`
 }
 
 type Route struct {
@@ -208,25 +214,23 @@ func extractEmail(identity string) string {
 	return match[1]
 }
 
+var reCn = regexp.MustCompile("/CN=([^/]+)")
+var reDeleted = regexp.MustCompile("^DELETED-?(.+)-[0-9a-f]{32}$")
+
 func extractUsername(identity string) string {
-	re := regexp.MustCompile("/CN=([^/]+)")
-	match := re.FindStringSubmatch(identity)
+	match := reCn.FindStringSubmatch(identity)
 	if len(match) <= 0 {
 		return ""
 	}
 
-	if strings.HasPrefix(match[1], "DELETED-") {
-		matched := string(match[1][len("DELETED-"):])
-		matched, _, _ = strings.Cut(matched, "-")
-		return matched
-	} else if strings.HasPrefix(match[1], "DELETED") {
-		matched := string(match[1][len("DELETED"):])
-		matched, _, _ = strings.Cut(matched, "-")
-		return matched
-	} else {
-		matched := match[1]
-		return matched
+	indexCn := match[1]
+	if strings.HasPrefix(indexCn, "DELETED") {
+		matchDelete := reDeleted.FindStringSubmatch(indexCn)
+		if len(matchDelete) > 0 {
+			return matchDelete[1]
+		}
 	}
+	return indexCn
 }
 
 func validateUsername(username string) bool {
@@ -234,8 +238,8 @@ func validateUsername(username string) bool {
 	return validUsername.MatchString(username)
 }
 
-func checkUserActiveExist(easyrsa Easyrsa, username string) bool {
-	for _, u := range IndexTxtParserCertificate(easyrsa) {
+func (easyrsa Easyrsa) checkUserActiveExist(username string) bool {
+	for _, u := range easyrsa.IndexTxtParserCertificate() {
 		if u.Username == username && u.Flag == "V" {
 			return true
 		}
@@ -251,248 +255,6 @@ func ValidatePassword(password string) error {
 	}
 }
 
-func CreateCaCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
-	log.Printf("CreateCaCertificate(%s)", definition.CommonName)
-	if !shell.FileExist(easyrsa.EasyrsaDirPath + "/pki") {
-		err := shell.CreateDir(easyrsa.EasyrsaDirPath + "/pki")
-		if err != nil {
-			return nil, errors.New("cant create pki dir")
-		}
-	}
-
-	if !validateUsername(definition.CommonName) {
-		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
-	}
-
-	if checkUserActiveExist(easyrsa, definition.CommonName) {
-		return nil, errors.New(fmt.Sprintf("User \"%s\" already exists", definition.CommonName))
-	}
-
-	if authByPassword && ValidatePassword(definition.Password) == nil {
-		return nil, errors.New(fmt.Sprintf("Key too short, password length must be greater or equal %d", passwordMinLength))
-	}
-
-	cmd := fmt.Sprintf(
-		"cd %s && "+
-			"EASYRSA_REQ_CN=%s "+
-			"EASYRSA_REQ_COUNTRY=%s "+
-			"EASYRSA_REQ_PROVINCE=%s "+
-			"EASYRSA_REQ_CITY=%s "+
-			"EASYRSA_REQ_ORG=%s "+
-			"EASYRSA_REQ_OU=%s "+
-			"EASYRSA_REQ_EMAIL=%s "+
-			"%s --dn-mode=org --batch build-ca %s nopass 1>/dev/null",
-		shellescape.Quote(easyrsa.EasyrsaDirPath),
-		shellescape.Quote(definition.CommonName),
-		shellescape.Quote(definition.Country),
-		shellescape.Quote(definition.Province),
-		shellescape.Quote(definition.City),
-		shellescape.Quote(definition.Organisation),
-		shellescape.Quote(definition.OrganisationUnit),
-		shellescape.Quote(definition.Email),
-		shellescape.Quote(easyrsa.EasyrsaBinPath),
-		shellescape.Quote(definition.CommonName),
-	)
-
-	log.Printf("cmd %s", cmd)
-	o, err := shell.RunBash(cmd)
-	if err != nil {
-		log.Printf("Error creating certificate \"%s\", using \"cmd\" %s", err, cmd)
-		return nil, errors.New(fmt.Sprintf("Error creating certificate \"%s\"", err))
-	}
-
-	log.Printf("cert generated %s", o)
-
-	//if authByPassword {
-	//	o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.CommonName, definition.Password))
-	//	if err != nil {
-	//		return nil, errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
-	//	}
-	//	log.Printf("create password for %s: %s", definition.CommonName, o)
-	//}
-
-	log.Printf("Certificate for user %s issued", definition.CommonName)
-
-	//for _, cert := range IndexTxtParserCertificate(easyrsa) {
-	//	if cert.Username == definition.CommonName {
-	//		return cert, nil
-	//	}
-	//}
-
-	return nil, nil
-	//errors.New("cant find just created certificate")
-}
-
-func DhPemExists(easyrsa Easyrsa) bool {
-	return shell.FileExist(easyrsa.EasyrsaDirPath + "/pki/dh.pem")
-}
-
-func CreateDhFile(easyrsa Easyrsa) error {
-	if shell.FileExist(easyrsa.EasyrsaDirPath + "/pki/dh.pem") {
-		return nil
-	}
-	cmd := fmt.Sprintf(
-		"cd %s && %s gen-dh 1>/dev/null",
-		shellescape.Quote(easyrsa.EasyrsaDirPath),
-		shellescape.Quote(easyrsa.EasyrsaBinPath),
-	)
-
-	log.Printf("cmd %s", cmd)
-	o, err := shell.RunBash(cmd)
-	if err != nil {
-		log.Printf("Error generating DH file \"%s\", using \"cmd\" %s", err, cmd)
-		return errors.New(fmt.Sprintf("Error generating DH file \"%s\"", err))
-	}
-
-	log.Printf("cert generated %s", o)
-	return nil
-}
-
-func CreateServerCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
-	log.Printf("CreateServerCertificate(%s)", definition.CommonName)
-
-	if !validateUsername(definition.CommonName) {
-		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
-	}
-
-	if checkUserActiveExist(easyrsa, definition.CommonName) {
-		return nil, errors.New(fmt.Sprintf("User \"%s\" already exists", definition.CommonName))
-	}
-
-	if authByPassword && ValidatePassword(definition.Password) == nil {
-		return nil, errors.New(fmt.Sprintf("Key too short, password length must be greater or equal %d", passwordMinLength))
-	}
-
-	cmd := fmt.Sprintf(
-		"cd %s && "+
-			"EASYRSA_REQ_COUNTRY=%s "+
-			"EASYRSA_REQ_PROVINCE=%s "+
-			"EASYRSA_REQ_CITY=%s "+
-			"EASYRSA_REQ_ORG=%s "+
-			"EASYRSA_REQ_OU=%s "+
-			"EASYRSA_REQ_EMAIL=%s "+
-			"%s --dn-mode=org --batch build-server-full %s nopass 1>/dev/null",
-		shellescape.Quote(easyrsa.EasyrsaDirPath),
-		shellescape.Quote(definition.Country),
-		shellescape.Quote(definition.Province),
-		shellescape.Quote(definition.City),
-		shellescape.Quote(definition.Organisation),
-		shellescape.Quote(definition.OrganisationUnit),
-		shellescape.Quote(definition.Email),
-		shellescape.Quote(easyrsa.EasyrsaBinPath),
-		shellescape.Quote(definition.CommonName),
-	)
-
-	log.Printf("cmd %s", cmd)
-	o, err := shell.RunBash(cmd)
-	if err != nil {
-		log.Printf("Error creating certificate \"%s\", using \"cmd\" %s", err, cmd)
-		return nil, errors.New(fmt.Sprintf("Error creating certificate \"%s\"", err))
-	}
-
-	log.Printf("cert generated %s", o)
-
-	//if authByPassword {
-	//	o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.CommonName, definition.Password))
-	//	if err != nil {
-	//		return nil, errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
-	//	}
-	//	log.Printf("create password for %s: %s", definition.CommonName, o)
-	//}
-
-	log.Printf("Certificate for user %s issued", definition.CommonName)
-
-	for _, cert := range IndexTxtParserCertificate(easyrsa) {
-		if cert.Username == definition.CommonName {
-			return cert, nil
-		}
-	}
-
-	return nil, errors.New("cant find just created certificate")
-}
-
-func CreateClientCertificate(easyrsa Easyrsa, authByPassword bool, authDatabase string, definition UserDefinition) (*Certificate, error) {
-	log.Printf("CreateClientCertificate(%s)", definition.CommonName)
-
-	if !validateUsername(definition.CommonName) {
-		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
-	}
-
-	if checkUserActiveExist(easyrsa, definition.CommonName) {
-		return nil, errors.New(fmt.Sprintf("User \"%s\" already exists", definition.CommonName))
-	}
-
-	if authByPassword && ValidatePassword(definition.Password) == nil {
-		return nil, errors.New(fmt.Sprintf("Key too short, password length must be greater or equal %d", passwordMinLength))
-	}
-
-	cmd := fmt.Sprintf(
-		"cd %s && "+
-			"EASYRSA_REQ_COUNTRY=%s "+
-			"EASYRSA_REQ_PROVINCE=%s "+
-			"EASYRSA_REQ_CITY=%s "+
-			"EASYRSA_REQ_ORG=%s "+
-			"EASYRSA_REQ_OU=%s "+
-			"EASYRSA_REQ_EMAIL=%s "+
-			"%s "+
-			"--dn-mode=org "+
-			"--batch "+
-			"build-client-full %s nopass 1>/dev/null",
-		shellescape.Quote(easyrsa.EasyrsaDirPath),
-		shellescape.Quote(definition.Country),
-		shellescape.Quote(definition.Province),
-		shellescape.Quote(definition.City),
-		shellescape.Quote(definition.Organisation),
-		shellescape.Quote(definition.OrganisationUnit),
-		shellescape.Quote(definition.Email),
-		shellescape.Quote(easyrsa.EasyrsaBinPath),
-		shellescape.Quote(definition.CommonName),
-	)
-
-	log.Printf("cmd %s", cmd)
-	o, err := shell.RunBash(cmd)
-	if err != nil {
-		log.Printf("Error creating certificate \"%s\", using \"cmd\" %s", err, cmd)
-		return nil, errors.New(fmt.Sprintf("Error creating certificate \"%s\"", err))
-	}
-
-	log.Printf("cert generated %s", o)
-
-	if authByPassword {
-		o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.CommonName, definition.Password))
-		if err != nil {
-			return nil, errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
-		}
-		log.Printf("create password for %s: %s", definition.CommonName, o)
-	}
-
-	log.Printf("Certificate for user %s issued", definition.CommonName)
-
-	for _, cert := range IndexTxtParserCertificate(easyrsa) {
-		if cert.Username == definition.CommonName {
-			return cert, nil
-		}
-	}
-
-	return nil, errors.New("cant find just created certificate")
-	//return &Certificate{
-	//	//Identity         string `json:"identity"`
-	//	CommonName:         definition.CommonName,
-	//	Country:          definition.Country,
-	//	Province:         definition.Province,
-	//	City:             definition.City,
-	//	Organisation:     definition.Organisation,
-	//	OrganisationUnit: definition.OrganisationUnit,
-	//	Email:            definition.Email,
-	//	//ExpirationDate   string `json:"expirationDate"`
-	//	//RevocationDate   string `json:"revocationDate"`
-	//	//DeletionDate     string `json:"deletionDate"`
-	//	Flag: "V",
-	//	//SerialNumber     string `json:"serialNumber"`
-	//	//Filename         string `json:"filename"`
-	//	//AccountStatus    string `json:"accountStatus"`
-	//}, nil
-}
 func ReadCertificateX509(path string) (*x509.Certificate, error) {
 	caCert, err := os.ReadFile(path)
 	if err != nil {
@@ -524,21 +286,34 @@ func IsValidServerCert(easyrsa Easyrsa, commonName string) bool {
 	return isServerCert(x509cert)
 }
 
-func ReadCertificate(path string) *BaseCertificate {
+func ReadCertificate(path string) *x509.Certificate {
 	x509cert, err := ReadCertificateX509(path)
 	if err != nil {
 		log.Printf("error reading certificate '%s': %s", path, err.Error())
 		return nil
 	}
-	return MapX509ToCertificate(x509cert)
+	return x509cert
 }
 
-func MapX509ToCertificate(x509cert *x509.Certificate) *BaseCertificate {
+func mapX509ToCertificate(x509cert *x509.Certificate) *IssuedCertificate {
 
-	var cert BaseCertificate
+	var cert IssuedCertificate
 	cert.CommonName = x509cert.Subject.CommonName
+	cert.ExpiresAt = x509cert.NotAfter
+	cert.SerialNumber = x509cert.SerialNumber
+	//log.Printf("cert[%s] emails: %v %v", cert.CommonName, x509cert.Subject.ExtraNames, x509cert.Subject.Names)
 	if len(x509cert.EmailAddresses) > 0 {
 		cert.Email = x509cert.EmailAddresses[0]
+	}
+	if len(cert.Email) == 0 {
+		//regEmail := regexp.MustCompile("^.+@.+\\.+$")
+		for _, entry := range x509cert.Subject.Names {
+			//log.Printf(" ---> '%v' = '%v'", entry.Type, entry.Value)
+			if entry.Type.Equal([]int{1, 2, 840, 113549, 1, 9, 1}) {
+				//log.Printf("matched !!!! '%s'", fmt.Sprintf("%s", entry.Value))
+				cert.Email = fmt.Sprintf("%s", entry.Value)
+			}
+		}
 	}
 	if len(x509cert.Subject.Country) > 0 {
 		cert.Country = x509cert.Subject.Country[0]
@@ -742,8 +517,8 @@ func genClientCert(privKey, caPrivKey *rsa.PrivateKey, ca *x509.Certificate, cn 
 //	return
 //}
 
-func RebuildClientRevocationList(easyrsa Easyrsa) {
-	log.Printf("rebuild CRL")
+func (easyrsa Easyrsa) RebuildClientRevocationList() {
+	//log.Printf("rebuild CRL")
 	_, err := shell.RunBash(fmt.Sprintf("cd %s && %s gen-crl", easyrsa.EasyrsaDirPath, easyrsa.EasyrsaBinPath))
 	if err != nil {
 		log.Printf("fail to rebuild crl", err)
@@ -755,55 +530,6 @@ var (
 	regSerialNumber   = regexp.MustCompile(`^\s*Serial Number:\s*(.*)$`)
 	regRevocationDate = regexp.MustCompile(`^\s*Revocation Date:\s*(.*)$`)
 )
-
-func GetCrlList(crlFile string, certs []*Certificate) ([]*RevokedCert, error) {
-	out, err := shell.RunBash(fmt.Sprintf("openssl crl -text -noout -in %s", crlFile))
-	crls := make([]*RevokedCert, 0)
-	if err != nil {
-		return crls, err
-	}
-	//log.Printf("stdout: %s", out)
-	//log.Printf("stderr: %s", err)
-
-	lines := strings.Split(out, "\n")
-	var currentEntry *RevokedCert
-
-	for _, line := range lines {
-		line = strings.Trim(line, " ")
-		log.Printf("parse '%s'", line)
-		if matches := regSerialNumber.FindStringSubmatch(line); len(matches) > 0 {
-			if currentEntry != nil {
-				crls = append(crls, currentEntry)
-				currentEntry = nil
-			}
-			currentEntry = new(RevokedCert)
-			currentEntry.SerialNumber = matches[1]
-			log.Printf(" - new entry %s", currentEntry.SerialNumber)
-		} else if matches := regRevocationDate.FindStringSubmatch(line); len(matches) > 0 {
-			currentEntry.RevokedTime = parseDate(crlDateFormat, matches[1])
-			log.Printf("   - new date %v", currentEntry.RevokedTime)
-		}
-	}
-
-	if currentEntry != nil {
-		crls = append(crls, currentEntry)
-		currentEntry = nil
-	}
-
-	log.Printf("revoked entries: %d", len(crls))
-
-	for _, crl := range crls {
-		log.Printf("find cert for serial: %s", crl.SerialNumber)
-		for _, cert := range certs {
-			if cert.SerialNumber == crl.SerialNumber {
-				crl.CommonName = &cert.Username
-				crl.Cert = cert
-			}
-		}
-	}
-
-	return crls, nil
-}
 
 func RestoreCertBySerial(easyrsa Easyrsa, serial string, cn string) error {
 	if len(cn) == 0 {

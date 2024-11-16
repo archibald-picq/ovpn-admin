@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
-	"rpiadm/backend/model"
+	"rpiadm/backend/preference"
 	"time"
 )
 
-func getEncryptedPasswordForUser(preferences *model.ApplicationConfig, username string) (string, error) {
+func getEncryptedPasswordForUser(pref *preference.ApplicationConfig, username string) (string, error) {
 
-	for _, value := range preferences.Users {
+	for _, value := range pref.Users {
 		if value.Username == username {
 			return value.Password, nil
 		}
@@ -19,9 +19,9 @@ func getEncryptedPasswordForUser(preferences *model.ApplicationConfig, username 
 
 	return "", errors.New("User not found")
 }
-func Authenticate(preferences *model.ApplicationConfig, username string, password string) error {
+func Authenticate(pref *preference.ApplicationConfig, username string, password string) error {
 
-	expectedPassword, err := getEncryptedPasswordForUser(preferences, username)
+	expectedPassword, err := getEncryptedPasswordForUser(pref, username)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Password error %v", err))
 	}
@@ -34,7 +34,7 @@ func Authenticate(preferences *model.ApplicationConfig, username string, passwor
 	return err
 }
 
-func BuildJwtCookie(preferences *model.ApplicationConfig, username string) (string, time.Time, error) {
+func BuildJwtCookie(pref *preference.ApplicationConfig, username string) (string, time.Time, error) {
 	expirationTime := time.Now().Add(24 * time.Hour)
 	// Create the JWT claims, which includes the username and expiry time
 	claims := &Claims{
@@ -50,7 +50,7 @@ func BuildJwtCookie(preferences *model.ApplicationConfig, username string) (stri
 	// Declare the token with the algorithm used for signing, and the claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	// Create the JWT string
-	tokenString, err := token.SignedString(preferences.JwtData)
+	tokenString, err := token.SignedString(pref.JwtData)
 	if err != nil {
 		return "", time.Time{}, errors.New(fmt.Sprintf("Can't sign payload: %s", err))
 	}

@@ -19,7 +19,7 @@ func getApiKeyExpirationTime() time.Time {
 	//return time.Now().Add(5 * time.Minute)
 }
 
-func CreateApiKey(ovpnConfigDir string, preferences *model.ApplicationConfig, updates ApiKeyUpdate) (*model.ApiKey, error) {
+func CreateApiKey(ovpnConfigDir string, pref *ApplicationConfig, updates ApiKeyUpdate) (*model.ApiKey, error) {
 	encoded, err := bcrypt.GenerateFromPassword([]byte(updates.Key), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
@@ -30,19 +30,19 @@ func CreateApiKey(ovpnConfigDir string, preferences *model.ApplicationConfig, up
 		Key:     string(encoded),
 		Expires: getApiKeyExpirationTime(),
 	}
-	preferences.ApiKeys = append(preferences.ApiKeys, apiKey)
-	err = SavePreferences(ovpnConfigDir, preferences)
+	pref.ApiKeys = append(pref.ApiKeys, apiKey)
+	err = pref.SavePreferences(ovpnConfigDir)
 	if err != nil {
 		return nil, err
 	}
 	return &apiKey, nil
 }
 
-func DeleteApiKey(ovpnConfigDir string, preferences *model.ApplicationConfig, id uuid.UUID) error {
-	for i, u := range preferences.ApiKeys {
+func DeleteApiKey(ovpnConfigDir string, pref *ApplicationConfig, id uuid.UUID) error {
+	for i, u := range pref.ApiKeys {
 		if u.Id == id {
-			preferences.ApiKeys = RemoveIndexApiKey(preferences.ApiKeys, i)
-			return SavePreferences(ovpnConfigDir, preferences)
+			pref.ApiKeys = RemoveIndexApiKey(pref.ApiKeys, i)
+			return pref.SavePreferences(ovpnConfigDir)
 		}
 	}
 	return errors.New(fmt.Sprintf("User %s not found", id))
@@ -52,10 +52,10 @@ func RemoveIndexApiKey(s []model.ApiKey, index int) []model.ApiKey {
 	return append(s[:index], s[index+1:]...)
 }
 
-func UpdateApiKey(ovpnConfigDir string, preferences *model.ApplicationConfig, id uuid.UUID, updates ApiKeyUpdate) (*model.ApiKey, error) {
-	for i, u := range preferences.ApiKeys {
+func UpdateApiKey(ovpnConfigDir string, pref *ApplicationConfig, id uuid.UUID, updates ApiKeyUpdate) (*model.ApiKey, error) {
+	for i, u := range pref.ApiKeys {
 		if u.Id == id {
-			//preferences.ApiKeys[i].Key = updates.Key
+			//pref.ApiKeys[i].Key = updates.Key
 			if len(updates.Key) == 0 {
 				return nil, errors.New("must provide a string")
 			}
@@ -63,15 +63,15 @@ func UpdateApiKey(ovpnConfigDir string, preferences *model.ApplicationConfig, id
 			if err != nil {
 				return nil, err
 			}
-			preferences.ApiKeys[i].Key = string(encoded)
-			preferences.ApiKeys[i].Comment = updates.Comment
-			preferences.ApiKeys[i].Expires = getApiKeyExpirationTime()
+			pref.ApiKeys[i].Key = string(encoded)
+			pref.ApiKeys[i].Comment = updates.Comment
+			pref.ApiKeys[i].Expires = getApiKeyExpirationTime()
 
-			err = SavePreferences(ovpnConfigDir, preferences)
+			err = pref.SavePreferences(ovpnConfigDir)
 			if err != nil {
 				return nil, err
 			}
-			return &(preferences.ApiKeys[i]), nil
+			return &(pref.ApiKeys[i]), nil
 		}
 	}
 	return nil, errors.New(fmt.Sprintf("Api Key %s not found", id))

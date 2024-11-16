@@ -5,7 +5,7 @@
 <div class="modal-body">
     <form>
         <div class="mb-3">
-            <p>Revoke certificate of <strong>{{options.client.username}}</strong> ?</p>
+            <p>Revoke certificate of <strong>{{options.client.username}}</strong>, serial <strong>{{options.client.certificate?.serialNumber}}</strong> ?</p>
             <p>Certificate valid until {{options.client.certificate!.expirationDate | date:'yyyy/MM/dd'}}</p>
         </div>
     </form>

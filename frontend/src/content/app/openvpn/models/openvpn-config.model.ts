@@ -1,6 +1,7 @@
 import { Route } from './route.model';
 import { ServiceConfig } from '../../shared/models/service-config';
 import {CertificatInfo} from './certificat-info.model';
+import {IssuedCertificate} from './certificat-issued.model';
 
 export class ApiKey {
     constructor(
@@ -53,13 +54,15 @@ export class Settings {
         public routes: Route[],
         public routesPush: Route[],
         public pushs: Route[],
-        public auth: string,
+        public auth: string|undefined,
         public serverCommonName: string,
+        public caCert: IssuedCertificate|undefined,
+        public serverCert: IssuedCertificate|undefined,
     ) {
 
     }
 
-    static parse(raw: Record<string, any>): Settings {
+    static parse(raw: Settings): Settings {
         return new Settings(
             raw?.serviceName,
             raw?.server,
@@ -78,8 +81,10 @@ export class Settings {
             (raw?.routes ?? []).map(Route.parse),
             (raw?.routesPush ?? []).map(Route.parse),
             raw?.pushs ?? [],
-          raw?.auth === ''? null: raw?.auth,
+          raw?.auth === '' ? undefined : raw?.auth,
           raw?.serverCommonName,
+          raw?.caCert ? IssuedCertificate.hydrate(raw?.caCert) : undefined,
+          raw?.serverCert ? IssuedCertificate.hydrate(raw?.serverCert) : undefined,
         );
     }
 

@@ -13,8 +13,8 @@ type AdminAccountUpdate struct {
 	Name     *string `json:"name,omitempty"`
 }
 
-func CreateUser(ovpnConfigDir string, preferences *model.ApplicationConfig, updates AdminAccountUpdate) error {
-	for _, u := range preferences.Users {
+func (pref *ApplicationConfig) CreateUser(ovpnConfigDir string, updates AdminAccountUpdate) error {
+	for _, u := range pref.Users {
 		if u.Username == updates.Username {
 			return errors.New(fmt.Sprintf("User %s already exists", updates.Username))
 		}
@@ -23,19 +23,19 @@ func CreateUser(ovpnConfigDir string, preferences *model.ApplicationConfig, upda
 	if err != nil {
 		return err
 	}
-	preferences.Users = append(preferences.Users, model.Account{
+	pref.Users = append(pref.Users, model.Account{
 		Username: updates.Username,
 		Password: string(encoded),
 		Name:     updates.Name,
 	})
-	return SavePreferences(ovpnConfigDir, preferences)
+	return pref.SavePreferences(ovpnConfigDir)
 }
 
-func DeleteUser(ovpnConfigDir string, preferences *model.ApplicationConfig, username string) error {
-	for i, u := range preferences.Users {
+func (pref *ApplicationConfig) DeleteUser(ovpnConfigDir string, username string) error {
+	for i, u := range pref.Users {
 		if u.Username == username {
-			preferences.Users = RemoveIndex(preferences.Users, i)
-			return SavePreferences(ovpnConfigDir, preferences)
+			pref.Users = RemoveIndex(pref.Users, i)
+			return pref.SavePreferences(ovpnConfigDir)
 		}
 	}
 	return errors.New(fmt.Sprintf("User %s not found", username))
@@ -45,20 +45,34 @@ func RemoveIndex(s []model.Account, index int) []model.Account {
 	return append(s[:index], s[index+1:]...)
 }
 
-func UpdateUser(ovpnConfigDir string, preferences *model.ApplicationConfig, username string, updates AdminAccountUpdate) error {
-	for i, u := range preferences.Users {
+func (pref *ApplicationConfig) UpdateUser(ovpnConfigDir string, username string, updates AdminAccountUpdate) error {
+	for i, u := range pref.Users {
 		if u.Username == username {
-			preferences.Users[i].Username = updates.Username
-			preferences.Users[i].Name = updates.Name
+			pref.Users[i].Username = updates.Username
+			pref.Users[i].Name = updates.Name
 			if len(updates.Password) > 0 {
 				encoded, err := bcrypt.GenerateFromPassword([]byte(updates.Password), bcrypt.DefaultCost)
 				if err != nil {
 					return err
 				}
-				preferences.Users[i].Password = string(encoded)
+				pref.Users[i].Password = string(encoded)
 			}
-			return SavePreferences(ovpnConfigDir, preferences)
+			return pref.SavePreferences(ovpnConfigDir)
 		}
 	}
 	return errors.New(fmt.Sprintf("User %s not found", username))
+}
+
+func (pref *ApplicationConfig) GetUserProfile(username string) *model.ConfigPublicAccount {
+	for _, u := range pref.Users {
+		if u.Username == username {
+			configPublicUser := new(model.ConfigPublicAccount)
+			configPublicUser.Username = username
+			if len(*u.Name) > 0 {
+				configPublicUser.Name = u.Name
+			}
+			return configPublicUser
+		}
+	}
+	return nil
 }

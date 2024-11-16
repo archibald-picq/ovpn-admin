@@ -21,6 +21,8 @@ class CertificatInfoViewModel implements CertificatInfo {
   city?: string;
   organisation?: string;
   organisationUnit?: string;
+  serialNumber: string | undefined;
+  expiresAt: Date | undefined;
 }
 
 class DhPemViewModel {

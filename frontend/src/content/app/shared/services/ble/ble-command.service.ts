@@ -57,9 +57,10 @@ export class BleCommandConnection extends BleConnection {
         console.warn('Not enough data yet (expect '+(size+5)+', got '+this.stream.byteLength+')');
         return;
       }
-      const str = this.decoder.decode(this.stream.slice(5, size+5));
+      const packet = this.stream.slice(5, size+5);
+      console.warn('parsing', packet.byteLength, ' bytes');
+      const str = this.decoder.decode(packet);
       this.stream = this.stream.slice(5 + size);
-      // console.warn('parsing "', str, '"');
       const obj = JSON.parse(str);
       // console.warn('obj', obj);
       this.confirmResponse(obj);

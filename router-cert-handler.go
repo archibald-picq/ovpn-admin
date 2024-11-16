@@ -24,7 +24,7 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if openvpn.ExistCcdCommonName(*serverConfFile, app.serverConf, userDefinition.CommonName) {
+	if openvpn.ExistCcdCommonName(app.serverConf, userDefinition.CommonName) {
 		returnErrorMessage(w, http.StatusPreconditionFailed, errors.New("conflicting existing files"))
 		return
 	}
@@ -56,7 +56,7 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 		//}
 
 	} else if typeCa == "server" {
-		certificate, err := openvpn.CreateServerCertificate(app.easyrsa, *authByPassword, *authDatabase, userDefinition)
+		certificate, err := app.easyrsa.CreateServerCertificate(userDefinition)
 		if err != nil {
 			//app.removeCcd(userDefinition.CommonName)
 			returnErrorMessage(w, http.StatusUnprocessableEntity, err)
@@ -73,11 +73,11 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 			Ccd:              newCcd,
 		}
 
-		openvpn.RebuildClientRevocationList(app.easyrsa)
+		app.easyrsa.RebuildClientRevocationList()
 		//app.serverConf.MasterCn = userDefinition.CommonName
 		err = returnJson(w, server)
 	} else {
-		certificate, err := openvpn.CreateClientCertificate(app.easyrsa, *authByPassword, *authDatabase, userDefinition)
+		certificate, err := app.easyrsa.CreateClientCertificate(userDefinition)
 		if err != nil {
 			app.removeCcd(userDefinition.CommonName)
 			returnErrorMessage(w, http.StatusUnprocessableEntity, err)
@@ -102,14 +102,14 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request, username string) {
+func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request, commonNameSerialNumber string) {
 
 	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
-	err := app.userRevoke(username)
+	err := app.userRevoke(commonNameSerialNumber)
 	//fmt.Fprintf(w, "%s", ret)
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
@@ -118,7 +118,7 @@ func (app *OvpnAdmin) userRevokeHandler(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request, username string) {
+func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request, commonNameSerialNumber string) {
 	//log.Printf("%s %s", r.RemoteAddr, r.RequestURI)
 
 	if !auth.HasReadRole(app.applicationPreferences.JwtData, r) {
@@ -126,7 +126,7 @@ func (app *OvpnAdmin) userUnrevokeHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err := app.userUnrevoke(username)
+	err := app.userUnrevoke(commonNameSerialNumber)
 	if err != nil {
 		log.Printf("unrevoke error %s", err.Error())
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
@@ -173,13 +173,14 @@ func (app *OvpnAdmin) userRotateHandler(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	err = app.userRotate(username, &userDefinition)
+	cert, err := app.userRotate(username, &userDefinition)
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 	//fmt.Sprintf(`{"message":"User %s successfully rotated"}`, username)
-	w.WriteHeader(http.StatusNoContent)
+	//w.WriteHeader(http.StatusNoContent)
+	returnJson(w, cert)
 }
 
 func (app *OvpnAdmin) userChangePasswordHandler(w http.ResponseWriter, r *http.Request, username string) {

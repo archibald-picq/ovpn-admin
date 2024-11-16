@@ -2,8 +2,9 @@ package auth
 
 import (
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"net/http"
+
+	"github.com/dgrijalva/jwt-go"
 )
 
 type Roles struct {
@@ -99,8 +100,8 @@ func JwtUsername(jwtData []byte, r *http.Request) (bool, string) {
 	})
 
 	if err != nil {
-		fmt.Println("jwt invalid")
-		return false, ""
+		fmt.Println("jwt invalid %s", err.Error())
+		return false, err.Error()
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)

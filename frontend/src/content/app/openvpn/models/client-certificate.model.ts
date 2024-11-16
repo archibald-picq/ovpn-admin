@@ -103,6 +103,7 @@ export class Certificate implements ICertificate {
 		public readonly organisation?: string,
 		public readonly organisationUnit?: string,
 		public readonly email?: string,
+		public readonly serialNumber?: string|undefined,
 		public readonly expirationDate?: Date|undefined,
 		public readonly revocationDate?: Date|undefined,
 		public accountStatus?: string,
@@ -118,6 +119,7 @@ export class Certificate implements ICertificate {
 			obj.organisation,
 			obj.organisationUnit,
 			obj.email,
+			obj.serialNumber,
 			ClientCertificate.parseDate(obj.expirationDate),
 			obj.revocationDate ? ClientCertificate.parseDate(obj.revocationDate): undefined,
 			obj.accountStatus,
@@ -136,7 +138,7 @@ export class Certificate implements ICertificate {
 	}
 
 	public static build(orig: CertificatInfo): CertificatInfo {
-		return this.copy({commonName: orig.commonName}, orig);
+		return this.copy({} as CertificatInfo, orig);
 	}
 }
 

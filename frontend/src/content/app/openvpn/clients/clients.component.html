@@ -44,6 +44,7 @@
         </mat-menu>
     </div>
 </div>
+<bus-openvpn-warning-expires [config]="config"></bus-openvpn-warning-expires>
 
 <!--<div>Websocket status: {{clients.status}}</div>-->
 
@@ -152,7 +153,7 @@
                     <mat-icon>delete</mat-icon>
                     <span>delete</span>
                 </button>
-                <button mat-menu-item [disabled]="element.certificate.revocationDate" (click)="rotateClientCertificate(element)">
+                <button mat-menu-item (click)="rotateClientCertificate(element)">
                     <mat-icon>autorenew</mat-icon>
                     <span>rotate</span>
                 </button>

@@ -102,38 +102,36 @@ func buildIndexLine(cert *Certificate) string {
 	return indexTxt
 }
 
-func ExistCcdCommonName(serverConfFile string, serverConf *OvpnConfig, commonName string) bool {
+func ExistCcdCommonName(serverConf *OvpnConfig, commonName string) bool {
 	if serverConf == nil {
 		return false
 	}
-	return shell.FileExist(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir) + "/" + commonName)
+	return shell.FileExist(serverConf.GetCcdPath() + "/" + commonName)
 }
 
-func ExistCcd(serverConfFile string, serverConf *OvpnConfig) bool {
+func ExistCcd(serverConf *OvpnConfig) bool {
 	if serverConf == nil {
 		return false
 	}
-	return shell.FileExist(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
+	return shell.FileExist(serverConf.GetCcdPath())
 }
 
 func CreateCcdIfNotExists(serverConfFile string, serverConf *OvpnConfig) error {
 	if serverConf == nil {
 		return nil
 	}
-	//log.Printf("check ccd file at %s", shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
-	if !ExistCcd(serverConfFile, serverConf) {
-		//log.Printf("create ccd at %s", shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
-		return shell.CreateDir(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir))
+	if !ExistCcd(serverConf) {
+		return shell.CreateDir(serverConf.GetCcdPath())
 	}
 	return nil
 }
 
-func RemoveCcd(serverConfFile string, serverConf *OvpnConfig, commonName string) {
-	stat := shell.FileExist(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir) + "/" + commonName)
+func RemoveCcd(serverConf *OvpnConfig, commonName string) {
+	stat := shell.FileExist(serverConf.GetCcdPath() + "/" + commonName)
 	if !stat {
 		return
 	}
-	err := shell.DeleteFile(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir) + "/" + commonName)
+	err := shell.DeleteFile(serverConf.GetCcdPath() + "/" + commonName)
 	if err != nil {
 		log.Printf("deleteFile error: %v", err)
 	}
@@ -147,15 +145,15 @@ func RenderIndexTxt(data []*Certificate) []byte {
 	return []byte(indexTxt)
 }
 
-func ParseCcd(serverConfFile string, serverConf *OvpnConfig, username string) *Ccd {
+func (serverConf *OvpnConfig) ParseCcd(username string) *Ccd {
 	if serverConf == nil {
 		return nil
 	}
-	if !shell.FileExist(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir) + "/" + username) {
+	if !shell.FileExist(serverConf.GetCcdPath() + "/" + username) {
 		//log.Printf("        -> ccd file does not exists '%s'", serverConf.CcdDir+"/"+username)
 		return nil
 	}
-	txtLinesArray := strings.Split(shell.ReadFile(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir)+"/"+username), "\n")
+	txtLinesArray := strings.Split(shell.ReadFile(serverConf.GetCcdPath()+"/"+username), "\n")
 	if len(txtLinesArray) == 0 {
 		return nil
 	}
@@ -227,12 +225,12 @@ func BuildCcd(ccd Ccd, serverMask string) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
-func UpdateCcd(serverConfFile string, serverConf *OvpnConfig, openvpnNetwork string, serverMask string, ccd Ccd, username string, existingCcd []*Ccd) error {
+func UpdateCcd(serverConf *OvpnConfig, openvpnNetwork string, serverMask string, ccd Ccd, username string, existingCcd []*Ccd) error {
 	err := ValidateCcd(openvpnNetwork, ccd, existingCcd)
 	if err != nil {
 		return err
 	}
-	err = shell.WriteFile(shell.AbsolutizePath(serverConfFile, serverConf.ClientConfigDir)+"/"+username, BuildCcd(ccd, serverMask))
+	err = shell.WriteFile(serverConf.GetCcdPath()+"/"+username, BuildCcd(ccd, serverMask))
 	if err != nil {
 		log.Printf("modifyCcd: fWrite(): %v", err)
 		return err

@@ -45,7 +45,7 @@ func (app *OvpnAdmin) userApplyCcdHandler(w http.ResponseWriter, r *http.Request
 	return 0, nil
 }
 func (app *OvpnAdmin) removeCcd(commonName string) {
-	openvpn.RemoveCcd(*serverConfFile, app.serverConf, commonName)
+	openvpn.RemoveCcd(app.serverConf, commonName)
 }
 
 func (app *OvpnAdmin) applyCcd(commonName string, ccd openvpn.Ccd) (*openvpn.Ccd, error) {
@@ -63,7 +63,7 @@ func (app *OvpnAdmin) applyCcd(commonName string, ccd openvpn.Ccd) (*openvpn.Ccd
 			existingCcd = append(existingCcd, client.Ccd)
 		}
 	}
-	err := openvpn.UpdateCcd(*serverConfFile, app.serverConf, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd, commonName, existingCcd)
+	err := openvpn.UpdateCcd(app.serverConf, openvpnNetwork, extractNetmask(app.serverConf.Server), ccd, commonName, existingCcd)
 	if err != nil {
 		return nil, err
 	}

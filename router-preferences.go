@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"rpiadm/backend/auth"
-	"rpiadm/backend/preference"
 )
 
 type ConfigPublicPreferencesPost struct {
@@ -37,7 +36,7 @@ func (app *OvpnAdmin) postPreferences(w http.ResponseWriter, r *http.Request) {
 	config.Preferences.AuthNocache = post.AuthNoCache
 	config.Preferences.VerifyX509Name = post.VerifyX509Name
 	config.Preferences.AllowAnonymousCsr = post.AllowAnonymousCsr
-	err = preference.SavePreferences(*ovpnConfigDir, config)
+	err = app.applicationPreferences.SavePreferences(*ovpnConfigDir)
 	if err != nil {
 		returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 		return
