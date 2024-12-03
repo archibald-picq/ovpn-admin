@@ -121,8 +121,7 @@ func ParseServerConf(file string) *OvpnConfig {
 	log.Printf("  -> ccd dir: '%s'", config.GetCcdPath())
 
 	if len(config.ca) > 0 {
-		x509cert := ReadCertificate(shell.AbsolutizePath(file, config.ca))
-		cert := mapX509ToCertificate(x509cert)
+		cert := ReadIssuedCertificate(shell.AbsolutizePath(file, config.ca))
 		if cert != nil {
 			config.caCert = cert
 		}

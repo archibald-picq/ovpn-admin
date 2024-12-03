@@ -120,7 +120,17 @@
     </ng-container>
     <ng-container matColumnDef="expirationDate">
         <th mat-header-cell *matHeaderCellDef mat-sort-header="expirationDate">Expiration Date</th>
-        <td mat-cell *matCellDef="let element" class="px-1"> {{element.certificate.expirationDate | date:'yyyy/MM/dd HH:mm:ss'}} </td>
+        <td mat-cell *matCellDef="let element" class="px-1">
+            <div class="button btn btn-outline-danger btn-sm" *ngIf="element.certificate.expirationDate < now" title="Expired !!!" (click)="rotateClientCertificate(element)">
+                {{element.certificate.expirationDate | date:'yyyy/MM/dd HH:mm:ss'}}
+            </div>
+            <div class="button btn btn-outline-warning btn-sm" *ngIf="element.certificate.expirationDate >= now && element.certificate.expirationDate < renewWarningDate" title="Expires soon" (click)="rotateClientCertificate(element)">
+                {{element.certificate.expirationDate | date:'yyyy/MM/dd HH:mm:ss'}}
+            </div>
+            <div *ngIf="element.certificate.expirationDate >= renewWarningDate">
+                {{element.certificate.expirationDate | date:'yyyy/MM/dd HH:mm:ss'}}
+            </div>
+        </td>
     </ng-container>
     <ng-container matColumnDef="revocationDate">
         <th mat-header-cell *matHeaderCellDef mat-sort-header="revocationDate">Revocation Date</th>

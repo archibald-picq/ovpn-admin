@@ -139,6 +139,9 @@ func (app *OvpnAdmin) createOrUpdateDeviceByCertificate(certificate *openvpn.Cer
 	for idx, client := range app.clients {
 		if client.Username == certificate.Username {
 			app.clients[idx].Certificate = certificate
+			if app.clients[idx].IssuedCertificate != nil {
+				app.clients[idx].Certificate.ExpirationDate = app.clients[idx].IssuedCertificate.ExpiresAt.Format(time.RFC3339)
+			}
 			//app.clients[idx].Certificate.Flag = certificate.Flag
 			//app.clients[idx].Certificate.DeletionDate = certificate.DeletionDate
 			//app.clients[idx].Certificate.ExpirationDate = certificate.ExpirationDate
@@ -151,17 +154,32 @@ func (app *OvpnAdmin) createOrUpdateDeviceByCertificate(certificate *openvpn.Cer
 }
 
 func (app *OvpnAdmin) createDeviceByCertificate(certificate *openvpn.Certificate) {
-	log.Printf("      -> create user '%v'", certificate.Username)
+	log.Printf("      -> create user '%v', expires: %v", certificate.Username, certificate.ExpirationDate)
 	ccd := app.serverConf.ParseCcd(certificate.Username)
+	cert := openvpn.ReadIssuedCertificate(app.easyrsa.EasyrsaDirPath + "/pki/issued/" + certificate.Username + ".crt")
+	if cert != nil {
+		compare := cert.ExpiresAt.Format("2006-01-02 15:04:05")
+		if compare != certificate.ExpirationDate {
+			log.Printf("         -> index.txt date %s differ from the actual known certificate %s", certificate.ExpirationDate, compare)
+			certificate.ExpirationDate = compare
+		}
+	} else if certificate.Flag == "V" {
+		log.Printf("         -> cert file is missing %s (serial: %s)", "pki/issued/"+certificate.Username+".crt", certificate.SerialNumber)
+		//certRevoked := openvpn.ReadIssuedCertificate(app.easyrsa.EasyrsaDirPath + "/pki/certs_by_serial/" + certificate.SerialNumber + ".crt")
+		//if certRevoked != nil {
+		//	log.Printf("         -> but exists in certs_by_serial %s (serial: %s)", "pki/certs_by_serial/"+certificate.Username+".crt", certificate.SerialNumber)
+		//}
+	}
 
 	app.clients = append(app.clients, &model.Device{
-		Username:         certificate.Username,
-		ConnectionStatus: "",
-		Certificate:      certificate,
-		RpiState:         nil,
-		Connections:      make([]*openvpn.VpnConnection, 0),
-		Rpic:             make([]*rpi.RpiConnection, 0),
-		Ccd:              ccd,
+		Username:          certificate.Username,
+		ConnectionStatus:  "",
+		Certificate:       certificate,
+		IssuedCertificate: cert,
+		RpiState:          nil,
+		Connections:       make([]*openvpn.VpnConnection, 0),
+		Rpic:              make([]*rpi.RpiConnection, 0),
+		Ccd:               ccd,
 	})
 }
 

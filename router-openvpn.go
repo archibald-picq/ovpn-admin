@@ -35,7 +35,7 @@ func (app *OvpnAdmin) handleOpenvpnCommand(w http.ResponseWriter, r *http.Reques
 	}
 
 	if r.URL.Path == "/api/openvpn/init-pki" && r.Method == "POST" {
-		err := openvpn.InitPki(app.easyrsa)
+		err := app.easyrsa.InitPki()
 		if err != nil {
 			returnErrorMessage(w, http.StatusUnprocessableEntity, err)
 			return

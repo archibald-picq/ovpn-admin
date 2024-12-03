@@ -29,6 +29,10 @@ func (easyrsa Easyrsa) CreateServerCertificate(definition UserDefinition) (*Cert
 		cmdOptions = fmt.Sprintf("--days=%.0f", days)
 	}
 
+	//if authByPassword && ValidatePassword(definition.Password) == nil {
+	//	return nil, errors.New(fmt.Sprintf("Key too short, password length must be greater or equal %d", passwordMinLength))
+	//}
+
 	cmd := fmt.Sprintf(
 		"cd %s && "+
 			"EASYRSA_REQ_COUNTRY=%s "+
@@ -74,5 +78,6 @@ func (easyrsa Easyrsa) CreateServerCertificate(definition UserDefinition) (*Cert
 	if cert != nil {
 		return cert, nil
 	}
+
 	return nil, errors.New("cant find just created certificate")
 }

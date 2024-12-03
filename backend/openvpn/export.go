@@ -1,9 +1,5 @@
 package openvpn
 
-import (
-	"log"
-)
-
 type ConfigPublicSettings struct {
 	ServiceName                string             `json:"serviceName"`
 	Server                     string             `json:"server"`
@@ -57,35 +53,4 @@ func (config *OvpnConfig) ExportServiceSettings(easyrsa Easyrsa) *ConfigPublicSe
 	settings.ServerCert = config.ServerCert
 
 	return settings
-}
-
-func ReadIssuedCertificateX509(path string) *IssuedCertificate {
-	x509cert, err := ReadCertificateX509(path)
-	if err != nil {
-		log.Printf("can't read '%s' certificate", path)
-		return nil
-	}
-
-	var cert IssuedCertificate
-	cert.CommonName = x509cert.Subject.CommonName
-	if len(x509cert.EmailAddresses) > 0 {
-		cert.Email = x509cert.EmailAddresses[0]
-	}
-	if len(x509cert.Subject.Country) > 0 {
-		cert.Country = x509cert.Subject.Country[0]
-	}
-	if len(x509cert.Subject.Province) > 0 {
-		cert.Province = x509cert.Subject.Province[0]
-	}
-	if len(x509cert.Subject.Locality) > 0 {
-		cert.City = x509cert.Subject.Locality[0]
-	}
-	if len(x509cert.Subject.Organization) > 0 {
-		cert.Organisation = x509cert.Subject.Organization[0]
-	}
-	if len(x509cert.Subject.OrganizationalUnit) > 0 {
-		cert.OrganisationUnit = x509cert.Subject.OrganizationalUnit[0]
-	}
-	cert.ExpiresAt = x509cert.NotAfter
-	return &cert
 }

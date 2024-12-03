@@ -157,12 +157,12 @@ func (app *OvpnAdmin) buildServerSetupConfig() *openvpn.ServerConfigVpn {
 		certs := app.easyrsa.IndexTxtParserCertificate()
 		count := len(certs)
 		serverSetup.PkiInit = &count
-		serverSetup.ServerCert = openvpn.FindFirstServerCertIfExists(app.easyrsa, certs)
+		serverSetup.ServerCert = app.easyrsa.FindFirstServerCertIfExists(certs)
 	} else {
 		serverSetup.ServerCert = nil
 	}
 	serverSetup.DhPem = openvpn.DhPemExists(app.easyrsa)
-	serverSetup.CaCert = openvpn.ReadCaCertIfExists(app.easyrsa)
+	serverSetup.CaCert = app.easyrsa.ReadCaCertIfExists()
 	return &serverSetup
 }
 func (app *OvpnAdmin) saveServerConfig(w http.ResponseWriter, r *http.Request, serviceName string) {

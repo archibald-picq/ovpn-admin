@@ -1,7 +1,16 @@
-<div class="alert alert-warning" role="alert">
+<div class="alert alert-danger" role="alert" *ngIf="config?.settings.serverCert?.expiresAt < now">
   <div class="d-grid gap-2 d-md-flex">
     <div class="message flex-grow-1">
-      WARNING expiration date: {{config?.settings.serverCert?.expiresAt}}
+      WARNING: Server certificate expired since {{diffDates(config?.settings.serverCert?.expiresAt, now)}}: ({{config?.settings.serverCert?.expiresAt.toLocaleString()}})
+    </div>
+
+    <button (click)="rotateServerCertificate()" type="button" class="btn btn-primary">Renew</button>
+  </div>
+</div>
+<div class="alert alert-warning" role="alert" *ngIf="config?.settings.serverCert?.expiresAt >= now && config?.settings.serverCert?.expiresAt < renewWarningDate">
+  <div class="d-grid gap-2 d-md-flex">
+    <div class="message flex-grow-1">
+      WARNING: Server certificate expires in {{diffDates(config?.settings.serverCert?.expiresAt, now)}}: {{config?.settings.serverCert?.expiresAt.toLocaleString()}}
     </div>
 
     <button (click)="rotateServerCertificate()" type="button" class="btn btn-primary">Renew</button>

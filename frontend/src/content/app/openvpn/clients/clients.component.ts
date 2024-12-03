@@ -39,6 +39,8 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
     private sort?: Sort;
     public minSpeedThreshold = 1024; // don't show speed lower thant 1kb/s
     public readonly config: OpenvpnServiceConfig;
+    public renewWarningDate: Date = new Date();
+    public now: Date = new Date();
 
     private usersCallback = (data: any) => {
         this.mergeLists(this.clients, data);
@@ -56,6 +58,7 @@ export class OpenvpnClientsComponent implements OnInit, OnDestroy {
         private readonly websocketService: WebsocketService,
         private readonly csvService: CsvService,
     ) {
+        this.renewWarningDate.setDate(this.renewWarningDate.getDate() + 30);
         this.clients = this.activatedRoute.snapshot.data.clients;
         this.config = this.activatedRoute.parent?.snapshot.data.config;
         console.warn('config', this.config);

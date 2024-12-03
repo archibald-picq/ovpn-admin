@@ -83,8 +83,7 @@ func (app *OvpnAdmin) userListHandler(w http.ResponseWriter, r *http.Request) {
 	clients := make([]*model.Device, 0)
 
 	for _, client := range app.clients {
-		if client.Certificate.Flag != "D" {
-			//&& (app.serverConf == nil || client.Username != app.serverConf.MasterCn)
+		if client.Certificate.Flag != "D" && (app.serverConf == nil || client.Username != app.serverConf.MasterCn) {
 			clients = append(clients, client)
 		}
 	}

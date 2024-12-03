@@ -6,11 +6,12 @@ import (
 )
 
 type Device struct {
-	Username         string                   `json:"username"`
-	ConnectionStatus string                   `json:"connectionStatus"`
-	Certificate      *openvpn.Certificate     `json:"certificate"`
-	RpiState         *rpi.RpiState            `json:"rpiState,omitempty"`
-	Connections      []*openvpn.VpnConnection `json:"connections"`
-	Rpic             []*rpi.RpiConnection     `json:"rpic"`
-	Ccd              *openvpn.Ccd             `json:"ccd"`
+	Username          string                     `json:"username"`
+	ConnectionStatus  string                     `json:"connectionStatus"`
+	Certificate       *openvpn.Certificate       `json:"certificate"`
+	RpiState          *rpi.RpiState              `json:"rpiState,omitempty"`
+	Connections       []*openvpn.VpnConnection   `json:"connections"`
+	Rpic              []*rpi.RpiConnection       `json:"rpic"`
+	Ccd               *openvpn.Ccd               `json:"ccd"`
+	IssuedCertificate *openvpn.IssuedCertificate `json:"-"`
 }

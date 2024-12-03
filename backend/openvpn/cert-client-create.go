@@ -13,7 +13,7 @@ func (easyrsa Easyrsa) CreateClientCertificate(definition UserDefinition) (*Cert
 	log.Printf("CreateClientCertificate(%s)", definition.CommonName)
 
 	if !validateUsername(definition.CommonName) {
-		return nil, errors.New(fmt.Sprintf("Username \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
+		return nil, errors.New(fmt.Sprintf("Certificate commonName \"%s\" incorrect, you can use only %s\n", definition.CommonName, usernameRegexp))
 	}
 
 	if easyrsa.checkUserActiveExist(definition.CommonName) {
@@ -55,26 +55,26 @@ func (easyrsa Easyrsa) CreateClientCertificate(definition UserDefinition) (*Cert
 	)
 
 	log.Printf("cmd %s", cmd)
-	o, err := shell.RunBash(cmd)
-	log.Printf("--- bash returned")
+	output, err := shell.RunBash(cmd)
 	if err != nil {
 		log.Printf("Error creating client certificate \"%s\", using \"cmd\" %s", err, cmd)
 		return nil, errors.New(fmt.Sprintf("Error creating client certificate \"%s\"", err))
 	}
 
-	log.Printf("cert generated %s", o)
+	log.Printf("cert generated %s", output)
 
 	//if authByPassword {
-	//	o, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.CommonName, definition.Password))
+	//	output, err := shell.RunBash(fmt.Sprintf("openvpn-user create --db.path %s --user %s --password %s", authDatabase, definition.CommonName, definition.Password))
 	//	if err != nil {
 	//		return nil, errors.New(fmt.Sprintf("Error creating user in DB \"%s\"", err))
 	//	}
-	//	log.Printf("create password for %s: %s", definition.CommonName, o)
+	//	log.Printf("create password for %s: %s", definition.CommonName, output)
 	//}
 
 	log.Printf("Certificate for user %s issued", definition.CommonName)
 
 	cert, _ := easyrsa.FindUnrevokedCertificate(definition.CommonName)
+
 	if cert != nil {
 		return cert, nil
 	}

@@ -39,7 +39,7 @@ func (app *OvpnAdmin) userCreateHandler(w http.ResponseWriter, r *http.Request) 
 
 	log.Printf("create user with %v\n", userDefinition)
 	if typeCa := r.URL.Query().Get("type"); typeCa == "ca" {
-		if openvpn.CaCertExists(app.easyrsa) {
+		if app.easyrsa.CaCertExists() {
 			returnErrorMessage(w, http.StatusUnprocessableEntity, errors.New("ca already exists"))
 			return
 		}

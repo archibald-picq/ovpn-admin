@@ -141,18 +141,21 @@ func BuildClientCertificate(identity string, flag string, expirationDate string,
 	return cert
 }
 
+var reCN = regexp.MustCompile("/CN=([^/]+)")
+var reDeleted = regexp.MustCompile("^DELETED-?(.+)-[0-9a-f]{32}$")
+
 func extractDeletionDate(identity string) string {
-	re := regexp.MustCompile("/CN=([^/]+)")
-	match := re.FindStringSubmatch(identity)
+	match := reCN.FindStringSubmatch(identity)
 	if len(match) <= 0 {
 		return ""
 	}
-	if strings.HasPrefix(match[1], "DELETED-") {
-		matched := string(match[1][len("DELETED-"):])
+	commonName := match[1]
+	if strings.HasPrefix(commonName, "DELETED-") {
+		matched := string(commonName[len("DELETED-"):])
 		parts := strings.Split(matched, "-")
 		return parts[len(parts)-1]
-	} else if strings.HasPrefix(match[1], "DELETED") {
-		matched := string(match[1][len("DELETED"):])
+	} else if strings.HasPrefix(commonName, "DELETED") {
+		matched := string(commonName[len("DELETED"):])
 		parts := strings.Split(matched, "-")
 		return parts[len(parts)-1]
 	} else {
@@ -214,11 +217,8 @@ func extractEmail(identity string) string {
 	return match[1]
 }
 
-var reCn = regexp.MustCompile("/CN=([^/]+)")
-var reDeleted = regexp.MustCompile("^DELETED-?(.+)-[0-9a-f]{32}$")
-
 func extractUsername(identity string) string {
-	match := reCn.FindStringSubmatch(identity)
+	match := reCN.FindStringSubmatch(identity)
 	if len(match) <= 0 {
 		return ""
 	}
@@ -289,10 +289,17 @@ func IsValidServerCert(easyrsa Easyrsa, commonName string) bool {
 func ReadCertificate(path string) *x509.Certificate {
 	x509cert, err := ReadCertificateX509(path)
 	if err != nil {
-		log.Printf("error reading certificate '%s': %s", path, err.Error())
 		return nil
 	}
 	return x509cert
+}
+
+func ReadIssuedCertificate(path string) *IssuedCertificate {
+	x509cert, err := ReadCertificateX509(path)
+	if err != nil {
+		return nil
+	}
+	return mapX509ToCertificate(x509cert)
 }
 
 func mapX509ToCertificate(x509cert *x509.Certificate) *IssuedCertificate {

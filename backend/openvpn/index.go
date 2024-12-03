@@ -27,6 +27,8 @@ func (easyrsa Easyrsa) IndexTxtParserCertificate() []*Certificate {
 		case strings.HasPrefix(str[0], "R"):
 			identity := strings.Join(str[5:], " ")
 			indexTxt = append(indexTxt, BuildClientCertificate(identity, "R", str[1], &str[2], str[3], str[4]))
+		default:
+			log.Printf("Skip unknown line: %s", str)
 		}
 	}
 	return indexTxt
@@ -68,7 +70,7 @@ func (easyrsa Easyrsa) IsPkiInited() bool {
 	return shell.FileExist(easyrsa.EasyrsaDirPath+"/pki/vars") && shell.FileExist(easyrsa.EasyrsaDirPath+"/pki/private")
 }
 
-func CaCertExists(easyrsa Easyrsa) bool {
+func (easyrsa Easyrsa) CaCertExists() bool {
 	return shell.FileExist(easyrsa.EasyrsaDirPath + "/pki/ca.crt")
 }
 
@@ -76,7 +78,7 @@ func (easyrsa Easyrsa) IndexTxtExists() bool {
 	return shell.FileExist(easyrsa.EasyrsaDirPath + "/pki/index.txt")
 }
 
-func FindFirstServerCertIfExists(easyrsa Easyrsa, certicates []*Certificate) *IssuedCertificate {
+func (easyrsa Easyrsa) FindFirstServerCertIfExists(certicates []*Certificate) *IssuedCertificate {
 	for _, cert := range certicates {
 		x509cert, err := ReadCertificateX509(easyrsa.EasyrsaDirPath + "/pki/issued/" + cert.Username + ".crt")
 		if err != nil {
@@ -102,16 +104,14 @@ func isServerCert(x509cert *x509.Certificate) bool {
 	return false
 }
 
-func ReadCaCertIfExists(easyrsa Easyrsa) *IssuedCertificate {
+func (easyrsa Easyrsa) ReadCaCertIfExists() *IssuedCertificate {
 	if shell.FileExist(easyrsa.EasyrsaDirPath + "/pki/ca.crt") {
-		x509cert := ReadCertificate(easyrsa.EasyrsaDirPath + "/pki/ca.crt")
-		return mapX509ToCertificate(x509cert)
-
+		return ReadIssuedCertificate(easyrsa.EasyrsaDirPath + "/pki/ca.crt")
 	}
 	return nil
 }
 
-func InitPki(easyrsa Easyrsa) error {
+func (easyrsa Easyrsa) InitPki() error {
 	//if IndexTxtExists(easyrsa) {
 	//	return nil
 	//}

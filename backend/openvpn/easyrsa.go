@@ -40,6 +40,19 @@ func (easyrsa Easyrsa) PatchRevokedCertificates(all []*Certificate) []*Certifica
 	changed := false
 	for _, cert := range all {
 
+		if cert.Flag == "D" {
+			//log.Printf("check deleted cert %s", cert.Username)
+			certRevoked := ReadIssuedCertificate(easyrsa.EasyrsaDirPath + "/pki/revoked/certs_by_serial/" + cert.SerialNumber + ".crt")
+			if certRevoked != nil && certRevoked.CommonName != cert.Username {
+				if changed == false {
+					log.Printf("  -> index.txt: fix inconsistency")
+				}
+				log.Printf("      -> deleted cert '%s' (serial: %s) does not match revoked cert '%s'", cert.Username, cert.SerialNumber, certRevoked.CommonName)
+				(*cert).Username = certRevoked.CommonName
+				changed = true
+			}
+		}
+
 		if !shell.FileExist(easyrsa.EasyrsaDirPath+"/pki/issued/"+cert.Username+".crt") &&
 			shell.FileExist(easyrsa.EasyrsaDirPath+"/pki/revoked/certs_by_serial/"+cert.SerialNumber+".crt") &&
 			!shell.FileExist(easyrsa.EasyrsaDirPath+"/pki/private/"+cert.Username+".key") &&
@@ -48,7 +61,10 @@ func (easyrsa Easyrsa) PatchRevokedCertificates(all []*Certificate) []*Certifica
 			shell.FileExist(easyrsa.EasyrsaDirPath+"/pki/revoked/reqs_by_serial/"+cert.SerialNumber+".req") {
 
 			if cert.Flag == "V" {
-				log.Printf("cert %s is marked V but all files are revokated")
+				if changed == false {
+					log.Printf("  -> index.txt: fix inconsistency")
+				}
+				log.Printf("      -> cert %s is marked V but all files are revokated")
 				(*cert).Flag = "R"
 				(*cert).RevocationDate = time.Now().Format(time.RFC3339)
 				changed = true

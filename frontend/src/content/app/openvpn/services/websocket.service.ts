@@ -35,8 +35,8 @@ export class WebsocketService {
             this.streams[streamName] = [];
             if (this.server?.readyState === 1) {
                 this.server.send(JSON.stringify({action: 'register', data: {stream: streamName}}));
-            } else {
-                console.warn('not yet connected to register stream "'+streamName+'"');
+            // } else {
+            //     console.warn('not yet connected to register stream "'+streamName+'"');
             }
         }
         this.streams[streamName].push(callback);

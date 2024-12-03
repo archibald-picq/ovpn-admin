@@ -159,7 +159,7 @@ func daemon() {
 		log.Fatal("Can't get CWD")
 	}
 
-	log.Printf("current working directory %s", path)
+	//log.Printf("current working directory %s", path)
 
 	app.serverConf = openvpn.ParseServerConf(shell.AbsolutizePath(path+"/", *serverConfFil))
 
@@ -172,7 +172,7 @@ func daemon() {
 		//log.Printf("loaded config %v", app.serverConf)
 		// initial device load
 		allCerts := app.easyrsa.IndexTxtParserCertificate()
-		log.Printf("  -> index.txt: %d entry loaded", len(allCerts))
+		//log.Printf("  -> index.txt: %d entry loaded", len(allCerts))
 		allCerts = app.easyrsa.PatchRevokedCertificates(allCerts)
 		log.Printf("  -> index.txt: %d entry loaded", len(allCerts))
 		for _, cert := range allCerts {
@@ -180,7 +180,7 @@ func daemon() {
 				app.createOrUpdateDeviceByCertificate(cert)
 			}
 		}
-		log.Printf("  -> certificates: %d (ccd: %d)", len(app.clients), app.countClientsWithCcd())
+		log.Printf("  -> active certificates: %d (ccd: %d)", len(app.clients), app.countClientsWithCcd())
 	} else if app.easyrsa.IsPkiInited() {
 		log.Printf("  -> pki dir: '%s' (initializing)", app.easyrsa.EasyrsaDirPath+"/pki")
 	} else {
@@ -188,6 +188,8 @@ func daemon() {
 	}
 	if len(app.serverConf.CrlVerify) > 0 {
 		app.easyrsa.UpdateCertificateRevocationList(app.serverConf.GetCrlPath())
+	} else {
+		log.Printf("  -> crl is not enabled !!!")
 	}
 
 	app.registerMetrics()
