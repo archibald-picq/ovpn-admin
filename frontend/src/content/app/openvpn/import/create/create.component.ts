@@ -358,9 +358,9 @@ export class ImportCreateComponent {
     if (!row.commonName.match(/^([a-zA-Z0-9_.\-@])+$/)) {
       return 'commonName invalid';
     }
-    if (!row.email?.length) {
-      return 'email required';
-    }
+    // if (!row.email?.length) {
+    //   return 'email required';
+    // }
 
     if (row.staticAddress) {
       const alreadyUsed = this.clients.find(c => c.ccd?.clientAddress === row.staticAddress);

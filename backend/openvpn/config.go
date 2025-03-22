@@ -95,6 +95,10 @@ func (config *OvpnConfig) GetCrlPath() string {
 	return shell.AbsolutizePath(config.SourceFile, config.CrlVerify)
 }
 
+func (config *OvpnConfig) GetTlsCryptPath() string {
+	return shell.AbsolutizePath(config.SourceFile, config.TlsCrypt)
+}
+
 func (config *OvpnConfig) GetCcdPath() string {
 	return shell.AbsolutizePath(config.SourceFile, config.ClientConfigDir)
 }
@@ -640,10 +644,10 @@ func BuildConfig(config OvpnConfig) []byte {
 		lines = append(lines, "push \"redirect-gateway ipv6\"")
 	}
 	if config.DnsIpv4 != nil && len(*config.DnsIpv4) > 0 {
-		lines = append(lines, fmt.Sprintf("push \"dhcp-option DNS %s\"", config.DnsIpv4))
+		lines = append(lines, fmt.Sprintf("push \"dhcp-option DNS %s\"", *config.DnsIpv4))
 	}
 	if config.DnsIpv6 != nil && len(*config.DnsIpv6) > 0 {
-		lines = append(lines, fmt.Sprintf("push \"dhcp-option DNS %s\"", config.DnsIpv6))
+		lines = append(lines, fmt.Sprintf("push \"dhcp-option DNS %s\"", *config.DnsIpv6))
 	}
 	if len(config.Push) > 0 {
 		lines = append(lines, "")

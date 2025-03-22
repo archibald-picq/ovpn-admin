@@ -186,16 +186,18 @@ func daemon() {
 	} else {
 		log.Printf("  -> pki dir: '%s' (absent)", app.easyrsa.EasyrsaDirPath+"/pki")
 	}
-	if len(app.serverConf.CrlVerify) > 0 {
-		app.easyrsa.UpdateCertificateRevocationList(app.serverConf.GetCrlPath())
-	} else {
-		log.Printf("  -> crl is not enabled !!!")
-	}
 
 	app.registerMetrics()
+	if app.serverConf != nil {
+		if len(app.serverConf.CrlVerify) > 0 {
+			app.easyrsa.UpdateCertificateRevocationList(app.serverConf.GetCrlPath())
+		} else {
+			log.Printf("  -> crl is not enabled !!!")
+		}
 
-	if app.serverConf != nil && len(app.serverConf.Management) > 0 {
-		go app.connectToManagementInterface()
+		if len(app.serverConf.Management) > 0 {
+			go app.connectToManagementInterface()
+		}
 	}
 
 	app.triggerUpdateChan = make(chan *model.Device)

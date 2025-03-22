@@ -61,7 +61,7 @@ func RenderClientConfig(
 		conf.CompLzo = true
 	}
 	if len(config.TlsCrypt) > 0 {
-		conf.TlsCrypt = stripDashComments(shell.ReadFile(config.GetCrlPath()))
+		conf.TlsCrypt = stripDashComments(shell.ReadFile(config.GetTlsCryptPath()))
 	}
 
 	conf.Auth = config.Auth
@@ -161,7 +161,7 @@ func buildOvpnClientConfigFile(conf OpenvpnClientConfig) []byte {
 		lines = append(lines, conf.TLS)
 		lines = append(lines, "</tls-auth>")
 	}
-	if len(conf.TLS) > 0 {
+	if len(conf.TlsCrypt) > 0 {
 		lines = append(lines, "<tls-crypt>")
 		lines = append(lines, conf.TlsCrypt)
 		lines = append(lines, "</tls-crypt>")
